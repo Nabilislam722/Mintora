@@ -1,0 +1,44 @@
+import { Switch, Route } from "wouter";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import Navbar from "./components/Navbar";
+import HoverSidebar from "./components/HoverSidebar";
+import Home from "./pages/Home";
+import Collections from "./pages/Collections";
+import CollectionDetails from "./pages/CollectionDetails";
+import NftDetails from "./pages/NftDetails";
+import Profile from "./pages/Profile";
+import Create from "./pages/Create";
+import NotFound from "./pages/NotFound";
+
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Home} />
+      <Route path="/collections" component={Collections} />
+      <Route path="/collections/:slug" component={CollectionDetails} />
+      <Route path="/nfts/:collectionId/:tokenId" component={NftDetails} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/create" component={Create} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+      <TooltipProvider>
+          <div className="min-h-screen bg-background text-foreground">
+            <Navbar />
+            <HoverSidebar />
+            <main className="pt-16">
+              <Router />
+            </main>
+          </div>
+          <Toaster />
+      </TooltipProvider>
+  );
+}
+
+export default App;
