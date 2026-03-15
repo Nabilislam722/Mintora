@@ -111,8 +111,6 @@ async function syncExistingCollection(contractAddress) {
     try {
         const totalSupply = await nftContract.totalSupply();
         console.log(`📦 Found ${totalSupply} tokens. Syncing...`);
-
-        // Loop includes both 0 and totalSupply to handle both 0-indexed and 1-indexed contracts
         for (let i = 0; i <= Number(totalSupply); i++) {
             const tokenId = i.toString();
             try {
@@ -122,7 +120,6 @@ async function syncExistingCollection(contractAddress) {
                     marketplace.getListing(contractAddress, tokenId)
                 ]);
 
-                // Pass tokenId to the new waterfall resolver
                 const metadata = await resolveMetadata(uri, tokenId);
 
                 if (!metadata) {
@@ -149,7 +146,7 @@ async function syncExistingCollection(contractAddress) {
                         imageUrl,
                         attributes: metadata.attributes || [],
                         ownerAddress: owner.toLowerCase(),
-                        isListed: listing.price > 0n, // Ethers v6 BigInt check
+                        isListed: listing.price > 0n, 
                         price: listing.price.toString(),
                         seller: listing.seller !== ethers.ZeroAddress ? listing.seller.toLowerCase() : null,
                         lastSyncedAt: new Date()

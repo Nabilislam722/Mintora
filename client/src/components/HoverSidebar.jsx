@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, LayoutGrid, PlusCircle, User, Sparkles, ChevronLeft } from "lucide-react";
+import { Home, LayoutGrid, PlusCircle, User, Sparkles, ChevronLeft, Settings } from "lucide-react";
 import { Link } from "wouter";
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { href: "/collections", icon: LayoutGrid, label: "Collections" },
   { href: "/create", icon: PlusCircle, label: "Create" },
   { href: "/profile", icon: User, label: "Profile" },
+  { href: "/settings", icon: Settings, label: "Settings"},
 ];
 
 export default function HoverSidebar() {

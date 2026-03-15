@@ -54,22 +54,28 @@ export async function registerRoutes(app) {
 
   // --- NFTs ---
   app.get("/api/nfts", async (req, res) => {
-    let { limit = 50, owner, collectionId } = req.query;
-    const finalLimit = Math.min(parseInt(limit), 100);
+    let { limit = 500, owner, collectionId } = req.query;
+    const finalLimit = Math.min(parseInt(limit), 1000);
 
     try {
       let query = {};
+      let sortConfig = { lastSyncedAt: -1 };
+
       if (owner) {
         query.ownerAddress = owner.toLowerCase();
-      } else if (collectionId) {
+      } 
+      else if (collectionId) {
         query.collectionId = collectionId;
-      } else {
+        sortConfig = { tokenId: 1 };
+      } 
+      else {
         query.isListed = true;
       }
 
       const nfts = await NFT.find(query)
         .populate("collectionId")
-        .sort({ lastSyncedAt: -1 })
+        .collation({ locale: "en_US", numericOrdering: true })
+        .sort(sortConfig)
         .limit(finalLimit);
 
       res.json(nfts);

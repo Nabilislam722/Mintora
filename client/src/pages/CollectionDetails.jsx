@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import NftCard from "../components/NftCard";
-import { CheckCircle2, ExternalLink, Grid3X3, List, Tag } from "lucide-react"; // Added Tag icon
+import { CheckCircle2, ExternalLink, Grid3X3, List, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState, useMemo } from "react"; // Added useMemo for performance
+import { useState, useMemo } from "react";
 
 export default function CollectionDetails() {
   const { slug } = useParams();
@@ -20,12 +20,17 @@ export default function CollectionDetails() {
     queryKey: [`/api/nfts?collectionId=${collection?._id}`],
     enabled: !!collection?._id,
   });
+  const targetNft = nfts?.find(n => n.tokenId === "173");
+  console.log("Debug Token 173:", targetNft);
 
   const filteredNfts = useMemo(() => {
-    if (!nfts) return [];
-    if (!showListedOnly) return nfts;
-    return nfts.filter(nft => nft.isListed === true);
-  }, [nfts, showListedOnly]);
+  if (!nfts) return [];
+  if (!showListedOnly) return nfts;
+  
+  return nfts.filter(nft => {   
+    return nft.isListed === true || (nft.price && nft.price !== "0");
+  });
+}, [nfts, showListedOnly]);
 
   if (loadingCol) {
     return (
@@ -165,7 +170,7 @@ export default function CollectionDetails() {
               <div className={
                 viewMode === "grid"
                   ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                  : "flex flex-col gap-4" // Simple list view layout
+                  : "flex flex-col gap-4"
               }>
                 {/* 5. Map over filteredNfts instead of nfts */}
                 {filteredNfts.map((nft) => (

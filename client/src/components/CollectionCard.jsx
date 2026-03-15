@@ -1,11 +1,11 @@
 import { Link } from "wouter";
-import { CheckCircle2 } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 
 export default function CollectionCard({ collection, size = "default" }) {
   const sizeClasses = {
     small: "h-20",
-    default: "h-24",
-    large: "h-32",
+    default: "h-32",
+    large: "h-36",
   };
 
   return (
@@ -15,7 +15,7 @@ export default function CollectionCard({ collection, size = "default" }) {
           <img
             src={collection.bannerUrl}
             alt={collection.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 "
             loading="lazy"
           />
         </div>
@@ -33,10 +33,10 @@ export default function CollectionCard({ collection, size = "default" }) {
           </div>
 
           <div className="pt-8">
-            <div className="flex items-center gap-1 mb-1">
+            <div className="flex items-center gap-3 mb-1">
               <h3 className="font-display font-bold text-sm truncate">{collection.name}</h3>
               {collection.isVerified && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 fill-blue-400 flex-shrink-0" />
+                <BadgeCheck  className="w-5 h-5 text-blue-400 flex-shrink-0" />
               )}
             </div>
 

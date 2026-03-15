@@ -31,7 +31,7 @@ export default function FeaturedCarousel() {
 
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % slides.length);
-    }, 5000);
+    }, 10000);
 
     return () => clearInterval(timer);
   }, [slides.length]);
@@ -39,13 +39,11 @@ export default function FeaturedCarousel() {
   if (loading) {
     return <div className="h-[320px] md:h-[380px] bg-muted animate-pulse rounded-2xl flex items-center justify-center">Loading Featured...</div>;
   }
-
   if (slides.length === 0) return null;
-
   const slide = slides[current];
 
   return (
-    <div className="relative h-[320px] md:h-[380px] overflow-hidden">
+    <div className="relative bottom-5 h-[320px] md:h-[380px] overflow-hidden">
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-700"
         style={{ backgroundImage: `url(${slide.bgImage})` }}
@@ -74,7 +72,7 @@ export default function FeaturedCarousel() {
           <p className="text-sm text-white/70 mb-1">{slide.subtitle}</p>
           <h2 className="text-2xl md:text-3xl font-display font-bold mb-4 text-white">{slide.title}</h2>
 
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-5" data-testid="button-carousel-cta">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground border-none font-semibold rounded-xl px-5" data-testid="button-carousel-cta">
             {slide.cta}
           </Button>
         </div>

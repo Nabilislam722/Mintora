@@ -1,0 +1,59 @@
+ @keyframes shimmer-sweep {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes ambient-breathe {
+    0%, 100% { opacity: 0.4; }
+    50%       { opacity: 0.75; }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .nft-row {
+    display: grid;
+    grid-template-columns: 2.5rem 3rem 1fr 1fr auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+    animation: fade-up 0.3s ease both;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .nft-row:hover {
+    background: rgba(255,255,255,0.04);
+  }
+  .nft-row:hover .row-arrow {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  .row-arrow {
+    opacity: 0;
+    transform: translate(-4px, 4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+  .view-toggle button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    transition: background 0.15s ease, color 0.15s ease;
+    color: rgba(255,255,255,0.3);
+  }
+  .view-toggle button.active {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.85);
+  }
+  .view-toggle button:not(.active):hover {
+    color: rgba(255,255,255,0.55);
+  }
+  .nft-grid-enter {
+    animation: fade-up 0.25s ease both;
+  }
+  .nft-list-enter {
+    animation: fade-up 0.25s ease both;
+  }

@@ -10,6 +10,7 @@ import NftDetails from "./pages/NftDetails";
 import Profile from "./pages/Profile";
 import Create from "./pages/Create";
 import NotFound from "./pages/NotFound";
+import Settings from "./pages/Settings";
 
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/nfts/:collectionId/:tokenId" component={NftDetails} />
       <Route path="/profile" component={Profile} />
       <Route path="/create" component={Create} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );

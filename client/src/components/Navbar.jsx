@@ -27,12 +27,12 @@ export default function Navbar({ onHoverRight }) {
           <ThemeToggle />
            
           {/* Wallet Connection */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-6">
             <ConnectButton chainStatus="Hemi"/>
           </div> 
           <Link href="/" className="flex items-center gap-2" data-testid="link-home">
-            <div className="w-8 h-8 bg-purple-700 rounded-lg flex items-center justify-center">
-              
+            <div className="w-20 h-20 rounded-lg flex items-center justify-center">
+              <img src="./web-app-manifest-512x512.png" alt="logo"/>
             </div>
             <span className="font-display font-bold text-xl hidden sm:block">MINTORA</span>
           </Link>
