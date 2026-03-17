@@ -6,7 +6,8 @@ import { useLocation } from "wouter";
 import { Loader2, CheckCircle, AlertCircle, Pencil, Wallet, Bell, Palette, Code2, ShieldCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import "../components/settings.css"
+import "../components/settings.css";
+import { uploadToR2 } from "../lib/uploadToR2"
 
 /* ─────────────────────────────────────────────
    CONSTANTS
@@ -78,32 +79,6 @@ function useImagePicker(initial) {
   return { file, preview, err, pick };
 }
 
-/* ─────────────────────────────────────────────
-   R2 UPLOAD HELPER
-───────────────────────────────────────────── */
-async function uploadToR2(file, uploadType, address, onProgress) {
-  const res = await fetch("/api/upload/presign", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ fileName: file.name, fileType: file.type, uploadType, address }),
-  });
-  if (!res.ok) throw new Error("Could not get upload URL");
-  const { uploadUrl, publicUrl } = await res.json();
-
-  await new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", uploadUrl);
-    xhr.setRequestHeader("Content-Type", file.type);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload  = () => (xhr.status < 300 ? resolve() : reject(new Error(String(xhr.status))));
-    xhr.onerror = () => reject(new Error("Network error"));
-    xhr.send(file);
-  });
-
-  return publicUrl;
-}
 
 /* ─────────────────────────────────────────────
    PROFILE TAB

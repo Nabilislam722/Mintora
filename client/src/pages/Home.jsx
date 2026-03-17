@@ -1,32 +1,60 @@
 import { useQuery } from "@tanstack/react-query";
 import FeaturedCarousel from "../components/FeaturedCarousel";
 import CollectionCard from "../components/CollectionCard";
-import NftCard from "../components/NftCard";
-import { LayoutGrid, TrendingUp, ChevronRight, ArrowUpRight, LayoutList } from "lucide-react";
+import TopNftsSection from "../components/TopNftsSection";
+import LatestListingsSection from "../components/LatestListingsSection";
+import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { useState } from "react";
-import { formatEther } from "viem";
-import "../components/home.css"
+import { useRef, useState, useEffect } from "react";
+import "../components/home.css";
+import { BsFillCollectionFill } from "react-icons/bs";
 
 export default function Home() {
-  const [timeFilter, setTimeFilter] = useState("24h");
-  const [nftView, setNftView] = useState("grid"); // "grid" | "list"
-
   const { data: collections = [], isLoading: loadingCols } = useQuery({
     queryKey: ["/api/collections"],
   });
 
-  const { data: nfts = [], isLoading: loadingNfts } = useQuery({
+  const { data: topNfts = [], isLoading: loadingTopNfts } = useQuery({
     queryKey: ["/api/featurednft?limit=8"],
   });
 
-  const displayCollections = collections.slice(0, 6);
-  const topNfts = nfts;
-  const featuredCollections = displayCollections.slice(0, 2);
-  const regularCollections = displayCollections.slice(2);
+  // ✅ Correct query for latest listings — /api/nfts with no params
+  // returns isListed:true sorted by lastSyncedAt desc
+  const { data: latestNfts = [], isLoading: loadingLatest } = useQuery({
+    queryKey: ["/api/nfts"],
+  });
 
-  if (loadingCols || loadingNfts) {
+  const displayCollections = collections.slice(0, 6);
+  const featuredCollections = displayCollections.filter(c => c.isFeatured);
+  const regularCollections = displayCollections.filter(c => !c.isFeatured);
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener("scroll", checkScroll);
+    window.addEventListener("resize", checkScroll);
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [regularCollections]);
+
+  const scroll = (dir) =>
+    scrollRef.current?.scrollBy({ left: dir === "left" ? -280 : 280, behavior: "smooth" });
+
+  if (loadingCols || loadingTopNfts || loadingLatest) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -36,15 +64,14 @@ export default function Home() {
 
   return (
     <div className="flex flex-col gap-10 pb-20 pr-12">
-
       <FeaturedCarousel />
 
-      {/* ── Collections ── */}
+      {/* Collections */}
       <section className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            <LayoutGrid className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-display font-bold">Collections</h2>
+            <BsFillCollectionFill className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-display font-bold text-foreground opacity-80">Collections</h2>
           </div>
           <Link href="/collections">
             <Button
@@ -58,7 +85,7 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="flex flex-wrap lg:flex-nowrap gap-6 h-[20rem] items-center ">
+        <div className="flex flex-wrap lg:flex-row gap-6 items-center ">
           {featuredCollections.length > 0 && (
             <div
               className="relative flex shrink-0 gap-4 p-4 rounded-xl bg-neutral-950 "
@@ -106,138 +133,62 @@ export default function Home() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-grow">
-            {regularCollections.map((collection) => (
-              <div key={collection._id} className="w-56 shrink-0">
-                <CollectionCard collection={collection} size="large" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+          {/* Regular collections*/}
+          {regularCollections.length > 0 && (
+            <div className="relative flex-1 min-w-0">
 
-      {/* ── Top NFTs ── */}
-      <section className="container mx-auto px-4">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-accent" />
-            <h2 className="text-xl font-display font-bold">Top NFTs</h2>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Time filter */}
-            <div className="flex bg-secondary rounded-lg overflow-hidden">
-              {["24h", "7d", "30d"].map((period) => (
+              {/* Left arrow */}
+              {canScrollLeft && (
                 <button
-                  key={period}
-                  onClick={() => setTimeFilter(period)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${timeFilter === period
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-secondary-foreground/10"
-                    }`}
-                  data-testid={`button-filter-${period}`}
+                  onClick={() => scroll("left")}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10
+                   w-8 h-8 rounded-full bg-neutral-900 border border-white/10
+                   flex items-center justify-center shadow-lg
+                   hover:bg-neutral-800 transition-colors"
                 >
-                  {period}
+                  <ChevronLeft className="w-4 h-4" />
                 </button>
-              ))}
-            </div>
+              )}
 
-            {/* View toggle */}
-            <div
-              className="view-toggle flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-lg p-1"
-            >
-              <button
-                className={nftView === "grid" ? "active" : ""}
-                onClick={() => setNftView("grid")}
-                title="Grid view"
+              {/* Right arrow */}
+              {canScrollRight && (
+                <button
+                  onClick={() => scroll("right")}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10
+                   w-8 h-8 rounded-full bg-neutral-900 border border-white/10
+                   flex items-center justify-center shadow-lg
+                   hover:bg-neutral-800 transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Fade edges */}
+              {canScrollLeft && <div className="absolute left-0  top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-[5] pointer-events-none" />}
+              {canScrollRight && <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-[5] pointer-events-none" />}
+
+              {/* Scrollable row */}
+              <div
+                ref={scrollRef}
+                className="flex gap-4 overflow-x-auto scroll-smooth pb-1"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
-                <LayoutGrid className="w-3.5 h-3.5" />
-              </button>
-              <button
-                className={nftView === "list" ? "active" : ""}
-                onClick={() => setNftView("list")}
-                title="List view"
-              >
-                <LayoutList className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Grid view */}
-        {nftView === "grid" && (
-          <div key="grid" className="nft-grid-enter grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {topNfts.map((nft) => (
-              <NftCard key={nft._id} nft={nft} size="small" />
-            ))}
-          </div>
-        )}
-
-        {/* List / leaderboard view */}
-        {nftView === "list" && (
-          <div key="list" className="nft-list-enter">
-            <div
-              className="grid px-4 mb-1"
-              style={{ gridTemplateColumns: "2.5rem 3rem 1fr 1fr auto", gap: "1rem" }}
-            >
-              <span className="text-[10px] uppercase tracking-widest text-white/20 font-semibold">#</span>
-              <span />
-              <span className="text-[10px] uppercase tracking-widest text-white/20 font-semibold">Name</span>
-              <span className="text-[10px] uppercase tracking-widest text-white/20 font-semibold">Collection</span>
-              <span className="text-[10px] uppercase tracking-widest text-white/20 font-semibold text-right">Price</span>
-            </div>
-            <div className="h-px bg-white/[0.06] mb-1" />
-
-            {topNfts.map((nft, idx) => {
-              const price = nft.price
-                ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(3)} ETH`
-                : "—";
-              const isUp = idx % 3 !== 2;
-              const change = (((idx * 7 + 3) % 18) + 1).toFixed(1);
-
-              return (
-                <Link key={nft._id} href={`/nfts/${nft.collectionId?._id}/${nft.tokenId}`}>
-                  <div
-                    className="nft-row"
-                    style={{ animationDelay: `${idx * 0.04}s` }}
-                    data-testid={`card-nft-${nft.id}`}
-                  >
-                    <span className="text-xs font-mono font-bold text-white/20 tabular-nums">
-                      {String(idx + 1).padStart(2, "0")}
-                    </span>
-                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-white/5 shrink-0">
-                      <img
-                        src={nft.imageUrl}
-                        alt={nft.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white/90 truncate leading-tight">{nft.name}</p>
-                      <p className="text-[11px] text-white/30 font-mono mt-0.5">#{nft.tokenId}</p>
-                    </div>
-                    <p className="text-xs text-white/40 truncate font-medium">
-                      {nft.collectionId?.name || "Unknown"}
-                    </p>
-                    <div className="flex items-center gap-3 justify-end">
-                      <div className="text-right">
-                        <p className="text-sm font-bold font-mono text-white/90 tabular-nums">{price}</p>
-                        {nft.price && (
-                          <p className={`text-[11px] font-semibold font-mono tabular-nums ${isUp ? "text-emerald-400" : "text-rose-400"}`}>
-                            {isUp ? "+" : "-"}{change}%
-                          </p>
-                        )}
-                      </div>
-                      <ArrowUpRight className="row-arrow w-3.5 h-3.5 text-white/30 shrink-0" />
-                    </div>
+                {regularCollections.map((collection) => (
+                  <div key={collection._id} className="w-56 shrink-0">
+                    <CollectionCard collection={collection} size="large" />
                   </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </section>
+
+      {/* ✅ Top NFTs — featured/priority sorted */}
+      <TopNftsSection nfts={topNfts} />
+
+      {/* ✅ Latest Listings — all listed NFTs by lastSyncedAt desc */}
+      <LatestListingsSection nfts={latestNfts} />
     </div>
   );
 }

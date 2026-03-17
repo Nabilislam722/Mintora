@@ -21,157 +21,336 @@ const MARKETPLACE_ABI = [
     "function getListing(address nft, uint256 tokenId) view returns (address seller, uint256 price)"
 ];
 
-// Add this cache object right above the function
+// In-memory cache: url -> parsed metadata object, or 'FAILED'
 const requestCache = new Map();
 
-// --- UNIVERSAL METADATA WATERFALL ---
-async function resolveMetadata(uri, tokenId) {
-    if (!uri) return null;
+/**
+ * Normalise any IPFS/HTTP URI into a clean public HTTPS URL.
+ * Returns null if the URI is empty or unrecognisable.
+ */
+function normaliseUrl(uri) {
+    if (!uri || typeof uri !== 'string') return null;
 
-    if (uri.startsWith('data:application/json;base64,')) {
-        const base64Data = uri.split(',')[1];
-        return JSON.parse(Buffer.from(base64Data, 'base64').toString());
+    uri = uri.trim();
+
+    // Already a plain HTTP(S) URL that is NOT a known IPFS gateway → use as-is
+    if (uri.startsWith('http') &&
+        !uri.includes('ipfs.io') &&
+        !uri.includes('mypinata.cloud') &&
+        !uri.includes('cloudflare-ipfs.com') &&
+        !uri.includes('dweb.link')) {
+        return uri;
     }
 
-    let path = uri.replace("ipfs://", "").replace("https://ipfs.io/ipfs/", "").replace(PINATA_GATEWAY, "");
-    let urlsToTry = [];
+    // Extract the raw CID+path from any supported format
+    let cidPath = uri
+        .replace(/^ipfs:\/\//, '')
+        .replace(/^https?:\/\/[^/]+\/ipfs\//, '');  // strips any gateway prefix
 
-    if (uri.startsWith("http") && !uri.includes("ipfs.io") && !uri.includes("mypinata.cloud")) {
-        urlsToTry.push(uri);
-    } else {
-        const separator = path.endsWith('/') ? '' : '/';
-        if (path.endsWith(tokenId) || path.endsWith(`${tokenId}.json`)) {
-            urlsToTry.push(`${PUBLIC_GATEWAY}${path}`);
-        } else {
-            urlsToTry.push(`${PUBLIC_GATEWAY}${path}${separator}${tokenId}`);
-            urlsToTry.push(`${PUBLIC_GATEWAY}${path}${separator}${tokenId}.json`);
-            urlsToTry.push(`${PUBLIC_GATEWAY}${path}`); // The unrevealed URL fallback
+    if (!cidPath) return null;
+
+    return `${PUBLIC_GATEWAY}${cidPath}`;
+}
+
+/**
+ * Build the ordered list of URLs to try for a tokenURI.
+ *
+ * Three known patterns:
+ *   1. Bare CID        – each token has its own unique CID (e.g. Hemi Bros)
+ *                        ipfs://bafkrei<unique>  →  just fetch that CID directly
+ *   2. Folder / base   – shared base CID with token IDs appended
+ *                        ipfs://Qm.../  →  try .../1  .../1.json
+ *   3. Plain HTTP API  – https://api.example.com/metadata/  →  append token ID
+ */
+function buildUrlList(uri, tokenId) {
+    if (!uri || typeof uri !== 'string') return [];
+
+    uri = uri.trim();
+
+    // ── Data URI (base64 inline JSON) ──────────────────────────────────────
+    // Handled separately before calling this function; included here for safety.
+    if (uri.startsWith('data:')) return [];
+
+    // ── Plain HTTP(S) non-gateway URL ──────────────────────────────────────
+    if (uri.startsWith('http') &&
+        !uri.includes('ipfs.io') &&
+        !uri.includes('mypinata.cloud') &&
+        !uri.includes('cloudflare-ipfs.com') &&
+        !uri.includes('dweb.link')) {
+
+        const base = uri.endsWith('/') ? uri : `${uri}/`;
+        // Some APIs use no slash and just tack on the ID
+        const noSlash = uri.endsWith('/') ? uri.slice(0, -1) : uri;
+
+        // If the URI already ends with the token ID, fetch it directly
+        if (noSlash.endsWith(`/${tokenId}`) || noSlash.endsWith(`/${tokenId}.json`)) {
+            return [uri];
         }
+
+        return [
+            `${base}${tokenId}`,
+            `${base}${tokenId}.json`,
+            `${noSlash}${tokenId}`,       // handles no-trailing-slash base
+            `${noSlash}${tokenId}.json`,
+        ];
     }
 
-    for (const url of urlsToTry) {
-        // 1. Check if we already fetched (or failed to fetch) this exact URL
-        if (requestCache.has(url)) {
-            const cachedData = requestCache.get(url);
-            if (cachedData === 'FAILED') continue;
-            return cachedData;
-        }
+    // ── IPFS / gateway URL ─────────────────────────────────────────────────
+    // Strip everything down to the raw CID+path
+    let cidPath = uri
+        .replace(/^ipfs:\/\//, '')
+        .replace(/^https?:\/\/[^/]+\/ipfs\//, '');
 
-        try {
-            // 2. Disguise Axios as a real Google Chrome browser
-            const response = await axios.get(url, {
-                timeout: 200,
-                headers: {
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                }
-            });
+    if (!cidPath) return [];
 
-            // 3. Ensure it's valid JSON, not an HTML directory page
-            if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
-                requestCache.set(url, response.data); // Save it to memory
-                return response.data;
-            } else {
-                requestCache.set(url, 'FAILED'); // Cache the failure to prevent retries
+    // Remove any trailing slash for consistent logic below
+    const cleanPath = cidPath.endsWith('/') ? cidPath.slice(0, -1) : cidPath;
+
+    // A bare CID has no '/' → the URI is already a direct pointer to one file
+    const isBareCID = !cleanPath.includes('/');
+
+    if (isBareCID) {
+        return [`${PUBLIC_GATEWAY}${cleanPath}`];
+    }
+
+    // Folder / base path
+    // Already ends with the token ID → direct fetch
+    if (cleanPath.endsWith(`/${tokenId}`) || cleanPath.endsWith(`/${tokenId}.json`)) {
+        return [`${PUBLIC_GATEWAY}${cleanPath}`];
+    }
+
+    return [
+        `${PUBLIC_GATEWAY}${cleanPath}/${tokenId}`,
+        `${PUBLIC_GATEWAY}${cleanPath}/${tokenId}.json`,
+        `${PUBLIC_GATEWAY}${cleanPath}`,   // unrevealed / pre-reveal fallback
+    ];
+}
+
+/**
+ * Fetch and parse JSON metadata from a single URL.
+ * Returns the parsed object, or null on any failure.
+ * Results are memoised in requestCache to avoid duplicate network calls.
+ */
+async function fetchJson(url) {
+    if (requestCache.has(url)) {
+        const cached = requestCache.get(url);
+        return cached === 'FAILED' ? null : cached;
+    }
+
+    try {
+        const response = await axios.get(url, {
+            timeout: 8000,
+            headers: {
+                'Accept': 'application/json, text/plain, */*',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
-        } catch (err) {
-            requestCache.set(url, 'FAILED'); // Cache the error to prevent retries
+        });
+
+        const data = response.data;
+
+        // Must be a plain JSON object, not an array or an HTML directory listing
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            requestCache.set(url, data);
+            return data;
         }
+
+        // Some gateways return the JSON as a string
+        if (typeof data === 'string') {
+            try {
+                const parsed = JSON.parse(data);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    requestCache.set(url, parsed);
+                    return parsed;
+                }
+            } catch (_) { /* not JSON */ }
+        }
+
+        requestCache.set(url, 'FAILED');
+        return null;
+    } catch (err) {
+        requestCache.set(url, 'FAILED');
+        return null;
+    }
+}
+
+/**
+ * Universal metadata resolver.
+ * Handles: data URIs, bare CIDs, folder-base CIDs, plain HTTP APIs,
+ * private gateway URLs, and pre-reveal / unrevealed states.
+ */
+async function resolveMetadata(uri, tokenId) {
+    if (!uri || typeof uri !== 'string') return null;
+
+    uri = uri.trim();
+
+    // ── 1. Inline base64 JSON ──────────────────────────────────────────────
+    if (uri.startsWith('data:application/json;base64,')) {
+        try {
+            const b64 = uri.split(',')[1];
+            return JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+        } catch (_) {
+            return null;
+        }
+    }
+
+    // ── 2. Inline plain JSON (rare but exists) ─────────────────────────────
+    if (uri.startsWith('data:application/json,')) {
+        try {
+            return JSON.parse(decodeURIComponent(uri.split(',').slice(1).join(',')));
+        } catch (_) {
+            return null;
+        }
+    }
+
+    // ──Build URL candidates and try them in order ──────────────────────
+    const urls = buildUrlList(uri, tokenId);
+
+    for (const url of urls) {
+        const data = await fetchJson(url);
+        if (data) return data;
     }
 
     return null;
 }
 
+/**
+ * Normalise an image URL from metadata into a reliable public HTTPS URL.
+ */
+function resolveImageUrl(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+
+    raw = raw.trim();
+
+    // data: URI (SVG / base64 image) – keep as-is
+    if (raw.startsWith('data:')) return raw;
+
+    return normaliseUrl(raw) || raw;
+}
+
+// ── Main sync function ─────────────────────────────────────────────────────
+
 async function syncExistingCollection(contractAddress) {
+    if (!contractAddress) {
+        console.error('❌ Usage: node sync.js <contractAddress>');
+        process.exit(1);
+    }
+
     await mongoose.connect(MONGODB_URI);
     const provider = new ethers.JsonRpcProvider(HEMI_RPC);
     const nftContract = new ethers.Contract(contractAddress, ERC721_ABI, provider);
     const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
+    // ── Ensure collection record exists ───────────────────────────────────
     let collection = await Collection.findOne({ contractAddress: contractAddress.toLowerCase() });
 
     if (!collection) {
-        console.log("📂 Collection not found in DB. Fetching details from Hemi...");
+        console.log('📂 Collection not found in DB. Fetching details from chain...');
         try {
             const name = await nftContract.name();
-            const slug = name.toLowerCase().replace(/ /g, "-").replace(/[^\w-]/g, "");
+            const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]/g, '');
             collection = await Collection.create({
-                name: name, slug: slug, contractAddress: contractAddress.toLowerCase(),
-                chain: "hemi", isVerified: true, description: `Official ${name} collection on Hemi.`,
-                logoUrl: "https://via.placeholder.com/500", bannerUrl: "https://via.placeholder.com/1500x500",
-                floorPrice: "0", volume: "0", sales: "0"
+                name,
+                slug,
+                contractAddress: contractAddress.toLowerCase(),
+                chain: 'hemi',
+                isVerified: true,
+                description: `Official ${name} collection on Hemi.`,
+                logoUrl: "/placeholder-logo.png",
+                bannerUrl: "/placeholder-logo.png",
+                floorPrice: '0',
+                volume: '0',
+                sales: '0',
             });
             console.log(`✨ Auto-Created Collection: ${name}`);
         } catch (e) {
-            console.error("❌ Could not fetch collection name from contract.");
+            console.error('❌ Could not fetch collection name from contract:', e.message);
             process.exit(1);
         }
     }
 
+    // ── Determine token range ──────────────────────────────────────────────
+    let totalSupply;
     try {
-        const totalSupply = await nftContract.totalSupply();
-        console.log(`📦 Found ${totalSupply} tokens. Syncing...`);
-        for (let i = 0; i <= Number(totalSupply); i++) {
-            const tokenId = i.toString();
-            try {
-                const [uri, owner, listing] = await Promise.all([
-                    nftContract.tokenURI(tokenId),
-                    nftContract.ownerOf(tokenId),
-                    marketplace.getListing(contractAddress, tokenId)
-                ]);
-
-                const metadata = await resolveMetadata(uri, tokenId);
-
-                if (!metadata) {
-                    console.log(`⚠️ Unresolvable metadata for #${tokenId} at base URI: ${uri}`);
-                    continue;
-                }
-
-                let imageUrl = metadata.image || metadata.image_url || "";
-
-                if (imageUrl.startsWith("ipfs://")) {
-                    imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-                } else if (imageUrl.includes("mypinata.cloud")) {
-                    // Failsafe: if a contract hardcoded a different private gateway, try to route it publicly
-                    const imgCid = imageUrl.split("/ipfs/")[1];
-                    if (imgCid) imageUrl = `https://ipfs.io/ipfs/${imgCid}`;
-                }
-
-                await NFT.findOneAndUpdate(
-                    { tokenId, contractAddress: contractAddress.toLowerCase() },
-                    {
-                        collectionId: collection._id,
-                        name: metadata.name || `${collection.name} #${tokenId}`,
-                        description: metadata.description || "",
-                        imageUrl,
-                        attributes: metadata.attributes || [],
-                        ownerAddress: owner.toLowerCase(),
-                        isListed: listing.price > 0n, 
-                        price: listing.price.toString(),
-                        seller: listing.seller !== ethers.ZeroAddress ? listing.seller.toLowerCase() : null,
-                        lastSyncedAt: new Date()
-                    },
-                    { upsert: true }
-                );
-                console.log(`✅ Synced #${tokenId} - ${metadata.name}`);
-
-                await new Promise(r => setTimeout(r, 50));
-            } catch (tokenErr) {
-                // Gracefully handle tokens that don't exist (e.g., token 0 in a 1-indexed contract)
-                if (tokenErr.code === 'CALL_EXCEPTION') {
-                    console.log(`⏩ Token #${tokenId} does not exist in contract (skipping).`);
-                } else {
-                    console.error(`❌ Token #${tokenId} error:`, tokenErr.message);
-                }
-            }
-        }
-        console.log("Sync complete.");
-        process.exit(0);
-    } catch (err) {
-        console.error("Fatal Error:", err.message);
+        totalSupply = await nftContract.totalSupply();
+        console.log(`📦 Total supply: ${totalSupply}. Starting sync...`);
+    } catch (e) {
+        console.error('❌ Could not read totalSupply:', e.message);
         process.exit(1);
     }
+
+    let synced = 0, skipped = 0, failed = 0;
+
+    // Try token IDs 0 … totalSupply (inclusive) to cover both 0-indexed and
+    // 1-indexed contracts.  Non-existent tokens are skipped gracefully.
+    for (let i = 0; i <= Number(totalSupply); i++) {
+        const tokenId = i.toString();
+
+        try {
+            // ── Fetch on-chain data in parallel ───────────────────────────
+            const [uri, owner, listing] = await Promise.all([
+                nftContract.tokenURI(tokenId),
+                nftContract.ownerOf(tokenId),
+                marketplace.getListing(contractAddress, tokenId).catch(() => ({
+                    seller: ethers.ZeroAddress,
+                    price: 0n,
+                })),
+            ]);
+
+            // ── Resolve metadata ───────────────────────────────────────────
+            const metadata = await resolveMetadata(uri, tokenId);
+
+            if (!metadata) {
+                console.warn(`⚠️  Unresolvable metadata for #${tokenId}  (uri: ${uri})`);
+                skipped++;
+                continue;
+            }
+
+            // ── Normalise image URL ────────────────────────────────────────
+            const imageUrl = resolveImageUrl(
+                metadata.image || metadata.image_url || metadata.imageUrl || ''
+            );
+
+            // ── Upsert NFT record ──────────────────────────────────────────
+            await NFT.findOneAndUpdate(
+                { tokenId, contractAddress: contractAddress.toLowerCase() },
+                {
+                    collectionId: collection._id,
+                    name: metadata.name || `${collection.name} #${tokenId}`,
+                    description: metadata.description || '',
+                    imageUrl,
+                    attributes: metadata.attributes || metadata.traits || [],
+                    ownerAddress: owner.toLowerCase(),
+                    isListed: listing.price > 0n,
+                    price: listing.price.toString(),
+                    seller: listing.seller !== ethers.ZeroAddress
+                        ? listing.seller.toLowerCase()
+                        : null,
+                    lastSyncedAt: new Date(),
+                },
+                { upsert: true }
+            );
+
+            console.log(`✅ Synced  #${tokenId.padStart(5)}  –  ${metadata.name || '(no name)'}`);
+            synced++;
+
+            // Polite delay to avoid hammering IPFS gateways & RPC nodes
+            await new Promise(r => setTimeout(r, 50));
+
+        } catch (err) {
+            if (err.code === 'CALL_EXCEPTION') {
+                console.log(`⏩ Token #${tokenId} does not exist – skipping.`);
+            } else {
+                console.error(`❌ Token #${tokenId} error: ${err.message}`);
+                failed++;
+            }
+        }
+    }
+
+    console.log(`\n🎉 Sync complete.  Synced: ${synced}  |  Skipped: ${skipped}  |  Failed: ${failed}`);
+    await mongoose.disconnect();
+    process.exit(0);
 }
 
+// ── Entry point ────────────────────────────────────────────────────────────
 const targetAddress = process.argv[2];
 syncExistingCollection(targetAddress);
