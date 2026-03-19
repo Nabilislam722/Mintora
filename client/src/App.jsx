@@ -21,6 +21,7 @@ function Router() {
       <Route path="/collections/:slug" component={CollectionDetails} />
       <Route path="/nfts/:collectionId/:tokenId" component={NftDetails} />
       <Route path="/profile" component={Profile} />
+      <Route path="/profile/:address" component={Profile} />
       <Route path="/create" component={Create} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />

@@ -57,3 +57,6 @@
   .nft-list-enter {
     animation: fade-up 0.25s ease both;
   }
+  .hide-scrollbar::-webkit-scrollbar { 
+    display: none; 
+  }

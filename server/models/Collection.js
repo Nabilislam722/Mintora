@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { type } from 'os';
 
 const collectionSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -11,7 +12,9 @@ const collectionSchema = new mongoose.Schema({
   floorPrice: String,
   volume: String,
   sales: String,
-  isVerified: { type: Boolean, default: false }
+  isVerified: { type: Boolean, default: false },
+  isFeatured: { type: Boolean, default: false },
+  rarity: { type: String, default: null}
 });
 
 export const Collection = mongoose.model('Collection', collectionSchema);

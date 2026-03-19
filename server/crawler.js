@@ -17,7 +17,7 @@ const ERC721_ABI = [
     "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
 ];
 
-let activeListeners = new Set(); // To keep track of which NFTs we are watching
+let activeListeners = new Set();
 
 async function startCrawler() {
     const provider = new ethers.JsonRpcProvider(HEMI_RPC);

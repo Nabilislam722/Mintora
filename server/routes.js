@@ -9,10 +9,31 @@ export async function registerRoutes(app) {
   app.get("/api/users/:address", async (req, res) => {
     try {
       const user = await User.findOne({ walletAddress: req.params.address.toLowerCase() });
-      if (!user) return res.status(404).json({ message: "User not found" });
+      if (!user) return res.json({
+        walletAddress: req.params.address.toLowerCase(),
+        username: "",
+        profileImageUrl: "",
+        bannerImageUrl: "",
+        bio: "",
+      });
+
       res.json(user);
     } catch (err) {
       res.status(500).json({ message: err.message });
+    }
+  });
+  app.patch("/api/users/:address", async (req, res) => {
+    try {
+      const { username, bio, url, profileImageUrl, bannerImageUrl } = req.body;
+
+      const user = await User.findOneAndUpdate(
+        { walletAddress: req.params.address.toLowerCase() },
+        { $set: { username, bio, profileImageUrl, bannerImageUrl } },
+        { upsert: true, returnDocument: "after" }
+      );
+      res.json(user);
+    } catch (err) {
+      res.status(400).json({ message: err.message });
     }
   });
 
@@ -63,11 +84,11 @@ export async function registerRoutes(app) {
 
       if (owner) {
         query.ownerAddress = owner.toLowerCase();
-      } 
+      }
       else if (collectionId) {
         query.collectionId = collectionId;
         sortConfig = { tokenId: 1 };
-      } 
+      }
       else {
         query.isListed = true;
       }

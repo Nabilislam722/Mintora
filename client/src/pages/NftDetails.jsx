@@ -204,7 +204,7 @@ export default function NftDetails() {
               <div className="flex gap-3">
                 <Button
                   size="lg"
-                  className="flex-1 bg-primary hover:bg-primary/90 text-black font-bold rounded-xl h-14 text-lg"
+                  className="flex-1 bg-primary hover:bg-primary/90 text-black hover:text-primary-border transition-colors duration-300 ease-in-out rounded-xl h-14 text-lg"
                   onClick={() => purchaseMutation.mutate()}
                   disabled={purchaseMutation.isPending}
                 >

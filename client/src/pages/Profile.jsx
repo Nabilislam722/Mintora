@@ -7,24 +7,33 @@ import NftCard from "../components/NftCard";
 import { Button } from "@/components/ui/button";
 import { Wallet, Copy, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useParams } from "wouter";
 
 export default function Profile() {
-  const { address, isConnected } = useAccount();
-  const { openConnectModal }     = useConnectModal();
-  const { toast }                = useToast();
-  const [, navigate]             = useLocation();
+  const { address: urlAddress } = useParams();
+  const { isConnected, address: walletAddress } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
 
+  // ✅ Declare address BEFORE any hook that uses it
+  const address = urlAddress || walletAddress;
+  const isOwnProfile = !urlAddress || urlAddress.toLowerCase() === walletAddress?.toLowerCase();
+
+  // ✅ Now useBalance can safely reference address
   const { data: balanceData } = useBalance({ address });
 
   const { data: dbUser } = useQuery({
     queryKey: [`/api/users/${address}`],
     queryFn: async () => {
       const res = await fetch(`/api/users/${address}`);
-      if (!res.ok) return null;
+      if (!res.ok) return { username: "", bio: "", profileImageUrl: "", bannerImageUrl: "" };
       return res.json();
     },
     enabled: !!address,
   });
+
+
 
   const { data: nfts, isLoading: nftsLoading } = useQuery({
     queryKey: [`/api/nfts?owner=${address}`],
@@ -46,7 +55,7 @@ export default function Profile() {
   };
 
   const avatarUrl = dbUser?.profileImageUrl || null;
-  const bannerUrl = dbUser?.bannerImageUrl  || null;
+  const bannerUrl = dbUser?.bannerImageUrl || null;
 
   if (!isConnected || !address) {
     return (
@@ -83,8 +92,8 @@ export default function Profile() {
             {avatarUrl
               ? <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
               : <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                  <span className="text-4xl font-display font-bold text-black">{address.slice(2,4).toUpperCase()}</span>
-                </div>
+                <span className="text-4xl font-display font-bold text-black">{address.slice(2, 4).toUpperCase()}</span>
+              </div>
             }
           </div>
 
@@ -119,14 +128,15 @@ export default function Profile() {
           </div>
 
           {/* Edit button → goes to /settings */}
-          <Button
-            variant="outline"
-            className="border-white/10 hover:bg-white/10 rounded-xl self-start md:mt-20"
-            onClick={() => navigate("/settings")}
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            Edit Profile
-          </Button>
+          {isOwnProfile && (
+            <Button  
+              className="bg-foreground/90 hover:bg-white/50 hover:text-black rounded-2xl h-11 self-start md:mt-24 transition-colors duration-300 ease-in-out"
+              onClick={() => navigate("/settings")}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Edit Profile
+            </Button>
+          )}
         </div>
 
         <hr className="border-white/5 mb-10" />
@@ -145,7 +155,7 @@ export default function Profile() {
           ) : nfts?.length === 0 ? (
             <div className="glass rounded-2xl border border-white/10 p-16 text-center">
               <p className="text-muted-foreground mb-6 text-lg">Your gallery is empty</p>
-              <Button asChild className="bg-primary hover:bg-primary/90 text-black font-semibold rounded-xl px-8">
+              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-border font-semibold rounded-2xl px-8">
                 <a href="/collections">Start Exploring</a>
               </Button>
             </div>
