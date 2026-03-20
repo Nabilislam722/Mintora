@@ -5,7 +5,28 @@ import { Featured } from "./models/Featured.js"
 import mongoose from 'mongoose';
 
 export async function registerRoutes(app) {
-  // --- USERS ---
+
+  app.get("/api/search", async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) return res.json({ nfts: [], collections: [], users: [] });
+
+    const regex = new RegExp(q.trim(), "i");
+    const isAddress = q.trim().startsWith("0x");
+
+    const [nfts, collections, users] = await Promise.all([
+      NFT.find({ name: regex }).limit(5).populate("collectionId", "name"),
+      Collection.find({ name: regex }).limit(5),
+      User.find(
+        isAddress
+          ? { walletAddress: { $regex: q.trim(), $options: "i" } }
+          : { username: regex }
+      ).limit(5),
+    ]);
+
+    res.json({ nfts, collections, users });
+  });
+
+  //Users
   app.get("/api/users/:address", async (req, res) => {
     try {
       const user = await User.findOne({ walletAddress: req.params.address.toLowerCase() });

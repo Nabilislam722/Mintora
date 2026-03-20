@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { type } from 'os';
 
 const nftSchema = new mongoose.Schema({
   collectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Collection' },
@@ -13,7 +14,8 @@ const nftSchema = new mongoose.Schema({
   price: { type: String, default: "0" },
   seller: { type: String, lowercase: true },
   priority: { type: Number, default: 0 },
-  lastSyncedAt: { type: Date, default: Date.now }
+  lastSyncedAt: { type: Date, default: Date.now },
+  priceChange: { type: String, default: "0"}
 });
 
 nftSchema.index({ contractAddress: 1, tokenId: 1 }, { unique: true });

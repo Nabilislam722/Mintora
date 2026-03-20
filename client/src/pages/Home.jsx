@@ -19,8 +19,6 @@ export default function Home() {
     queryKey: ["/api/featurednft?limit=8"],
   });
 
-  // ✅ Correct query for latest listings — /api/nfts with no params
-  // returns isListed:true sorted by lastSyncedAt desc
   const { data: latestNfts = [], isLoading: loadingLatest } = useQuery({
     queryKey: ["/api/nfts"],
   });
@@ -63,7 +61,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col gap-10 pb-20 pr-12">
+    <div className="flex flex-col gap-10 pr-12">
       <FeaturedCarousel />
 
       {/* Collections */}
@@ -184,11 +182,39 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ✅ Top NFTs — featured/priority sorted */}
       <TopNftsSection nfts={topNfts} />
-
-      {/* ✅ Latest Listings — all listed NFTs by lastSyncedAt desc */}
       <LatestListingsSection nfts={latestNfts} />
+
+      {/*Launchpad banner*/}
+      <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-80 mb-28">
+        {/* Left content */}
+        <div className="flex items-center justify-between px-12 py-10">
+          <div className="flex flex-col gap-3 z-10">
+            <p className="text-xs text-blue-200 uppercase tracking-widest flex items-center gap-1">
+              Mintora NFT Launchpad
+            </p>
+            <h2 className="text-3xl font-bold text-white leading-snug">
+              Apply for NFT Listing or Launchpad
+            </h2>
+            <p className="text-sm text-blue-100/70 max-w-md">
+              Leverage our open marketplace and audience to bring your collection to the next level of growth.
+            </p>
+            <button className="mt-2 w-fit bg-white text-slate-800 text-sm font-medium px-5 py-2 rounded-lg hover:bg-blue-50 transition">
+              Coming Soon
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-border py-6 px-8 flex items-center justify-between text-sm text-muted-foreground">
+        <div>© 2026 Mintora. All rights reserved.</div>
+        <div className="flex gap-6">
+          <a href="#" target="_blank" className="hover:text-foreground transition">FAQ</a>
+          <a href="#" target="_blank" className="hover:text-foreground transition">Terms of Use</a>
+          <a href="https://github.com/Nabilislam722" target="_blank" className="hover:text-foreground transition">Team</a>
+          <a href="#" target="_blank" className="hover:text-foreground transition">Careers</a>
+        </div>
+      </footer>
     </div>
   );
 }

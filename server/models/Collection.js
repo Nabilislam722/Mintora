@@ -8,7 +8,7 @@ const collectionSchema = new mongoose.Schema({
   logoUrl: String,
   bannerUrl: String,
   contractAddress: { type: String, lowercase: true, required: true, unique: true },
-  chain: { type: String, default: 'ronin' },
+  chain: { type: String, default: 'Hemi' },
   floorPrice: String,
   volume: String,
   sales: String,

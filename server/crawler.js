@@ -19,13 +19,15 @@ const ERC721_ABI = [
 
 let activeListeners = new Set();
 
+
+
 async function startCrawler() {
     const provider = new ethers.JsonRpcProvider(HEMI_RPC);
     const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
     console.log("📡 Master Crawler Started. Watching Marketplace...");
 
-    // --- 1. GLOBAL MARKETPLACE LISTENERS ---
+    // GLOBAL MARKETPLACE LISTENERS
     
     marketplace.on("ItemListed", async (seller, nft, tokenId, price) => {
         await NFT.findOneAndUpdate(
@@ -35,14 +37,37 @@ async function startCrawler() {
         console.log(`✨ [Listed] Contract: ${nft.slice(0,6)}... ID: ${tokenId}`);
     });
 
-    marketplace.on("ItemSold", async (buyer, nft, tokenId, price) => {
+   marketplace.on("ItemSold", async (buyer, nft, tokenId, price) => {
+        const contractAddress = nft.toLowerCase();
         await NFT.findOneAndUpdate(
-            { contractAddress: nft.toLowerCase(), tokenId: tokenId.toString() },
+            { contractAddress, tokenId: tokenId.toString() },
             { isListed: false, price: "0", ownerAddress: buyer.toLowerCase(), $unset: { seller: "" } }
         );
-        console.log(`[Sold] ID: ${tokenId} to ${buyer}`);
-    });
 
+        // 2. Recalculate floor price — lowest price among still-listed NFTs in this collection
+        const listedNFTs = await NFT.find({ contractAddress, isListed: true, price: { $gt: "0" } });
+
+        let newFloor = "0";
+        if (listedNFTs.length > 0) {
+            const prices = listedNFTs.map(n => BigInt(n.price));
+            newFloor = prices.reduce((min, p) => p < min ? p : min).toString();
+        }
+
+        // Increment volume by the sale price
+        const collection = await Collection.findOne({ contractAddress });
+        if (collection) {
+            const currentVolume = ethers.parseEther(collection.volume || "0");
+            const newVolume = (currentVolume + BigInt(price.toString())).toString();
+
+            await Collection.findOneAndUpdate(
+                { contractAddress },
+                {
+                    floorPrice: ethers.formatEther(newFloor),
+                    volume: ethers.formatEther(newVolume),
+                }
+            );
+        }
+    });
     marketplace.on("ItemUpdated", async (seller, nft, tokenId, newPrice) => {
         await NFT.findOneAndUpdate(
             { contractAddress: nft.toLowerCase(), tokenId: tokenId.toString() },

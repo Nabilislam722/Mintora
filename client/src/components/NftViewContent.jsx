@@ -23,20 +23,20 @@ export function NftControls({ timeFilter, setTimeFilter, nftView, setNftView }) 
         ))}
       </div>
 
-      <div className="view-toggle flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-lg p-1">
+      <div className="view-toggle flex items-center gap-0.5 bg-foreground/[0.04] border border-muted-foreground/[0.07] rounded-lg p-1">
         <button
           className={nftView === "grid" ? "active" : ""}
           onClick={() => setNftView("grid")}
           title="Grid view"
         >
-          <LayoutGrid className="w-3.5 h-3.5" />
+          <LayoutGrid className="w-3.5 h-3.5 text-foreground/30"/>
         </button>
         <button
           className={nftView === "list" ? "active" : ""}
           onClick={() => setNftView("list")}
           title="List view"
         >
-          <LayoutList className="w-3.5 h-3.5" />
+          <LayoutList className="w-3.5 h-3.5 text-foreground/30" />
         </button>
       </div>
 
@@ -112,7 +112,7 @@ function NftListRow({ nft, index }) {
             </p>
             <PriceChange value={priceChange} />
           </div>
-          <ArrowUpRight className="row-arrow w-3.5 h-3.5 text-white/30 shrink-0" />
+          <ArrowUpRight className="row-arrow w-3.5 h-3.5 text-foreground/30 shrink-0" />
         </div>
 
       </div>
@@ -145,7 +145,7 @@ export function NftViewContent({ nfts, nftView }) {
         <span className="text-[10px] uppercase tracking-widest text-foreground/20 font-semibold text-right">Price</span>
       </div>
 
-      <div className="h-px bg-white/[0.06] mb-1" />
+      <div className="h-px bg-foreground/[0.06] mb-1" />
 
       {nfts.map((nft, idx) => (
         <NftListRow key={nft._id} nft={nft} index={idx} />

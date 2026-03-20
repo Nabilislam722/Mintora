@@ -8,6 +8,35 @@ html {
   zoom: 0.85; 
 }
 
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
 :root {
   --background: 0 0% 98%;
   --foreground: 222 47% 11%;
