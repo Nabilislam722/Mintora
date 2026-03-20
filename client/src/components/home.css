@@ -45,7 +45,7 @@
     color: rgba(255,255,255,0.3);
   }
   .view-toggle button.active {
-    background: rgba(255,255,255,0.1);
+    background: hsl(var(--foreground) / 0.1);
     color: rgba(255,255,255,0.85);
   }
   .view-toggle button:not(.active):hover {
@@ -60,3 +60,11 @@
   .hide-scrollbar::-webkit-scrollbar { 
     display: none; 
   }
+  .apply-banner {
+  background-image: url("https://pub-6fd72b146dbb4330a7ad961c7c584367.r2.dev/featured_assets/launchpad.jpg");
+  background-size: cover;
+  background-position: center;
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

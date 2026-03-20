@@ -74,7 +74,7 @@ export default function CollectionCard({ collection, size = "default" }) {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Volume</p>
-                  <p className="font-semibold">{collection.volume}</p>
+                  <p className="font-semibold flex gap-1">{collection.volume}<span className="text-muted-foreground">ETH</span></p>
                 </div>
               </div>
             </div>
