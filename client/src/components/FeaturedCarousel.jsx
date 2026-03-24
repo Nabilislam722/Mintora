@@ -10,7 +10,7 @@ export default function FeaturedCarousel() {
   useEffect(() => {
     const fetchFeatured = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:3000/api/featured");
+        const response = await fetch("/api/featured");
         if (!response.ok) throw new Error("Could not fetch data");
         const data = await response.json();
         setSlides(data);

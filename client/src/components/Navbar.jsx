@@ -182,8 +182,9 @@ export default function Navbar() {
           </div>
 
           <Link href="/" className="flex items-center gap-2 ml-3" data-testid="link-home">
-            <div className="w-14 h-14 rounded-lg flex items-center justify-center">
-              <img src="./web-app-manifest-512x512.png" alt="logo" />
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center">
+              <img src="./logo.png" alt="logo" className="block  dark:hidden" />
+              <img src="./logo-white.png" alt="logo" className="hidden dark:block" />
             </div>
             <span className="font-sans font-bold text-xl hidden sm:block">MINTORA</span>
           </Link>
