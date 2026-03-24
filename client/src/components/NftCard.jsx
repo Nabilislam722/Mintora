@@ -1,12 +1,95 @@
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { formatEther } from "viem";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+
+
+const CACHE_KEY = "eth_usd_price";
+const CACHE_TIME = 4 * 60 * 60 * 1000;
+
+const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+
+    const { price, timestamp } = JSON.parse(raw);
+    if (Date.now() - timestamp > CACHE_TIME) {
+      return null;
+    }
+
+    return price;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(price) {
+  localStorage.setItem(
+    CACHE_KEY,
+    JSON.stringify({
+      price,
+      timestamp: Date.now(),
+    })
+  );
+}
+
+function useEthPrice() {
+  const [ethPrice, setEthPrice] = useState(() => readCache());
+
+  useEffect(() => {
+    async function fetchPrice() {
+      try {
+        const res = await fetch(
+          `https://deep-index.moralis.io/api/v2.2/erc20/${WETH}/price?chain=eth`,
+          {
+            headers: {
+              "X-API-Key": import.meta.env.VITE_MORALIS_API_KEY, // ✅ FIXED
+            },
+          }
+        );
+
+        const data = await res.json();
+        const price = data?.usdPrice ?? null;
+
+        if (price) {
+          writeCache(price);
+          setEthPrice(price);
+        }
+      } catch (err) {
+        console.error("ETH price fetch failed", err);
+      }
+    }
+
+    const cached = readCache();
+
+    if (!cached) {
+      fetchPrice(); 
+    } else {
+      setEthPrice(cached);
+    }
+    const interval = setInterval(fetchPrice, CACHE_TIME);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return ethPrice;
+}
+
+
+function formatUsd(ethAmount, ethPrice) {
+  if (!ethAmount || !ethPrice) return null;
+  const eth = parseFloat(formatEther(BigInt(ethAmount)));
+  const usd = eth * ethPrice;
+  return usd.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+}
 
 export default function NftCard({ nft, size = "default" }) {
   const cardRef = useRef(null);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
   const [isHovered, setIsHovered] = useState(false);
+  const ethPrice = useEthPrice();
 
   const handleMouseMove = (e) => {
     if (!cardRef.current) return;
@@ -70,6 +153,11 @@ export default function NftCard({ nft, size = "default" }) {
                     <p className="font-bold text-primary text-base font-mono">
                       {nft.price ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(3)} ETH` : "—"}
                     </p>
+                    {nft.price && ethPrice && (
+                      <p className="text-[11px] text-muted-foreground font-mono">
+                        {formatUsd(nft.price, ethPrice)}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <span className="text-xs text-white/30 font-medium px-2 py-1 bg-white/5 rounded-lg">
@@ -124,9 +212,16 @@ export default function NftCard({ nft, size = "default" }) {
             <h3 className="font-display font-bold text-sm mb-2 truncate text-foreground">{nft.name}</h3>
             <div className="flex items-center justify-between gap-2 bg-white/5 backdrop-blur-md p-2 rounded-lg border border-white/5">
               <span className="text-xs text-muted-foreground">Price</span>
-              <span className="font-bold text-primary text-sm">
-                {nft.price ? `${formatEther(BigInt(nft.price))} ETH` : "Unlisted"}
-              </span>
+              <div className="text-right">
+                <div className="font-bold text-primary text-sm">
+                  {nft.price ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(4)} ETH` : "Unlisted"}
+                </div>
+                {nft.price && ethPrice && (
+                  <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                    {formatUsd(nft.price, ethPrice)}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </Card>

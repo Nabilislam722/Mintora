@@ -9,9 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import "../components/settings.css";
 import { uploadToR2 } from "../lib/uploadToR2"
 
-/* ─────────────────────────────────────────────
-   CONSTANTS
-───────────────────────────────────────────── */
+
 const MAX_MB     = 5;
 const ACCEPT     = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ACCEPT_STR = ACCEPT.join(",");
@@ -25,9 +23,6 @@ const NAV = [
   { id: "verification",  label: "Verification",        Icon: ShieldCheck },
 ];
 
-/* ─────────────────────────────────────────────
-   SHARED UI
-───────────────────────────────────────────── */
 function ErrorBanner({ msg }) {
   return (
     <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-4 bg-destructive/10 border border-destructive/20">
@@ -60,9 +55,6 @@ function ComingSoon({ Icon }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   IMAGE PICKER HOOK
-───────────────────────────────────────────── */
 function useImagePicker(initial) {
   const [file,    setFile]    = useState(null);
   const [preview, setPreview] = useState(initial || null);
@@ -80,9 +72,6 @@ function useImagePicker(initial) {
 }
 
 
-/* ─────────────────────────────────────────────
-   PROFILE TAB
-───────────────────────────────────────────── */
 function ProfileTab({ address, dbUser, onSaved }) {
   const avatar = useImagePicker(dbUser?.profileImageUrl || null);
   const banner = useImagePicker(dbUser?.bannerImageUrl  || null);
@@ -231,9 +220,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   SETTINGS PAGE
-───────────────────────────────────────────── */
 export default function Settings() {
   const { address, isConnected } = useAccount();
   const { openConnectModal }     = useConnectModal();

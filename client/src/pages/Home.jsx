@@ -140,9 +140,9 @@ export default function Home() {
                 <button
                   onClick={() => scroll("left")}
                   className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10
-                   w-8 h-8 rounded-full bg-neutral-900 border border-white/10
+                   w-8 h-8 rounded-full bg-border border border-white/10
                    flex items-center justify-center shadow-lg
-                   hover:bg-neutral-800 transition-colors"
+                   hover:bg-border/40 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -153,9 +153,9 @@ export default function Home() {
                 <button
                   onClick={() => scroll("right")}
                   className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10
-                   w-8 h-8 rounded-full bg-neutral-900 border border-white/10
+                   w-8 h-8 rounded-full bg-border border border-white/10
                    flex items-center justify-center shadow-lg
-                   hover:bg-neutral-800 transition-colors"
+                   hover:bg-border/40 transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
