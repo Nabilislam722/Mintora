@@ -45,7 +45,7 @@ function useEthPrice() {
           `https://deep-index.moralis.io/api/v2.2/erc20/${WETH}/price?chain=eth`,
           {
             headers: {
-              "X-API-Key": import.meta.env.VITE_MORALIS_API_KEY, // ✅ FIXED
+              "X-API-Key": import.meta.env.VITE_MORALIS_API_KEY,
             },
           }
         );

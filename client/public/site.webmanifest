@@ -1,6 +1,6 @@
 {
-  "name": "MyWebSite",
-  "short_name": "MySite",
+  "name": "Mintora - NFT marketplace",
+  "short_name": "Mintora",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
