@@ -1,13 +1,21 @@
 # init
 
 
-` You need npm Version 24.8.0 `
 
 
-# How to setup?
+Create a `.env` file on the root directory with following values
 
-` git clone *url of the repo*`
+``
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_PUBLIC_URL=
 
-install packages
+``
 
-`npm i`
+TO RUN Must Do the steps above
+``
+yarn install
+yarn crawler #MUST
+yarn dev
+
+``

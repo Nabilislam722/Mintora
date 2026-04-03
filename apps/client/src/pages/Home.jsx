@@ -63,7 +63,7 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-10 pr-12">
       <FeaturedCarousel />
-
+      
       {/* Collections */}
       <section className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-5">

@@ -6,6 +6,20 @@ export default function FeaturedCarousel() {
   const [slides, setSlides] = useState([]);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isDark, setIsDark] = useState(    
+    () => (localStorage.getItem("theme") || "dark") === "dark"
+  );
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const fetchFeatured = async () => {
@@ -14,25 +28,22 @@ export default function FeaturedCarousel() {
         if (!response.ok) throw new Error("Could not fetch data");
         const data = await response.json();
         setSlides(data);
-      }
+      } 
       catch (error) {
         console.error("Error fetching featured slides:", error);
-      }
+      } 
       finally {
         setLoading(false);
       }
     };
-
     fetchFeatured();
   }, []);
 
   useEffect(() => {
     if (slides.length === 0) return;
-
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % slides.length);
     }, 10000);
-
     return () => clearInterval(timer);
   }, [slides.length]);
 
@@ -40,16 +51,18 @@ export default function FeaturedCarousel() {
     return <div className="h-[320px] md:h-[380px] bg-muted animate-pulse rounded-2xl flex items-center justify-center">Loading Featured...</div>;
   }
   if (slides.length === 0) return null;
+
   const slide = slides[current];
+  const bgImage = isDark ? slide.bgImage : (slide.wbgImage || slide.bgImage); 
 
   return (
-    <div className="relative bottom-5 h-[320px] md:h-[380px] overflow-hidden">
+    <div className="relative bottom-5 h-[320px] md:h-[420px] overflow-hidden">
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-700"
-        style={{ backgroundImage: `url(${slide.bgImage})` }}
+        style={{ backgroundImage: `url(${bgImage})` }} 
       />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent via-[40%] to-transparent" />
 
       <div className="relative h-full container mx-auto px-4 flex items-center">
         <div className="bg-black/40 dark:bg-black/60 backdrop-blur-md rounded-2xl p-6 max-w-md border border-white/10">
@@ -68,10 +81,8 @@ export default function FeaturedCarousel() {
               </>
             )}
           </div>
-
           <p className="text-sm text-white/70 mb-1">{slide.subtitle}</p>
           <h2 className="text-2xl md:text-3xl font-display font-bold mb-4 text-white">{slide.title}</h2>
-
           <Button className="bg-primary hover:bg-primary/90 text-primary-foreground border-none font-semibold rounded-xl px-5" data-testid="button-carousel-cta">
             {slide.cta}
           </Button>
@@ -83,8 +94,7 @@ export default function FeaturedCarousel() {
           <button
             key={idx}
             onClick={() => setCurrent(idx)}
-            className={`w-2 h-2 rounded-full transition-colors ${idx === current ? "bg-primary" : "bg-white/40"
-              }`}
+            className={`w-2 h-2 rounded-full transition-colors ${idx === current ? "bg-primary" : "bg-white/40"}`}
             data-testid={`button-slide-${idx}`}
           />
         ))}

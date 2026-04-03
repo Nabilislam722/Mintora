@@ -6,6 +6,7 @@ const featuredSchema = new mongoose.Schema({
     subtitle: String,
     cta: String,
     bgImage: String,
+    wbgImage: String,
     logoLeft: String,
     logoRight: String
 })

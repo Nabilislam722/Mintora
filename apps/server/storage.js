@@ -40,8 +40,8 @@ class DatabaseStorage {
       nfts: nfts,
       collection: collections
     })
-    .from(nfts)
-    .leftJoin(collections, eq(nfts.collectionId, collections.id));
+      .from(nfts)
+      .leftJoin(collections, eq(nfts.collectionId, collections.id));
 
     const conditions = [];
 
@@ -80,9 +80,9 @@ class DatabaseStorage {
       nfts: nfts,
       collection: collections
     })
-    .from(nfts)
-    .leftJoin(collections, eq(nfts.collectionId, collections.id))
-    .where(eq(nfts.id, id));
+      .from(nfts)
+      .leftJoin(collections, eq(nfts.collectionId, collections.id))
+      .where(eq(nfts.id, id));
 
     if (!result) return undefined;
     return { ...result.nfts, collection: result.collection };
