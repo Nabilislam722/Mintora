@@ -20,7 +20,7 @@ yarn crawler
 yarn dev
 ```
 
-# The Site should be Running but NFT will show since We neeed to add new nft collections 🏗️
+# The Site should be Running but NFT will not show since We need to add new nft collections 🏗️
 
 ```
 yarn list {NFT Contract address}
