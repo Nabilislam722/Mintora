@@ -12,6 +12,7 @@ R2_PUBLIC_URL=
 ```
 yarn install
 ```
+```
 yarn crawler
 ```
 ```
