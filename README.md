@@ -12,6 +12,7 @@ R2_PUBLIC_URL=
 ```
 yarn install
 ```
+Open a seperate terminal for this or use pm2*
 ```
 yarn crawler
 ```
