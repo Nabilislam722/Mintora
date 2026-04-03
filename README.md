@@ -11,7 +11,10 @@ R2_PUBLIC_URL=
 # TO RUN, Must Do the steps above ⚒️
 ```
 yarn install
+```
 yarn crawler
+```
+```
 yarn dev
 ```
 
