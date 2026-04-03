@@ -12,7 +12,7 @@ R2_PUBLIC_URL=
 
 ```
 
-# TO RUN, Must Do the steps above 
+# TO RUN, Must Do the steps above ⚒️
 ```
 yarn install
 yarn crawler #MUST
