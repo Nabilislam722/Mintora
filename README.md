@@ -14,7 +14,7 @@ R2_PUBLIC_URL=
 <sub>MUST HAVE CLOUDFLARE R2</sub>
 
 # TO RUN, Must Do the steps above
-``
+```
 yarn install
 yarn dev
 ```
@@ -23,6 +23,6 @@ yarn dev
 
 ```
 yarn list {NFT Contract address}
-``
+```
 
 
