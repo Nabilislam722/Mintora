@@ -3,8 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { useAccount } from 'wagmi';
 import { formatEther } from "viem";
-import { ShoppingCart, Share2, Heart, CheckCircle2, Tag, Loader2 } from "lucide-react";
-
+import { ShoppingCart, CheckCircle2, Tag, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -193,7 +192,7 @@ export default function NftDetails() {
               <Button
                 size="lg"
                 variant="destructive"
-                className="w-full font-bold rounded-xl h-14 text-lg"
+                className="w-full font-bold rounded-xl h-14 text-lg hover:bg-red-700 transition-colors duration-200"
                 onClick={() => cancelMutation.mutate()}
                 disabled={cancelMutation.isPending}
               >

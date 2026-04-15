@@ -6,7 +6,7 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently \"yarn workspace server dev\" \"yarn workspace client dev\"",
+    "dev": "concurrently \"yarn workspace server dev\" \"yarn workspace client dev\" \"yarn workspace server crawler\"",
     "build": "yarn workspace client build",
     "crawler": "yarn workspace server crawler",
     "list": "yarn workspace server sync"

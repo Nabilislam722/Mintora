@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Navbar from "./components/Navbar";
@@ -11,7 +11,7 @@ import Profile from "./pages/Profile";
 import Create from "./pages/Create";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
-
+import Welcome from "./pages/welcome";
 
 function Router() {
   return (
@@ -24,23 +24,29 @@ function Router() {
       <Route path="/profile/:address" component={Profile} />
       <Route path="/create" component={Create} />
       <Route path="/settings" component={Settings} />
+      <Route path="/welcome" component={Welcome}/>
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function App() {
+  const [location] = useLocation();
+
+  const hideLayout = location === "/welcome";
+
   return (
-      <TooltipProvider>
-          <div className="min-h-screen bg-background text-foreground">
-            <Navbar />
-            <HoverSidebar />
-            <main className="pt-16">
-              <Router />
-            </main>
-          </div>
-          <Toaster />
-      </TooltipProvider>
+    <TooltipProvider>
+      <div className="min-h-screen bg-background text-foreground">
+
+        {!hideLayout && <Navbar />}
+        {!hideLayout && <HoverSidebar />}
+        <main className={!hideLayout ? "pt-16" : ""}>
+          <Router />
+        </main>
+      </div>
+      <Toaster />
+    </TooltipProvider>
   );
 }
 
