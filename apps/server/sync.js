@@ -67,11 +67,11 @@ function buildUrlList(uri, tokenId) {
 
     uri = uri.trim();
 
-    // ── Data URI (base64 inline JSON) ──────────────────────────────────────
+    // Data URI (base64 inline JSON)
     // Handled separately before calling this function; included here for safety.
     if (uri.startsWith('data:')) return [];
 
-    // ── Plain HTTP(S) non-gateway URL ──────────────────────────────────────
+    // Plain HTTP(S) non-gateway URL
     if (uri.startsWith('http') &&
         !uri.includes('ipfs.io') &&
         !uri.includes('mypinata.cloud') &&
