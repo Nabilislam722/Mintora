@@ -1,4 +1,4 @@
-# Create a `.env` file on the root directory with following values
+# Create a `.env` file on the Server root directory with following values
 
 
 
