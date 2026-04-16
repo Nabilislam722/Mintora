@@ -22,7 +22,7 @@ yarn dev
 # The Site should be Running but NFT will not show since We need to add new nft collections 🏗️
 
 ```
-yarn list {NFT Contract address}
+yarn run list {NFT Contract address}
 ```
 
 
