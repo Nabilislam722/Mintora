@@ -23,7 +23,7 @@ export default function Home() {
     queryKey: ["/api/nfts"],
   });
 
-  const displayCollections = collections.slice(0, 6);
+  const displayCollections = collections.slice(0, 10);
   const featuredCollections = displayCollections.filter(c => c.isFeatured);
   const regularCollections = displayCollections.filter(c => !c.isFeatured);
   const scrollRef = useRef(null);

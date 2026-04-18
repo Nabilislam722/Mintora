@@ -10,7 +10,7 @@ const collectionSchema = new mongoose.Schema({
   contractAddress: { type: String, lowercase: true, required: true, unique: true },
   chain: { type: String, default: 'Hemi' },
   floorPrice: String,
-  volume: String,
+  volume: { type: Number, default: 0 },
   sales: String,
   isVerified: { type: Boolean, default: false },
   isFeatured: { type: Boolean, default: false },

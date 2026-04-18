@@ -212,7 +212,6 @@ export default function NftDetails() {
                 </Button>
               </div>
             ) : (
-              // 4. Not Owner & Not Listed -> Show Unavailable Text
               <div className="p-4 bg-white/5 border border-white/10 rounded-xl text-center">
                 <p className="text-muted-foreground">This NFT is not currently for sale.</p>
               </div>

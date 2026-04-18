@@ -32,13 +32,11 @@ function Router() {
 
 function App() {
   const [location] = useLocation();
-
   const hideLayout = location === "/welcome";
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background text-foreground">
-
+      <div className={!hideLayout ? "min-h-screen bg-background text-foreground" : ""}>
         {!hideLayout && <Navbar />}
         {!hideLayout && <HoverSidebar />}
         <main className={!hideLayout ? "pt-16" : ""}>
