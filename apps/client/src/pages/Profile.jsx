@@ -15,14 +15,9 @@ export default function Profile() {
   const { openConnectModal } = useConnectModal();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-
-  // ✅ Declare address BEFORE any hook that uses it
   const address = urlAddress || walletAddress;
   const isOwnProfile = !urlAddress || urlAddress.toLowerCase() === walletAddress?.toLowerCase();
-
-  // ✅ Now useBalance can safely reference address
   const { data: balanceData } = useBalance({ address });
-
   const { data: dbUser } = useQuery({
     queryKey: [`/api/users/${address}`],
     queryFn: async () => {
