@@ -79,7 +79,7 @@ export default function NftDetails() {
     },
     onSuccess: () => {
       toast({ title: "Listing Canceled", description: "Your NFT is no longer on the market." });
-      patchAndSync({ isListed: false }); // 👈 instant UI update
+      patchAndSync({ isListed: false });
     },
     onError: (err) => {
       toast({ title: "Cancellation Error", description: err.message || "Failed to cancel the listing.", variant: "destructive" });
@@ -153,7 +153,7 @@ export default function NftDetails() {
           {/* Action Area */}
           <div className="space-y-4 mb-8">
             {!nft.isListed && isOwner ? (
-              // 1. Owner & Not Listed -> Show Listing Form
+              // Owner & Not Listed -> Show Listing Form
               <div className="space-y-3">
                 <div className="relative">
                   <Input
@@ -183,7 +183,7 @@ export default function NftDetails() {
                 </Button>
               </div>
             ) : nft.isListed && isOwner ? (
-              // 2. Owner & Listed -> Show Cancel Button
+              // Owner & Listed -> Show Cancel Button
               <Button
                 size="lg"
                 variant="destructive"
@@ -194,7 +194,7 @@ export default function NftDetails() {
                 {cancelMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : "Cancel Listing"}
               </Button>
             ) : nft.isListed && !isOwner ? (
-              // 3. Not Owner & Listed -> Show Buy Button
+              // Not Owner & Listed -> Show Buy Button
               <div className="flex gap-3">
                 <Button
                   size="lg"
