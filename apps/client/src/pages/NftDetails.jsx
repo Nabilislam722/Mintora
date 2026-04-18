@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { useAccount } from 'wagmi';
 import { formatEther } from "viem";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useWeb3 } from "../lib/web3.jsx";
 import { useToast } from "@/hooks/use-toast";
+import { parseEther } from "viem";
 
 export default function NftDetails() {
   const { address, isConnected } = useAccount();
@@ -17,13 +18,22 @@ export default function NftDetails() {
   const { collectionId, tokenId } = useParams();
   const [priceError, setPriceError] = useState(false);
   const [listPrice, setListPrice] = useState("");
+  const queryClient = useQueryClient(); 
 
-  const { data: nft, isLoading, refetch } = useQuery({
-    queryKey: [`/api/nfts/${collectionId}/${tokenId}`],
+  const queryKey = [`/api/nfts/${collectionId}/${tokenId}`];
+
+  const { data: nft, isLoading } = useQuery({
+    queryKey,
     enabled: !!collectionId && !!tokenId,
   });
 
   const isOwner = address?.toLowerCase() === nft?.ownerAddress?.toLowerCase();
+
+  // cache instantly, then schedule a background refetch to sync real DB state
+  const patchAndSync = (patch) => {
+    queryClient.setQueryData(queryKey, (old) => ({ ...old, ...patch }));
+    setTimeout(() => queryClient.invalidateQueries({ queryKey }), 4000);
+  };
 
   const purchaseMutation = useMutation({
     mutationFn: async () => {
@@ -33,14 +43,10 @@ export default function NftDetails() {
     },
     onSuccess: () => {
       toast({ title: "Purchase Successful!", description: "NFT is now yours." });
-      setTimeout(() => refetch(), 3000);
+      patchAndSync({ isListed: false, ownerAddress: address.toLowerCase() });
     },
     onError: (err) => {
-      toast({
-        title: "Purchase Failed",
-        description: err.message || "Transaction failed",
-        variant: "destructive",
-      });
+      toast({ title: "Purchase Failed", description: err.message || "Transaction failed", variant: "destructive" });
     },
   });
 
@@ -48,26 +54,20 @@ export default function NftDetails() {
     mutationFn: async () => {
       if (!listPrice || parseFloat(listPrice) <= 0) {
         setPriceError(true);
-        throw new Error("Must Enter a price");
+        throw new Error("Must enter a price");
       }
-
       setPriceError(false);
       const contractAddr = nft.collectionId?.contractAddress || nft.collection?.contractAddress;
-
       await approveNft(contractAddr, nft.tokenId);
       return await listItem(contractAddr, nft.tokenId, listPrice);
     },
     onSuccess: () => {
       toast({ title: "Successfully Listed!", description: "Your NFT is now on the market." });
+      patchAndSync({ isListed: true, price: parseEther(listPrice).toString() });
       setListPrice("");
-      setTimeout(() => refetch(), 3000);
     },
     onError: (err) => {
-      toast({
-        title: "Listing Error",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Listing Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -75,19 +75,14 @@ export default function NftDetails() {
     mutationFn: async () => {
       const contractAddr = nft.collectionId?.contractAddress || nft.collection?.contractAddress;
       if (!contractAddr) throw new Error("Missing collection contract address.");
-
       return await cancelListing(contractAddr, nft.tokenId);
     },
     onSuccess: () => {
       toast({ title: "Listing Canceled", description: "Your NFT is no longer on the market." });
-      setTimeout(() => refetch(), 3000);
+      patchAndSync({ isListed: false }); // 👈 instant UI update
     },
     onError: (err) => {
-      toast({
-        title: "Cancellation Error",
-        description: err.message || "Failed to cancel the listing.",
-        variant: "destructive",
-      });
+      toast({ title: "Cancellation Error", description: err.message || "Failed to cancel the listing.", variant: "destructive" });
     },
   });
 

@@ -13,14 +13,20 @@ import { BsFillCollectionFill } from "react-icons/bs";
 export default function Home() {
   const { data: collections = [], isLoading: loadingCols } = useQuery({
     queryKey: ["/api/collections"],
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: topNfts = [], isLoading: loadingTopNfts } = useQuery({
     queryKey: ["/api/featurednft?limit=8"],
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
   });
 
   const { data: latestNfts = [], isLoading: loadingLatest } = useQuery({
     queryKey: ["/api/nfts"],
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
   });
 
   const displayCollections = collections.slice(0, 10);
