@@ -5,6 +5,7 @@ import { Collection } from "./models/Collection.js";
 import { SyncState } from "./models/SyncState.js";
 
 const HEMI_RPC = "https://rpc.hemi.network/rpc";
+
 const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const RECOVERY_INTERVAL = 60_000;
@@ -259,6 +260,7 @@ async function processRecoveryQueue() {
         if (nftOps.length > 0) {
             await NFT.bulkWrite(nftOps, { ordered: false });
         }
+    });
 
         // Trigger stats updates in the background (Non-blocking)
         for (const [address, volumeAdded] of statsToUpdate) {
