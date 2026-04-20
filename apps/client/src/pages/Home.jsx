@@ -67,9 +67,9 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col gap-10 pr-12">
+    <div className="flex flex-col gap-10 sm:pr-12">
       <FeaturedCarousel />
-      
+
       {/* Collections */}
       <section className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-5">
@@ -89,10 +89,10 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="flex flex-wrap lg:flex-row gap-6 items-center ">
+        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
           {featuredCollections.length > 0 && (
             <div
-              className="relative flex shrink-0 gap-4 p-4 rounded-xl bg-neutral-950 "
+              className="relative flex shrink-0 gap-4 p-4 rounded-xl bg-neutral-950 w-full lg:w-auto"
               style={{ isolation: "isolate" }}
             >
               <div
@@ -129,26 +129,28 @@ export default function Home() {
                   className="w-4"
                 />
               </span>
-              {featuredCollections.map((collection) => (
-                <div key={collection._id} className="w-64 shrink-0">
-                  <CollectionCard collection={collection} size="large" />
-                </div>
-              ))}
+              <div className="flex gap-4 overflow-x-auto w-full" style={{ scrollbarWidth: "none" }}>
+                {featuredCollections.map((collection) => (
+                  <div key={collection._id} className="w-56 sm:w-64 shrink-0">
+                    <CollectionCard collection={collection} size="large" />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Regular collections*/}
+          {/* Regular collections */}
           {regularCollections.length > 0 && (
-            <div className="relative flex-1 min-w-0">
+            <div className="relative w-full lg:flex-1 min-w-0">
 
               {/* Left arrow */}
               {canScrollLeft && (
                 <button
                   onClick={() => scroll("left")}
                   className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10
-                   w-8 h-8 rounded-full bg-border border border-white/10
-                   flex items-center justify-center shadow-lg
-                   hover:bg-border/40 transition-colors"
+               w-8 h-8 rounded-full bg-border border border-white/10
+               flex items-center justify-center shadow-lg
+               hover:bg-border/40 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -159,16 +161,16 @@ export default function Home() {
                 <button
                   onClick={() => scroll("right")}
                   className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10
-                   w-8 h-8 rounded-full bg-border border border-white/10
-                   flex items-center justify-center shadow-lg
-                   hover:bg-border/40 transition-colors"
+               w-8 h-8 rounded-full bg-border border border-white/10
+               flex items-center justify-center shadow-lg
+               hover:bg-border/40 transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
               )}
 
               {/* Fade edges */}
-              {canScrollLeft && <div className="absolute left-0  top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-[5] pointer-events-none" />}
+              {canScrollLeft && <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-[5] pointer-events-none" />}
               {canScrollRight && <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-[5] pointer-events-none" />}
 
               {/* Scrollable row */}
@@ -178,7 +180,7 @@ export default function Home() {
                 style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
                 {regularCollections.map((collection) => (
-                  <div key={collection._id} className="w-56 shrink-0">
+                  <div key={collection._id} className="w-44 sm:w-56 shrink-0">
                     <CollectionCard collection={collection} size="large" />
                   </div>
                 ))}
@@ -192,14 +194,14 @@ export default function Home() {
       <LatestListingsSection nfts={latestNfts} />
 
       {/*Launchpad banner*/}
-      <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-80 mb-28">
+      <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-16 sm:mt-40 lg:mt-80 mb-10 sm:mb-20 lg:mb-28">
         {/* Left content */}
-        <div className="flex items-center justify-between px-12 py-10">
+        <div className="flex items-center justify-between px-5 sm:px-12 py-8 sm:py-10">
           <div className="flex flex-col gap-3 z-10">
             <p className="text-xs text-blue-200 uppercase tracking-widest flex items-center gap-1">
               Mintora NFT Launchpad
             </p>
-            <h2 className="text-3xl font-bold text-white leading-snug">
+            <h2 className="text-xl sm:text-3xl font-bold text-white leading-snug">
               Apply for NFT Listing or Launchpad
             </h2>
             <p className="text-sm text-blue-100/70 max-w-md">
@@ -212,9 +214,9 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-border py-6 px-8 flex items-center justify-between text-sm text-muted-foreground">
+      <footer className="border-t border-border py-6 px-4 sm:px-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-0 justify-between text-sm text-muted-foreground">
         <div>© 2026 Mintora. All rights reserved.</div>
-        <div className="flex gap-6">
+        <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
           <a href="#" target="_blank" className="hover:text-foreground transition">FAQ</a>
           <a href="#" target="_blank" className="hover:text-foreground transition">Terms of Use</a>
           <a href="https://github.com/Nabilislam722" target="_blank" className="hover:text-foreground transition">Team</a>
