@@ -35,6 +35,7 @@ contract Mintora is
         bool active;
     }
 
+    address public feeRecipient;
     mapping(address => mapping(uint256 => Listing)) private s_listings;
     mapping(address => mapping(uint256 => mapping(address => uint256)))
         private s_offers;
@@ -42,13 +43,16 @@ contract Mintora is
     mapping(address => RoyaltyOverride) private s_royaltyOverrides;
     mapping(address => uint256) public s_pendingWithdrawals;
 
+    uint256 public constant MAX_ROYALTY = 3000;
     uint256 public marketplaceFee;
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 private s_accumulatedFees;
 
     bool public offersEnabled;
     bool public auctionsEnabled;
+    uint256[50] private __gap;
 
+    
     event ItemListed(
         address indexed seller,
         address indexed nft,
@@ -85,6 +89,11 @@ contract Mintora is
         uint256 indexed tokenId,
         uint256 duration
     );
+    event AuctionCanceled(
+        address indexed seller,
+        address indexed nft,
+        uint256 indexed tokenId
+    );
     event BidPlaced(
         address indexed bidder,
         address indexed nft,
@@ -120,6 +129,7 @@ contract Mintora is
         __Pausable_init();
         __UUPSUpgradeable_init();
 
+        feeRecipient = msg.sender;
         marketplaceFee = 500;
         offersEnabled = false;
         auctionsEnabled = false;
@@ -168,7 +178,7 @@ contract Mintora is
                 IERC721(nft).isApprovedForAll(listing.seller, address(this)),
             "Approval revoked"
         );
-
+        _refundAuctionBidder(nft, tokenId);
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
 
@@ -269,6 +279,7 @@ contract Mintora is
             "Not approved"
         );
 
+        _refundAuctionBidder(nft, tokenId);
         delete s_offers[nft][tokenId][buyer];
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
@@ -288,6 +299,7 @@ contract Mintora is
         uint256 duration
     ) external auctionsActive whenNotPaused {
         require(duration > 0, "Invalid duration");
+        require(duration >= 1 hours, "Min 1 hour");
         require(
             IERC721(nft).getApproved(tokenId) == address(this) ||
                 IERC721(nft).isApprovedForAll(msg.sender, address(this)),
@@ -308,15 +320,34 @@ contract Mintora is
         emit AuctionCreated(msg.sender, nft, tokenId, duration);
     }
 
+    function cancelAuction(
+        address nft,
+        uint256 tokenId
+    ) external whenNotPaused auctionsActive {
+        Auction memory auction = s_auctions[nft][tokenId];
+        require(auction.active, "No auction");
+        require(auction.seller == msg.sender, "Not seller");
+        require(auction.highestBid == 0, "Bids exist");
+
+        delete s_auctions[nft][tokenId];
+        emit AuctionCanceled(msg.sender, nft, tokenId);
+    }
+
     function placeBid(
         address nft,
         uint256 tokenId
-    ) external payable nonReentrant auctionsActive {
+    ) external payable nonReentrant auctionsActive whenNotPaused {
         Auction storage auction = s_auctions[nft][tokenId];
-
+        // minimum 2% increment
         require(auction.active, "Not active");
         require(block.timestamp < auction.endTime, "Ended");
-        require(msg.value > auction.highestBid, "Low bid");
+        require(msg.sender != auction.seller, "Seller cannot bid");
+        require(msg.value > 0, "Bid must be > 0");
+        uint256 minIncrement = (auction.highestBid * 200) / FEE_DENOMINATOR;
+        require(
+            msg.value >= auction.highestBid + minIncrement,
+            "Bid increment too low"
+        );
 
         if (auction.highestBid > 0) {
             s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
@@ -331,9 +362,13 @@ contract Mintora is
     function finalizeAuction(
         address nft,
         uint256 tokenId
-    ) external nonReentrant auctionsActive {
+    ) external nonReentrant auctionsActive whenNotPaused {
         Auction memory auction = s_auctions[nft][tokenId];
 
+        require(
+            msg.sender == auction.seller || msg.sender == auction.highestBidder,
+            "Not authorized"
+        );
         require(auction.active, "Not active");
         require(block.timestamp >= auction.endTime, "Not ended");
         require(
@@ -344,9 +379,6 @@ contract Mintora is
             IERC721(nft).getApproved(tokenId) == address(this) ||
                 IERC721(nft).isApprovedForAll(auction.seller, address(this)),
             "Not approved"
-        );
-        require(
-            msg.sender == auction.seller || msg.sender == auction.highestBidder
         );
 
         delete s_auctions[nft][tokenId];
@@ -391,7 +423,6 @@ contract Mintora is
         address seller
     ) internal {
         uint256 feeAmount = (price * marketplaceFee) / FEE_DENOMINATOR;
-
         uint256 royaltyAmount;
         address royaltyReceiver;
 
@@ -405,6 +436,10 @@ contract Mintora is
                 tokenId,
                 price
             );
+            uint256 royaltyCap = (price * MAX_ROYALTY) / FEE_DENOMINATOR;
+            if (royaltyAmount > royaltyCap) {
+                royaltyAmount = royaltyCap;
+            }
         }
 
         require(feeAmount + royaltyAmount <= price, "Fees exceed Price");
@@ -412,10 +447,16 @@ contract Mintora is
         s_accumulatedFees += feeAmount;
 
         if (royaltyAmount > 0 && royaltyReceiver != address(0)) {
-            _safeTransferETH(royaltyReceiver, royaltyAmount);
+            s_pendingWithdrawals[royaltyReceiver] += royaltyAmount;
         }
-
         _safeTransferETH(seller, price - feeAmount - royaltyAmount);
+    }
+
+    function _refundAuctionBidder(address nft, uint256 tokenId) internal {
+        Auction storage auction = s_auctions[nft][tokenId];
+        if (auction.active && auction.highestBid > 0) {
+            s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
+        }
     }
 
     function _safeTransferETH(address to, uint256 amount) internal {
@@ -424,7 +465,7 @@ contract Mintora is
         require(success, "ETH transfer failed");
     }
 
-    // ADMIN
+    // Owner
 
     function setOffersEnabled(bool enabled) external onlyOwner {
         offersEnabled = enabled;
@@ -433,13 +474,16 @@ contract Mintora is
     function setAuctionsEnabled(bool enabled) external onlyOwner {
         auctionsEnabled = enabled;
     }
+    function setFeeRecipient(address recipient) external onlyOwner {
+        require(recipient != address(0));
+        feeRecipient = recipient;
+    }
 
     function withdrawFees() external onlyOwner {
+        require(feeRecipient != address(0), "Fee recipient not set");
         uint256 amount = s_accumulatedFees;
-
         s_accumulatedFees = 0;
-
-        _safeTransferETH(owner(), amount);
+        _safeTransferETH(feeRecipient, amount);
     }
 
     function setMarketplaceFee(uint256 newFee) external onlyOwner {
