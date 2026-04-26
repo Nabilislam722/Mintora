@@ -182,7 +182,7 @@ contract Mintora is
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
 
-        _handlePayout(nft, tokenId, msg.value, listing.seller);
+        _handlePayout(nft, tokenId, msg.value, listing.seller, false);
 
         IERC721(nft).safeTransferFrom(listing.seller, msg.sender, tokenId);
 
@@ -292,7 +292,7 @@ contract Mintora is
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
 
-        _handlePayout(nft, tokenId, amount, msg.sender);
+        _handlePayout(nft, tokenId, amount, msg.sender, false);
 
         IERC721(nft).safeTransferFrom(msg.sender, buyer, tokenId);
 
@@ -306,7 +306,6 @@ contract Mintora is
         uint256 tokenId,
         uint256 duration
     ) external auctionsActive whenNotPaused {
-        require(duration > 0, "Invalid duration");
         require(duration >= 1 hours, "Min 1 hour");
         require(
             IERC721(nft).getApproved(tokenId) == address(this) ||
@@ -333,7 +332,7 @@ contract Mintora is
         uint256 tokenId
     ) external whenNotPaused {
         Auction memory auction = s_auctions[nft][tokenId];
-        require(auction.active, "No auction");
+        require(auction.active, "Auction not found");
         require(auction.seller == msg.sender, "Not seller");
         require(auction.highestBid == 0, "Bids exist");
 
@@ -347,7 +346,7 @@ contract Mintora is
     ) external payable nonReentrant auctionsActive whenNotPaused {
         Auction storage auction = s_auctions[nft][tokenId];
         // minimum 2% increment
-        require(auction.active, "Not active");
+        require(auction.active, "Auction not found");
         require(block.timestamp < auction.endTime, "Ended");
         require(msg.sender != auction.seller, "Seller cannot bid");
         require(msg.value > 0, "Bid must be > 0");
@@ -373,12 +372,12 @@ contract Mintora is
     ) external nonReentrant whenNotPaused {
         Auction memory auction = s_auctions[nft][tokenId];
 
+        require(auction.active, "Not active");
         require(
             msg.sender == auction.seller || msg.sender == auction.highestBidder,
             "Not authorized"
         );
-        require(auction.active, "Not active");
-        require(block.timestamp >= auction.endTime, "Not ended");
+        require(block.timestamp >= auction.endTime, "Auction not ended");
 
         delete s_auctions[nft][tokenId];
 
@@ -396,7 +395,13 @@ contract Mintora is
 
         if (auction.highestBid > 0 && sellerStillOwns && approvalIntact) {
             delete s_listings[nft][tokenId];
-            _handlePayout(nft, tokenId, auction.highestBid, auction.seller);
+            _handlePayout(
+                nft,
+                tokenId,
+                auction.highestBid,
+                auction.seller,
+                true
+            );
             IERC721(nft).safeTransferFrom(
                 auction.seller,
                 auction.highestBidder,
@@ -434,14 +439,14 @@ contract Mintora is
         address nft,
         uint256 tokenId,
         uint256 price,
-        address seller
+        address seller,
+        bool isAuction
     ) internal {
         uint256 feeAmount = (price * marketplaceFee) / FEE_DENOMINATOR;
         uint256 royaltyAmount;
         address royaltyReceiver;
 
         RoyaltyOverride memory overrideData = s_royaltyOverrides[nft];
-
         if (overrideData.receiver != address(0) && overrideData.fee > 0) {
             royaltyAmount = (price * overrideData.fee) / FEE_DENOMINATOR;
             royaltyReceiver = overrideData.receiver;
@@ -450,24 +455,34 @@ contract Mintora is
                 address receiver,
                 uint256 amount
             ) {
-                royaltyReceiver = receiver;
-                royaltyAmount = amount;
-                uint256 royaltyCap = (price * MAX_ROYALTY) / FEE_DENOMINATOR;
-                if (royaltyAmount > royaltyCap) {
-                    royaltyAmount = royaltyCap;
+                if (receiver != address(0)) {
+                    royaltyReceiver = receiver;
+                    royaltyAmount = amount;
+                    uint256 royaltyCap = (price * MAX_ROYALTY) /
+                        FEE_DENOMINATOR;
+                    if (royaltyAmount > royaltyCap) royaltyAmount = royaltyCap;
                 }
             } catch {}
         }
 
-        require(feeAmount + royaltyAmount <= price, "Fees exceed Price");
+        require(feeAmount + royaltyAmount <= price, "Fees exceed price");
 
         s_accumulatedFees += feeAmount;
 
+        uint256 sellerProceeds = price - feeAmount - royaltyAmount;
+
         if (royaltyAmount > 0 && royaltyReceiver != address(0)) {
-            s_pendingWithdrawals[royaltyReceiver] += royaltyAmount;
+            (bool royaltyOk, ) = royaltyReceiver.call{value: royaltyAmount}("");
+            if (!royaltyOk)
+                s_pendingWithdrawals[royaltyReceiver] += royaltyAmount;
         }
 
-        s_pendingWithdrawals[seller] += price - feeAmount - royaltyAmount;
+        if (isAuction) {
+            s_pendingWithdrawals[seller] += sellerProceeds;
+        } else {
+            (bool sellerOk, ) = seller.call{value: sellerProceeds}("");
+            if (!sellerOk) s_pendingWithdrawals[seller] += sellerProceeds;
+        }
     }
 
     function _refundAuctionBidder(address nft, uint256 tokenId) internal {
@@ -502,7 +517,8 @@ contract Mintora is
         uint256 amount = s_accumulatedFees;
         require(amount > 0, "No fees to withdraw");
         s_accumulatedFees = 0;
-        _safeTransferETH(feeRecipient, amount);
+        (bool ok, ) = feeRecipient.call{value: amount}("");
+        if (!ok) s_pendingWithdrawals[feeRecipient] += amount;
     }
 
     function setMarketplaceFee(uint256 newFee) external onlyOwner {
@@ -510,12 +526,14 @@ contract Mintora is
         emit MarketplaceFeeUpdated(marketplaceFee, newFee);
         marketplaceFee = newFee;
     }
+
     function setRoyaltyOverride(
         address nft,
         address receiver,
         uint96 fee
     ) external onlyOwner {
         require(fee <= 1000, "Max 10%");
+        if (fee > 0) require(receiver != address(0), "Zero receiver");
         s_royaltyOverrides[nft] = RoyaltyOverride(receiver, fee);
     }
 
