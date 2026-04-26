@@ -47,6 +47,8 @@ contract Mintora is
     uint256 public marketplaceFee;
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 private s_accumulatedFees;
+    uint256 public s_totalPendingWithdrawals;
+    uint256 public s_totalEscrowedFunds;
 
     bool public offersEnabled;
     bool public auctionsEnabled;
@@ -252,9 +254,10 @@ contract Mintora is
 
         if (prior > 0) {
             delete s_offers[nft][tokenId][msg.sender];
+            s_totalEscrowedFunds -= prior;
             _safeTransferETH(msg.sender, prior);
         }
-
+        s_totalEscrowedFunds += msg.value;
         s_offers[nft][tokenId][msg.sender] = msg.value;
 
         emit OfferMade(msg.sender, nft, tokenId, msg.value);
@@ -266,7 +269,7 @@ contract Mintora is
         require(amount > 0, "No offer");
 
         delete s_offers[nft][tokenId][msg.sender];
-
+        s_totalEscrowedFunds -= amount;
         _safeTransferETH(msg.sender, amount);
 
         emit OfferCanceled(msg.sender, nft, tokenId);
@@ -291,7 +294,7 @@ contract Mintora is
         delete s_offers[nft][tokenId][buyer];
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
-
+        s_totalEscrowedFunds -= amount;
         _handlePayout(nft, tokenId, amount, msg.sender, false);
 
         IERC721(nft).safeTransferFrom(msg.sender, buyer, tokenId);
@@ -358,8 +361,10 @@ contract Mintora is
 
         if (auction.highestBid > 0) {
             s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
+            s_totalPendingWithdrawals += auction.highestBid;
+            s_totalEscrowedFunds -= auction.highestBid;
         }
-
+        s_totalEscrowedFunds += msg.value;
         auction.highestBid = msg.value;
         auction.highestBidder = msg.sender;
 
@@ -380,7 +385,9 @@ contract Mintora is
         require(block.timestamp >= auction.endTime, "Auction not ended");
 
         delete s_auctions[nft][tokenId];
-
+        if (auction.highestBid > 0) {
+            s_totalEscrowedFunds -= auction.highestBid;
+        }
         // try/catch handles burned tokens — ownerOf reverts on non-existent tokenIds
         bool sellerStillOwns = false;
         try IERC721(nft).ownerOf(tokenId) returns (address owner) {
@@ -410,6 +417,7 @@ contract Mintora is
         } else if (auction.highestBid > 0) {
             // Seller burned/moved NFT or revoked approval — refund bidder
             s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
+            s_totalPendingWithdrawals += auction.highestBid;
         }
         // Zero bids: auction cleaned up, listing untouched
 
@@ -429,6 +437,7 @@ contract Mintora is
         require(amount > 0, "Nothing to withdraw");
 
         s_pendingWithdrawals[msg.sender] = 0;
+        s_totalPendingWithdrawals -= amount;
 
         _safeTransferETH(msg.sender, amount);
     }
@@ -473,22 +482,32 @@ contract Mintora is
 
         if (royaltyAmount > 0 && royaltyReceiver != address(0)) {
             (bool royaltyOk, ) = royaltyReceiver.call{value: royaltyAmount}("");
-            if (!royaltyOk)
+            if (!royaltyOk) {
                 s_pendingWithdrawals[royaltyReceiver] += royaltyAmount;
+                s_totalPendingWithdrawals += royaltyAmount;
+            }
         }
 
         if (isAuction) {
             s_pendingWithdrawals[seller] += sellerProceeds;
+            s_totalPendingWithdrawals += sellerProceeds;
         } else {
             (bool sellerOk, ) = seller.call{value: sellerProceeds}("");
-            if (!sellerOk) s_pendingWithdrawals[seller] += sellerProceeds;
+            if (!sellerOk) {
+                s_pendingWithdrawals[seller] += sellerProceeds;
+                s_totalPendingWithdrawals += sellerProceeds;
+            }
         }
     }
 
     function _refundAuctionBidder(address nft, uint256 tokenId) internal {
         Auction storage auction = s_auctions[nft][tokenId];
         if (auction.active && auction.highestBid > 0) {
-            s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
+            uint256 amount = auction.highestBid;
+            s_pendingWithdrawals[auction.highestBidder] += amount;
+            s_totalPendingWithdrawals += amount;
+            s_totalEscrowedFunds -= amount; // Move from Escrow to Pending
+            auction.highestBid = 0; // Clear it to prevent double-accounting
         }
     }
 
@@ -517,8 +536,12 @@ contract Mintora is
         uint256 amount = s_accumulatedFees;
         require(amount > 0, "No fees to withdraw");
         s_accumulatedFees = 0;
+
         (bool ok, ) = feeRecipient.call{value: amount}("");
-        if (!ok) s_pendingWithdrawals[feeRecipient] += amount;
+        if (!ok) {
+            s_pendingWithdrawals[feeRecipient] += amount;
+            s_totalPendingWithdrawals += amount;
+        }
     }
 
     function setMarketplaceFee(uint256 newFee) external onlyOwner {
@@ -526,7 +549,28 @@ contract Mintora is
         emit MarketplaceFeeUpdated(marketplaceFee, newFee);
         marketplaceFee = newFee;
     }
+    /**
+     * @notice Recovers STUCK ETH only.
+     * @dev Calculates total locked funds (fees + user withdrawals) and only allows
+     * withdrawing the surplus (funds that have no internal accounting).
+     */
+    function rescueETH(address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "Zero address");
 
+        // Locked = House Fees + User Refunds + Active Bids/Offers
+        uint256 lockedFunds = s_accumulatedFees +
+            s_totalPendingWithdrawals +
+            s_totalEscrowedFunds;
+        uint256 contractBalance = address(this).balance;
+
+        require(contractBalance >= lockedFunds, "Insolvent state");
+        uint256 safeWithdrawable = contractBalance - lockedFunds;
+
+        require(amount <= safeWithdrawable, "Amount cuts into user funds");
+        require(amount > 0, "No stuck ETH to rescue");
+
+        _safeTransferETH(to, amount);
+    }
     function setRoyaltyOverride(
         address nft,
         address receiver,
