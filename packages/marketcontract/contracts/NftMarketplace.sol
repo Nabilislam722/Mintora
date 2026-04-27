@@ -55,7 +55,7 @@ contract Mintora is
     uint256 private s_accumulatedFees;
     uint256 public constant BID_EXTENSION_THRESHOLD = 10 minutes;
     uint256 public constant BID_EXTENSION_DURATION = 10 minutes;
-    uint256 public constant ROYALTY_GAS_STIPEND = 50_000;
+    uint256 public constant ROYALTY_GAS_STIPEND = 65_000;
     uint256 public constant AUCTION_GRACE_PERIOD = 7 days;
     bool public offersEnabled;
     bool public auctionsEnabled;
@@ -316,8 +316,8 @@ contract Mintora is
         Offer memory offer = s_offers[nft][tokenId][buyer];
         uint256 amount = offer.amount;
 
-        require(block.timestamp <= offer.expiry, "Offer expired");
         require(amount > 0, "No offer");
+        require(block.timestamp <= offer.expiry, "Offer expired");
         require(IERC721(nft).ownerOf(tokenId) == msg.sender, "Not owner");
         require(
             IERC721(nft).getApproved(tokenId) == address(this) ||
@@ -355,7 +355,12 @@ contract Mintora is
         );
         require(!s_auctions[nft][tokenId].active, "Auction exists");
 
-        delete s_listings[nft][tokenId];
+        Listing memory existingListing = s_listings[nft][tokenId];
+        if (existingListing.seller != address(0)) {
+            delete s_listings[nft][tokenId];
+            emit ItemCanceled(existingListing.seller, nft, tokenId);
+        }
+
         s_auctions[nft][tokenId] = Auction(
             msg.sender,
             0,
@@ -365,7 +370,13 @@ contract Mintora is
             reservePrice
         );
 
-        emit AuctionCreated(msg.sender, nft, tokenId, block.timestamp + duration, reservePrice);
+        emit AuctionCreated(
+            msg.sender,
+            nft,
+            tokenId,
+            block.timestamp + duration,
+            reservePrice
+        );
     }
 
     function cancelAuction(address nft, uint256 tokenId) external {
@@ -417,7 +428,7 @@ contract Mintora is
     function finalizeAuction(
         address nft,
         uint256 tokenId
-    ) external nonReentrant {
+    ) external nonReentrant whenNotPaused {
         Auction memory auction = s_auctions[nft][tokenId];
 
         require(auction.active, "Not active");
