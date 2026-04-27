@@ -428,7 +428,7 @@ contract Mintora is
     function finalizeAuction(
         address nft,
         uint256 tokenId
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant {
         Auction memory auction = s_auctions[nft][tokenId];
 
         require(auction.active, "Not active");
