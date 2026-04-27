@@ -53,15 +53,15 @@ contract Mintora is
     uint256 public marketplaceFee;
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 private s_accumulatedFees;
-    uint256 public s_totalPendingWithdrawals;
-    uint256 public s_totalEscrowedFunds;
     uint256 public constant BID_EXTENSION_THRESHOLD = 10 minutes;
     uint256 public constant BID_EXTENSION_DURATION = 10 minutes;
     uint256 public constant ROYALTY_GAS_STIPEND = 50_000;
     uint256 public constant AUCTION_GRACE_PERIOD = 7 days;
     bool public offersEnabled;
     bool public auctionsEnabled;
-    uint256[50] private __gap;
+    uint256 public s_totalPendingWithdrawals;
+    uint256 public s_totalEscrowedFunds;
+    uint256[48] private __gap;
 
     event ItemListed(
         address indexed seller,
@@ -98,7 +98,7 @@ contract Mintora is
         address indexed seller,
         address indexed nft,
         uint256 indexed tokenId,
-        uint256 duration,
+        uint256 endTime,
         uint256 reservePrice
     );
     event AuctionCanceled(
@@ -365,7 +365,7 @@ contract Mintora is
             reservePrice
         );
 
-        emit AuctionCreated(msg.sender, nft, tokenId, duration, reservePrice);
+        emit AuctionCreated(msg.sender, nft, tokenId, block.timestamp + duration, reservePrice);
     }
 
     function cancelAuction(address nft, uint256 tokenId) external {
