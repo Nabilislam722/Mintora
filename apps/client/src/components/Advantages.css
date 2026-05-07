@@ -1,0 +1,257 @@
+/* ─────────────────────────────────────────────────────────────
+   Advantages.css
+   --scale  → JS: Math.min(vw/1280, vh/720)
+   --accent → JS: per-card accent colour (inline)
+───────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
+
+/* ── Root ── */
+.adv-root {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  background: #0b1610;
+  overflow: hidden;
+  font-family: 'Instrument Sans', sans-serif;
+}
+
+/* ── Connector SVG ── */
+.adv-connectors {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Eyebrow wrapper — perfectly centred ── */
+.adv-header {
+  position: absolute;
+  width: 100vw;
+  top: calc(36px * var(--scale));
+  justify-content: center;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: inline-flex;       
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Eyebrow text pill ── */
+.adv-eyebrow {
+  display: inline-block;
+  font-weight: 700;
+  height: calc(30px * var(--scale));
+  line-height: calc(30px * var(--scale));
+  padding: 0 calc(24px * var(--scale));
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  font-size: calc(8.5px * var(--scale));
+  letter-spacing: 2px;
+  white-space: nowrap;
+  border-bottom: calc(2px * var(--scale)) solid #0BA14B;
+  text-align: center;
+}
+
+/* ── Diamond wrapper ── */
+.adv-diamond-wrap {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+}
+
+/* ── Diamond inner ── */
+.adv-diamond {
+  background: #0BA14B;
+  border-radius: calc(5px * var(--scale));
+  border: calc(2.5px * var(--scale)) solid #38BDF8;
+  box-shadow:
+    0 0 calc(28px * var(--scale)) rgba(11, 161, 75, 0.6),
+    0 0 calc(60px * var(--scale)) rgba(56, 189, 248, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.adv-diamond-label {
+  display: block;
+  font-size: calc(14px * var(--scale));
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+  user-select: none;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Card base ── */
+.adv-card {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: calc(8px * var(--scale));
+  padding: calc(10px * var(--scale)) calc(14px * var(--scale));
+
+  /* collapsed glass */
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: calc(1px * var(--scale)) solid rgba(255, 255, 255, 0.10);
+
+  transition:
+    border-color 0.3s ease,
+    box-shadow   0.3s ease,
+    background   0.3s ease,
+    backdrop-filter 0.3s ease;
+
+  z-index: 6;
+}
+
+/* ── Card hover = glassy expand ── */
+.adv-card:hover {
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-color: var(--accent);
+  box-shadow:
+    0 0 calc(18px * var(--scale)) color-mix(in srgb, var(--accent) 25%, transparent),
+    inset 0 0 calc(30px * var(--scale)) rgba(255, 255, 255, 0.03),
+    0 calc(8px * var(--scale)) calc(32px * var(--scale)) rgba(0, 0, 0, 0.5);
+  z-index: 15;
+}
+
+/* ── Card top row ── */
+.adv-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: calc(4px * var(--scale));
+}
+
+.adv-card-label {
+  font-size: calc(7px * var(--scale));
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.adv-card-icon {
+  font-size: calc(13px * var(--scale));
+  color: var(--accent);
+  opacity: 0.85;
+  line-height: 1;
+}
+
+/* ── Card title ── */
+.adv-card-title {
+  font-size: calc(11px * var(--scale));
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.3;
+  margin-bottom: calc(4px * var(--scale));
+}
+
+/* ── Stat row ── */
+.adv-card-stat {
+  display: flex;
+  align-items: baseline;
+  gap: calc(4px * var(--scale));
+}
+
+.adv-card-stat-num {
+  font-size: calc(14px * var(--scale));
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+}
+
+.adv-card-stat-label {
+  font-size: calc(6.5px * var(--scale));
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Expanded detail (animated in JS via AnimatePresence) ── */
+.adv-card-divider {
+  width: 100%;
+  height: calc(1px * var(--scale));
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  margin: calc(8px * var(--scale)) 0;
+}
+
+.adv-card-body {
+  font-size: calc(9px * var(--scale));
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.70);
+  line-height: 1.6;
+  margin: 0 0 calc(8px * var(--scale)) 0;
+}
+
+.adv-card-bullets {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(5px * var(--scale));
+}
+
+.adv-card-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(6px * var(--scale));
+  font-size: calc(8.5px * var(--scale));
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.45;
+}
+
+.adv-card-bullet::before {
+  content: '';
+  display: inline-block;
+  flex-shrink: 0;
+  width:  calc(4px * var(--scale));
+  height: calc(4px * var(--scale));
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: calc(4.5px * var(--scale));
+  box-shadow: 0 0 calc(5px * var(--scale)) var(--accent);
+}
+
+/* ── Bottom accent bar ── */
+.adv-card-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(2px * var(--scale));
+  background: var(--accent);
+  transform-origin: left;
+  opacity: 0.75;
+}
+
+/* ── Powered-by row ── */
+.adv-powered {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: calc(7px * var(--scale));
+  font-size: calc(8.5px * var(--scale));
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+  z-index: 20;
+}

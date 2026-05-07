@@ -57,6 +57,7 @@ contract Mintora is
     uint256 public constant BID_EXTENSION_DURATION = 10 minutes;
     uint256 public constant ROYALTY_GAS_STIPEND = 65_000;
     uint256 public constant AUCTION_GRACE_PERIOD = 7 days;
+    uint256 public constant MIN_RESERVE_FLOOR = 0.01 ether;
     bool public offersEnabled;
     bool public auctionsEnabled;
     uint256 public s_totalPendingWithdrawals;
@@ -173,13 +174,9 @@ contract Mintora is
         uint256 price
     ) external whenNotPaused {
         require(price > 0, "Price > 0");
-        require(IERC721(nft).ownerOf(tokenId) == msg.sender, "Not owner");
+        require(_getOwnerSafely(nft, tokenId) == msg.sender, "Not owner");
+        require(_isApprovedSafely(nft, tokenId, msg.sender), "Not approved");
 
-        require(
-            IERC721(nft).getApproved(tokenId) == address(this) ||
-                IERC721(nft).isApprovedForAll(msg.sender, address(this)),
-            "Not approved"
-        );
         require(!s_auctions[nft][tokenId].active, "Active auction exists");
 
         s_listings[nft][tokenId] = Listing(msg.sender, price);
@@ -197,21 +194,46 @@ contract Mintora is
         require(msg.value == listing.price, "Wrong ETH");
         require(msg.sender != listing.seller, "Self-buy forbidden");
         require(
-            IERC721(nft).ownerOf(tokenId) == listing.seller,
+            _getOwnerSafely(nft, tokenId) == listing.seller,
             "Seller not owner"
         );
         require(
-            IERC721(nft).getApproved(tokenId) == address(this) ||
-                IERC721(nft).isApprovedForAll(listing.seller, address(this)),
+            _isApprovedSafely(nft, tokenId, listing.seller),
             "Approval revoked"
         );
+        require(!s_auctions[nft][tokenId].active, "Auction active");
+
         _refundAuctionBidder(nft, tokenId);
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
 
-        _handlePayout(nft, tokenId, msg.value, listing.seller, false);
+        bool transferCallOk;
+        bytes memory transferData = abi.encodeCall(
+            IERC721.safeTransferFrom,
+            (
+                listing.seller, // from
+                msg.sender, // to
+                tokenId // The ID of the NFT
+            )
+        );
+        assembly {
+            transferCallOk := call(
+                gas(),
+                nft,
+                0,
+                add(transferData, 0x20),
+                mload(transferData),
+                0,
+                0 // retSize = 0, gas-bomb impossible
+            )
+        }
 
-        IERC721(nft).safeTransferFrom(listing.seller, msg.sender, tokenId);
+        require(
+            transferCallOk && _getOwnerSafely(nft, tokenId) == msg.sender,
+            "Transfer failed"
+        );
+
+        _handlePayout(nft, tokenId, msg.value, listing.seller, false);
 
         emit ItemSold(msg.sender, nft, tokenId, msg.value);
     }
@@ -223,7 +245,8 @@ contract Mintora is
         Listing memory listing = s_listings[nft][tokenId];
         require(listing.seller != address(0), "Not listed");
 
-        address currentOwner = IERC721(nft).ownerOf(tokenId);
+        address currentOwner = _getOwnerSafely(nft, tokenId);
+
         require(
             msg.sender == listing.seller || msg.sender == currentOwner,
             "Not authorized"
@@ -244,7 +267,7 @@ contract Mintora is
 
         require(listing.seller != address(0), "Not listed");
         require(listing.seller == msg.sender, "Not seller");
-        require(IERC721(nft).ownerOf(tokenId) == msg.sender, "No longer owner");
+        require(_getOwnerSafely(nft, tokenId) == msg.sender, "No longer owner");
 
         listing.price = newPrice;
 
@@ -277,18 +300,20 @@ contract Mintora is
     ) external payable nonReentrant offersActive whenNotPaused {
         require(deadline > block.timestamp, "Deadline in the past");
         require(
-            IERC721(nft).ownerOf(tokenId) != msg.sender,
+            _getOwnerSafely(nft, tokenId) != msg.sender,
             "Cannot offer on own token"
+        );
+        require(
+            _getOwnerSafely(nft, tokenId) != address(0),
+            "NFT does not exist"
         );
         require(msg.value > 0, "Offer > 0");
         Offer memory prior = s_offers[nft][tokenId][msg.sender];
 
         if (prior.amount > 0) {
-            delete s_offers[nft][tokenId][msg.sender];
-            s_totalEscrowedFunds -= prior.amount;
-            s_pendingWithdrawals[msg.sender] += prior.amount;
-            s_totalPendingWithdrawals += prior.amount;
+            revert("Offer already exists; cancel first");
         }
+
         s_totalEscrowedFunds += msg.value;
         s_offers[nft][tokenId][msg.sender] = Offer(msg.value, deadline);
 
@@ -311,28 +336,51 @@ contract Mintora is
     function acceptOffer(
         address nft,
         uint256 tokenId,
-        address buyer
+        address buyer,
+        uint256 expectedAmount
     ) external nonReentrant whenNotPaused {
         Offer memory offer = s_offers[nft][tokenId][buyer];
         uint256 amount = offer.amount;
 
+        require(offer.amount == expectedAmount, "Offer amount changed");
         require(amount > 0, "No offer");
         require(block.timestamp <= offer.expiry, "Offer expired");
-        require(IERC721(nft).ownerOf(tokenId) == msg.sender, "Not owner");
-        require(
-            IERC721(nft).getApproved(tokenId) == address(this) ||
-                IERC721(nft).isApprovedForAll(msg.sender, address(this)),
-            "Not approved"
-        );
+        require(_getOwnerSafely(nft, tokenId) == msg.sender, "Not owner");
+        require(_isApprovedSafely(nft, tokenId, msg.sender), "Not approved");
+        require(!s_auctions[nft][tokenId].active, "Auction active");
 
         _refundAuctionBidder(nft, tokenId);
         delete s_offers[nft][tokenId][buyer];
         delete s_listings[nft][tokenId];
         delete s_auctions[nft][tokenId];
         s_totalEscrowedFunds -= amount;
-        _handlePayout(nft, tokenId, amount, msg.sender, false);
 
-        IERC721(nft).safeTransferFrom(msg.sender, buyer, tokenId);
+        bool transferCallOk;
+
+        bytes memory transferData = abi.encodeCall(
+            IERC721.safeTransferFrom,
+            (msg.sender, buyer, tokenId)
+        );
+        assembly {
+            transferCallOk := call(
+                gas(),
+                nft,
+                0,
+                add(transferData, 0x20),
+                mload(transferData),
+                0,
+                0 // retSize = 0
+            )
+        }
+
+        // Verify ownership actually
+        require(
+            transferCallOk && _getOwnerSafely(nft, tokenId) == buyer,
+            "Transfer failed"
+        );
+
+        // Payout ONLY after confirmed transfer
+        _handlePayout(nft, tokenId, amount, msg.sender, false);
 
         emit OfferAccepted(msg.sender, buyer, nft, tokenId, amount);
     }
@@ -347,13 +395,10 @@ contract Mintora is
     ) external auctionsActive whenNotPaused {
         require(duration >= 1 hours, "Min 1 hour");
         require(duration <= 30 days, "Duration exceeding 30 days");
-        require(IERC721(nft).ownerOf(tokenId) == msg.sender, "Not owner");
-        require(
-            IERC721(nft).getApproved(tokenId) == address(this) ||
-                IERC721(nft).isApprovedForAll(msg.sender, address(this)),
-            "Not approved"
-        );
+        require(_getOwnerSafely(nft, tokenId) == msg.sender, "Not owner");
+        require(_isApprovedSafely(nft, tokenId, msg.sender), "Not approved");
         require(!s_auctions[nft][tokenId].active, "Auction exists");
+        require(reservePrice >= MIN_RESERVE_FLOOR, "Reserve too low");
 
         Listing memory existingListing = s_listings[nft][tokenId];
         if (existingListing.seller != address(0)) {
@@ -379,7 +424,10 @@ contract Mintora is
         );
     }
 
-    function cancelAuction(address nft, uint256 tokenId) external {
+    function cancelAuction(
+        address nft,
+        uint256 tokenId
+    ) external whenNotPaused {
         Auction memory auction = s_auctions[nft][tokenId];
         require(auction.active, "Auction not found");
         require(auction.seller == msg.sender, "Not seller");
@@ -400,11 +448,16 @@ contract Mintora is
         require(msg.sender != auction.seller, "Seller cannot bid");
         require(msg.value > 0, "Bid must be > 0");
 
-        uint256 minIncrement = (auction.highestBid * 200) / FEE_DENOMINATOR;
+        uint256 percentageIncrement = (s_auctions[nft][tokenId].highestBid *
+            200) / 10000;
+        uint256 minIncrement = percentageIncrement > 0
+            ? percentageIncrement
+            : 1;
         require(
-            msg.value >= auction.highestBid + minIncrement,
-            "Bid increment too low"
+            msg.value >= s_auctions[nft][tokenId].highestBid + minIncrement,
+            "Bid too low"
         );
+
         if (auction.highestBid == 0 && auction.reservePrice > 0) {
             require(msg.value >= auction.reservePrice, "Below reserve price");
         }
@@ -434,8 +487,6 @@ contract Mintora is
         require(auction.active, "Not active");
         require(block.timestamp >= auction.endTime, "Auction not ended");
 
-        // Within grace period: only seller or winner
-        // After grace period: anyone can call — acts like auto-finalize
         if (block.timestamp < auction.endTime + AUCTION_GRACE_PERIOD) {
             require(
                 msg.sender == auction.seller ||
@@ -443,42 +494,68 @@ contract Mintora is
                 "Not authorized"
             );
         }
+
         delete s_auctions[nft][tokenId];
+
         if (auction.highestBid > 0) {
             s_totalEscrowedFunds -= auction.highestBid;
         }
-        // try/catch handles burned tokens — ownerOf reverts on non-existent tokenIds
-        bool sellerStillOwns = false;
-        try IERC721(nft).ownerOf(tokenId) returns (address owner) {
-            sellerStillOwns = (owner == auction.seller);
-        } catch {
-            sellerStillOwns = false;
-        }
-        // Only check approvalIntact if token exists — getApproved reverts on burned tokens
+
+        // Checking ownership safely
+        bool sellerStillOwns = (_getOwnerSafely(nft, tokenId) ==
+            auction.seller);
+
+        // This prevents a hostile NFT from reverting the entire finalizeAuction here
         bool approvalIntact = sellerStillOwns &&
-            (IERC721(nft).getApproved(tokenId) == address(this) ||
-                IERC721(nft).isApprovedForAll(auction.seller, address(this)));
+            _isApprovedSafely(nft, tokenId, auction.seller);
 
         if (auction.highestBid > 0 && sellerStillOwns && approvalIntact) {
             delete s_listings[nft][tokenId];
-            _handlePayout(
-                nft,
-                tokenId,
-                auction.highestBid,
-                auction.seller,
-                true
+
+            // Assembly call — retSize=0 makes gas-bomb impossible
+            bool transferCallOk;
+            bytes memory transferData = abi.encodeCall(
+                IERC721.safeTransferFrom,
+                (
+                    auction.seller, // from
+                    auction.highestBidder, // to
+                    tokenId // The ID of the NFT
+                )
             );
-            IERC721(nft).safeTransferFrom(
-                auction.seller,
-                auction.highestBidder,
-                tokenId
-            );
+            assembly {
+                transferCallOk := call(
+                    gas(),
+                    nft,
+                    0,
+                    add(transferData, 0x20),
+                    mload(transferData),
+                    0,
+                    0 // retSize = 0
+                )
+            }
+
+            // No-op check using already gas-bomb-safe helper
+            bool transferSuccess = transferCallOk &&
+                (_getOwnerSafely(nft, tokenId) == auction.highestBidder);
+
+            if (transferSuccess) {
+                _handlePayout(
+                    nft,
+                    tokenId,
+                    auction.highestBid,
+                    auction.seller,
+                    true
+                );
+            } else {
+                s_pendingWithdrawals[auction.highestBidder] += auction
+                    .highestBid;
+                s_totalPendingWithdrawals += auction.highestBid;
+            }
         } else if (auction.highestBid > 0) {
             // Seller burned/moved NFT or revoked approval — refund bidder
             s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
             s_totalPendingWithdrawals += auction.highestBid;
         }
-        // Zero bids: auction cleaned up, listing untouched
 
         emit AuctionFinalized(
             auction.highestBidder,
@@ -519,18 +596,41 @@ contract Mintora is
             royaltyAmount = (price * overrideData.fee) / FEE_DENOMINATOR;
             royaltyReceiver = overrideData.receiver;
         } else if (_supportsRoyalty(nft)) {
-            try IERC2981(nft).royaltyInfo(tokenId, price) returns (
-                address receiver,
-                uint256 amount
-            ) {
-                if (receiver != address(0)) {
-                    royaltyReceiver = receiver;
-                    royaltyAmount = amount;
-                    uint256 royaltyCap = (price * MAX_ROYALTY) /
-                        FEE_DENOMINATOR;
-                    if (royaltyAmount > royaltyCap) royaltyAmount = royaltyCap;
+            bytes memory data = abi.encodeWithSelector(
+                IERC2981.royaltyInfo.selector,
+                tokenId,
+                price
+            );
+
+            address receiver;
+            uint256 amount;
+            bool success;
+
+            assembly {
+                // staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)
+                // We limit retSize to 64 bytes to prevent memory expansion attacks
+                success := staticcall(
+                    gas(),
+                    nft,
+                    add(data, 0x20),
+                    mload(data),
+                    0,
+                    64
+                )
+                if and(success, eq(returndatasize(), 64)) {
+                    receiver := mload(0)
+                    amount := mload(0x20)
                 }
-            } catch {}
+            }
+
+            if (
+                success && receiver != address(0) && receiver != address(this)
+            ) {
+                royaltyReceiver = receiver;
+                royaltyAmount = amount;
+                uint256 royaltyCap = (price * MAX_ROYALTY) / FEE_DENOMINATOR;
+                if (royaltyAmount > royaltyCap) royaltyAmount = royaltyCap;
+            }
         }
 
         require(feeAmount + royaltyAmount <= price, "Fees exceed price");
@@ -570,6 +670,7 @@ contract Mintora is
             s_totalPendingWithdrawals += amount;
             s_totalEscrowedFunds -= amount; // Move from Escrow to Pending
             auction.highestBid = 0; // Clear it to prevent double-accounting
+            auction.highestBidder = address(0);
         }
     }
 
@@ -577,6 +678,83 @@ contract Mintora is
         (bool success, ) = to.call{value: amount}("");
 
         require(success, "ETH transfer failed");
+    }
+
+    function _getOwnerSafely(
+        address nft,
+        uint256 tokenId
+    ) internal view returns (address owner) {
+        bytes memory data = abi.encodeWithSelector(
+            IERC721.ownerOf.selector,
+            tokenId
+        );
+        assembly {
+            // staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)
+            let success := staticcall(
+                gas(),
+                nft,
+                add(data, 0x20),
+                mload(data),
+                0,
+                32
+            )
+
+            // Check success AND that we actually got 32 bytes back
+            if and(success, gt(returndatasize(), 31)) {
+                owner := mload(0)
+            }
+        }
+    }
+
+    function _isApprovedSafely(
+        address nft,
+        uint256 tokenId,
+        address seller
+    ) internal view returns (bool approved) {
+        address marketplace = address(this); // Pass this in for assembly
+
+        // Check getApproved
+        bytes memory d1 = abi.encodeWithSelector(
+            IERC721.getApproved.selector,
+            tokenId
+        );
+        assembly {
+            let success := staticcall(
+                gas(),
+                nft,
+                add(d1, 0x20),
+                mload(d1),
+                0,
+                32
+            )
+            if and(success, gt(returndatasize(), 31)) {
+                // Compare the returned address to our marketplace address
+                if eq(mload(0), marketplace) {
+                    approved := true
+                }
+            }
+        }
+        if (approved) return true;
+
+        // Check isApprovedForAll
+        bytes memory d2 = abi.encodeWithSelector(
+            IERC721.isApprovedForAll.selector,
+            seller,
+            marketplace
+        );
+        assembly {
+            let success := staticcall(
+                gas(),
+                nft,
+                add(d2, 0x20),
+                mload(d2),
+                0,
+                32
+            )
+            if and(success, gt(returndatasize(), 31)) {
+                approved := mload(0)
+            }
+        }
     }
 
     // Owner
@@ -663,12 +841,26 @@ contract Mintora is
     }
 
     function _supportsRoyalty(address nft) internal view returns (bool) {
-        try IERC165(nft).supportsInterface(type(IERC2981).interfaceId) returns (
-            bool supported
-        ) {
-            return supported;
-        } catch {
-            return false;
+        bytes memory data = abi.encodeWithSelector(
+            IERC165.supportsInterface.selector,
+            type(IERC2981).interfaceId
+        );
+
+        bool supported;
+        assembly {
+            // We only need 32 bytes to read the boolean result
+            let success := staticcall(
+                gas(),
+                nft,
+                add(data, 0x20),
+                mload(data),
+                0,
+                32
+            )
+            if and(success, gt(returndatasize(), 31)) {
+                supported := mload(0)
+            }
         }
+        return supported;
     }
 }
