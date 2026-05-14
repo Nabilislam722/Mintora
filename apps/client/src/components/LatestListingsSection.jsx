@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import NftCard from "./NftCard";
-import { MdOutlineFiberNew } from "react-icons/md";
+import { MdOutlineFiberNew, MdHistory } from "react-icons/md";
+import { Link } from "wouter";
 
 const PAGE_SIZE = 12;
 
@@ -16,10 +17,17 @@ export default function LatestListingsSection({ nfts }) {
 
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <MdOutlineFiberNew className="w-8 h-8 text-green-500"/>
+          <MdOutlineFiberNew className="w-8 h-8 text-green-500" />
           <h2 className="text-lg text-foreground font-display font-bold opacity-70">Latest Listing</h2>
         </div>
-        <span className="text-xs text-muted-foreground">{nfts.length} items</span>
+        <div className="flex text-xs items-center gap-4">
+          <span className=" text-muted-foreground">{nfts.length} items</span>
+
+          <Link href="/activity" className="flex text-green-500 items-center gap-1 p-1 hover:bg-white/10 rounded-lg cursor-pointer transition-all duration-200">
+            <MdHistory size={17} /> <span>Activity</span>
+          </Link>
+
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">

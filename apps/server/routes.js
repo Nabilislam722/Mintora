@@ -1,7 +1,8 @@
 import { NFT } from "./models/NFT.js";
 import { Collection } from "./models/Collection.js"
 import { User } from "./models/User.js";
-import { Featured } from "./models/Featured.js"
+import { Featured } from "./models/Featured.js";
+import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 
 export async function registerRoutes(app) {
@@ -185,6 +186,47 @@ export async function registerRoutes(app) {
       res.json(featuredNfts);
     } catch (err) {
       res.status(500).json({ message: "Featured NFT API Error" });
+    }
+  });
+  //activity logs
+  app.get('/api/activity', async (req, res) => {
+    try {
+      const { limit = 20, page = 1, collection, address } = req.query;
+
+      const filter = {};
+      if (collection) filter.collection = collection.toLowerCase();
+      if (address) filter.$or = [{ from: address.toLowerCase() }, { to: address.toLowerCase() }];
+
+      const [items, total] = await Promise.all([
+        Activity.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)).lean(),
+        Activity.countDocuments(filter),
+      ]);
+
+      // Collect all unique addresses and collection addresses
+      const addresses = [...new Set(items.flatMap(i => [i.from, i.to].filter(Boolean)))]
+      const collectionAddresses = [...new Set(items.map(i => i.collection).filter(Boolean))]
+
+      // Fetch users and collections in parallel
+      const [users, collections] = await Promise.all([
+        User.find({ walletAddress: { $in: addresses } }).select('walletAddress username profileImageUrl').lean(),
+        Collection.find({ contractAddress: { $in: collectionAddresses } }).select('contractAddress name imageUrl').lean(),
+      ])
+
+      const userMap = Object.fromEntries(users.map(u => [u.walletAddress, u]))
+      const collectionMap = Object.fromEntries(collections.map(c => [c.contractAddress, c]))
+
+      // Enrich each item
+      const enriched = items.map(item => ({
+        ...item,
+        fromUser: userMap[item.from] ?? null,
+        toUser: userMap[item.to] ?? null,
+        collectionInfo: collectionMap[item.collection] ?? null,
+      }))
+
+      res.json({ items: enriched, total, page: Number(page), limit: Number(limit) });
+    } catch (err) {
+      console.error('Activity route error:', err.message)
+      res.status(500).json({ error: err.message })
     }
   });
 }

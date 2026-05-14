@@ -1,9 +1,3 @@
-/* ─────────────────────────────────────────────────────────────
-   Advantages.css
-   --scale  → JS: Math.min(vw/1280, vh/720)
-   --accent → JS: per-card accent colour (inline)
-───────────────────────────────────────────────────────────── */
-
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
 
 /* ── Root ── */

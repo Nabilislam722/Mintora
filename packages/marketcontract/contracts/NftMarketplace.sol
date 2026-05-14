@@ -117,7 +117,8 @@ contract Mintora is
         address indexed winner,
         address indexed nft,
         uint256 indexed tokenId,
-        uint256 amount
+        uint256 amount,
+        bool transferred
     );
     event ItemCanceled(
         address indexed seller,
@@ -144,6 +145,7 @@ contract Mintora is
         uint96 fee
     );
     event MarketplaceFeeUpdated(uint256 oldFee, uint256 newFee);
+    event StuckPendingSwept(address indexed to, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -173,6 +175,7 @@ contract Mintora is
         uint256 tokenId,
         uint256 price
     ) external whenNotPaused {
+        require(uint160(nft) > 0x9, "Precompile not allowed");
         require(price > 0, "Price > 0");
         require(_getOwnerSafely(nft, tokenId) == msg.sender, "Not owner");
         require(_isApprovedSafely(nft, tokenId, msg.sender), "Not approved");
@@ -208,13 +211,11 @@ contract Mintora is
         delete s_auctions[nft][tokenId];
 
         bool transferCallOk;
-        bytes memory transferData = abi.encodeCall(
-            IERC721.safeTransferFrom,
-            (
-                listing.seller, // from
-                msg.sender, // to
-                tokenId // The ID of the NFT
-            )
+        bytes memory transferData = abi.encodeWithSelector(
+            bytes4(0x42842e0e), // safeTransferFrom(address,address,uint256)
+            listing.seller,
+            msg.sender,
+            tokenId
         );
         assembly {
             transferCallOk := call(
@@ -298,6 +299,7 @@ contract Mintora is
         uint256 tokenId,
         uint256 deadline
     ) external payable nonReentrant offersActive whenNotPaused {
+        require(uint160(nft) > 0x9, "Precompile not allowed");
         require(deadline > block.timestamp, "Deadline in the past");
         require(
             _getOwnerSafely(nft, tokenId) != msg.sender,
@@ -357,9 +359,11 @@ contract Mintora is
 
         bool transferCallOk;
 
-        bytes memory transferData = abi.encodeCall(
-            IERC721.safeTransferFrom,
-            (msg.sender, buyer, tokenId)
+        bytes memory transferData = abi.encodeWithSelector(
+            bytes4(0x42842e0e),
+            msg.sender,
+            buyer,
+            tokenId
         );
         assembly {
             transferCallOk := call(
@@ -393,6 +397,7 @@ contract Mintora is
         uint256 duration,
         uint256 reservePrice
     ) external auctionsActive whenNotPaused {
+        require(uint160(nft) > 0x9, "Precompile not allowed");
         require(duration >= 1 hours, "Min 1 hour");
         require(duration <= 30 days, "Duration exceeding 30 days");
         require(_getOwnerSafely(nft, tokenId) == msg.sender, "Not owner");
@@ -509,18 +514,19 @@ contract Mintora is
         bool approvalIntact = sellerStillOwns &&
             _isApprovedSafely(nft, tokenId, auction.seller);
 
+        // Initialize tracking variable for event streams (Resolves TT-17)
+        bool finalizedWithTransfer = false;
+
         if (auction.highestBid > 0 && sellerStillOwns && approvalIntact) {
             delete s_listings[nft][tokenId];
 
             // Assembly call — retSize=0 makes gas-bomb impossible
             bool transferCallOk;
-            bytes memory transferData = abi.encodeCall(
-                IERC721.safeTransferFrom,
-                (
-                    auction.seller, // from
-                    auction.highestBidder, // to
-                    tokenId // The ID of the NFT
-                )
+            bytes memory transferData = abi.encodeWithSelector(
+                bytes4(0x42842e0e),
+                auction.seller,
+                auction.highestBidder,
+                tokenId
             );
             assembly {
                 transferCallOk := call(
@@ -533,12 +539,9 @@ contract Mintora is
                     0 // retSize = 0
                 )
             }
-
-            // No-op check using already gas-bomb-safe helper
-            bool transferSuccess = transferCallOk &&
-                (_getOwnerSafely(nft, tokenId) == auction.highestBidder);
-
-            if (transferSuccess) {
+            // Do not permit a post-transfer status call to retroactively trigger a refund.
+            if (transferCallOk) {
+                finalizedWithTransfer = true;
                 _handlePayout(
                     nft,
                     tokenId,
@@ -557,11 +560,13 @@ contract Mintora is
             s_totalPendingWithdrawals += auction.highestBid;
         }
 
+        // Updated to pass tracking flag for indexer and off-chain fidelity (Resolves TT-17)
         emit AuctionFinalized(
             auction.highestBidder,
             nft,
             tokenId,
-            auction.highestBid
+            auction.highestBid,
+            finalizedWithTransfer
         );
     }
 
@@ -618,7 +623,10 @@ contract Mintora is
                     64
                 )
                 if and(success, eq(returndatasize(), 64)) {
-                    receiver := mload(0)
+                    receiver := and(
+                        mload(0),
+                        0xffffffffffffffffffffffffffffffffffffffff
+                    )
                     amount := mload(0x20)
                 }
             }
@@ -701,7 +709,10 @@ contract Mintora is
 
             // Check success AND that we actually got 32 bytes back
             if and(success, gt(returndatasize(), 31)) {
-                owner := mload(0)
+                owner := and(
+                    mload(0),
+                    0xffffffffffffffffffffffffffffffffffffffff
+                )
             }
         }
     }
@@ -752,7 +763,7 @@ contract Mintora is
                 32
             )
             if and(success, gt(returndatasize(), 31)) {
-                approved := mload(0)
+                approved := iszero(iszero(mload(0)))
             }
         }
     }
@@ -821,6 +832,22 @@ contract Mintora is
 
         _safeTransferETH(to, amount);
     }
+    /**
+     * @notice Recovers ETH stranded in the contract's own pending withdrawals slot.
+     * @dev Resolves Q17-NEW-1 from the V11 audit. Protects against self-stranding.
+     */
+    function sweepStuckPending(address to) external onlyOwner nonReentrant {
+        require(to != address(0), "Zero address");
+
+        uint256 amount = s_pendingWithdrawals[address(this)];
+        require(amount > 0, "No stuck ETH to sweep");
+        s_pendingWithdrawals[address(this)] = 0;
+        s_totalPendingWithdrawals -= amount;
+        _safeTransferETH(to, amount);
+
+        emit StuckPendingSwept(to, amount);
+    }
+
     function setRoyaltyOverride(
         address nft,
         address receiver,
@@ -858,7 +885,7 @@ contract Mintora is
                 32
             )
             if and(success, gt(returndatasize(), 31)) {
-                supported := mload(0)
+                supported := iszero(iszero(mload(0)))
             }
         }
         return supported;

@@ -3,7 +3,16 @@ require("@nomicfoundation/hardhat-verify");
 require("dotenv/config");
 
 module.exports = {
-  solidity: "0.8.24",
+  solidity: {
+    version: "0.8.24",
+    settings: {
+      viaIR: true,
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+    },
+  },
   etherscan: {
     apiKey: {
       hemi: "routescan",

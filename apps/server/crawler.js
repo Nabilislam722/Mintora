@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { NFT } from "./models/NFT.js";
 import { Collection } from "./models/Collection.js";
 import { SyncState } from "./models/SyncState.js";
+import { Activity } from "./models/Activity.js";
 
 const HEMI_RPC = "https://rpc.hemi.network/rpc";
 
@@ -11,7 +12,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const RECOVERY_INTERVAL = 60_000;
 const REFRESH_INTERVAL = 120_000;
 const BLOCK_CHUNK = 500;
-const LOOKBACK_BLOCKS = 10;   // always rescan last N blocks — catches anything live missed
+const LOOKBACK_BLOCKS = 10;
 const WORKER_INTERVAL = 100;
 const MAX_BATCH = 20;
 
@@ -67,8 +68,8 @@ class LRUSet {
 
 const seen = new LRUSet(10_000);
 const eventKey = e => {
-       // handle both the Live payload wrapper and the direct log object
-    const logObj = e.log || e; 
+    // handle both the Live payload wrapper and the direct log object
+    const logObj = e.log || e;
     return `${logObj.transactionHash}-${logObj.index ?? logObj.logIndex}`;
 };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -195,14 +196,24 @@ async function processRecoveryQueue() {
     try {
         const batch = recoveryQueue.splice(0, MAX_BATCH);
         const nftOps = [];
-        const statsToUpdate = new Map(); // Track which collections need a floor update
+        const activityOps = []; // New array for Activity bulk operations
+        const statsToUpdate = new Map();
 
         for (const job of batch) {
-            const { type, args } = job;
+            const { type, args, event } = job;
 
             // Shared normalization
             const contractAddress = (type === "TRANSFER" ? args[3] : args[1]).toLowerCase();
             const tokenId = args[2].toString();
+
+            // Activity data normalization
+            const tx = event.log?.transactionHash ?? event.transactionHash;
+            const logIndex = event.log?.index ?? event.index ?? event.logIndex;
+            const blockNumber = event.log?.blockNumber ?? event.blockNumber;
+
+            let activityFrom = null;
+            let activityTo = null;
+            let activityPrice = "0";
 
             switch (type) {
                 case "LIST":
@@ -212,17 +223,20 @@ async function processRecoveryQueue() {
                             update: { isListed: true, price: args[3].toString(), seller: args[0].toLowerCase() }
                         }
                     });
+                    activityFrom = args[0].toLowerCase();
+                    activityPrice = args[3].toString();
                     break;
 
                 case "SOLD":
                     nftOps.push({
                         updateOne: {
                             filter: { contractAddress, tokenId },
-                            update: { $set: { isListed: false, price: "0", ownerAddress: args[0].toLowerCase() }, $unset: { seller: "" } } // <-- Explicit $set added
+                            update: { $set: { isListed: false, price: "0", ownerAddress: args[0].toLowerCase() }, $unset: { seller: "" } }
                         }
                     });
-                    // Queue stats update: price is args[3]
                     statsToUpdate.set(contractAddress, (statsToUpdate.get(contractAddress) || 0n) + BigInt(args[3].toString()));
+                    activityTo = args[0].toLowerCase();
+                    activityPrice = args[3].toString();
                     break;
 
                 case "UPDATE":
@@ -232,6 +246,8 @@ async function processRecoveryQueue() {
                             update: { price: args[3].toString() }
                         }
                     });
+                    activityFrom = args[0].toLowerCase();
+                    activityPrice = args[3].toString();
                     break;
 
                 case "CANCEL":
@@ -241,28 +257,58 @@ async function processRecoveryQueue() {
                             update: { $set: { isListed: false, price: "0" }, $unset: { seller: "" } }
                         }
                     });
+                    activityFrom = args[0].toLowerCase();
                     break;
 
                 case "TRANSFER":
-                    //mint_skip
-                    if (args[0].toLowerCase() === ZERO_ADDRESS) break;
+                    // Skip mints in activity/NFT updates to keep it clean
+                    if (args[0].toLowerCase() === ZERO_ADDRESS) continue;
 
                     nftOps.push({
                         updateOne: {
                             filter: { contractAddress, tokenId },
-                            update: { $set: { ownerAddress: args[1].toLowerCase(), isListed: false, price: "0" }, $unset: { seller: "" } } // <-- Explicit $set added
+                            update: { $set: { ownerAddress: args[1].toLowerCase(), isListed: false, price: "0" }, $unset: { seller: "" } }
                         }
                     });
+                    activityFrom = args[0].toLowerCase();
+                    activityTo = args[1].toLowerCase();
                     break;
             }
+
+            // Add to Activity bulk ops
+            activityOps.push({
+                updateOne: {
+                    filter: { tx, logIndex },
+                    update: {
+                        $setOnInsert: {
+                            tx,
+                            logIndex,
+                            type,
+                            from: activityFrom,
+                            to: activityTo,
+                            collection: contractAddress,
+                            tokenId,
+                            price: activityPrice,
+                            blockNumber,
+                            createdAt: new Date()
+                        }
+                    },
+                    upsert: true
+                }
+            });
         }
 
+        // Execute BulkWrites
         if (nftOps.length > 0) {
             await NFT.bulkWrite(nftOps, { ordered: false });
         }
     });
 
-        // Trigger stats updates in the background (Non-blocking)
+        if (activityOps.length > 0) {
+            await Activity.bulkWrite(activityOps, { ordered: false });
+        }
+
+        // Trigger stats updates in the background
         for (const [address, volumeAdded] of statsToUpdate) {
             updateFloorAndVolume(address, volumeAdded).catch(err =>
                 console.error(`Stats background error: ${address}`, err)
@@ -275,7 +321,6 @@ async function processRecoveryQueue() {
         processing = false;
     }
 }
-
 
 async function updateFloorAndVolume(contractAddress, salePriceBigInt) {
     setImmediate(async () => {
@@ -298,61 +343,125 @@ async function updateFloorAndVolume(contractAddress, salePriceBigInt) {
     });
 }
 
+// --- Helper Function ---
+async function saveActivity({ tx, logIndex, type, from, to, collection, tokenId, price, blockNumber }) {
+    try {
+        await Activity.updateOne(
+            { tx, logIndex },
+            { $setOnInsert: { tx, logIndex, type, from, to, collection, tokenId, price, blockNumber, createdAt: new Date() } },
+            { upsert: true }
+        );
+    } catch (err) {
+        if (err.code !== 11000) console.error('saveActivity error:', err);
+    }
+}
+
 
 async function handleItemListed(seller, nft, tokenId, price, event) {
+    const contractAddress = nft.toLowerCase();
     await NFT.updateOne(
-        { contractAddress: nft.toLowerCase(), tokenId: tokenId.toString() },
+        { contractAddress, tokenId: tokenId.toString() },
         { isListed: true, price: price.toString(), seller: seller.toLowerCase() }
     );
-    console.log(`✨ Listed   ${nft.slice(0, 8)}… #${tokenId}`);
+    await saveActivity({
+        tx: event.log?.transactionHash ?? event.transactionHash,
+        logIndex: event.log?.index ?? event.index ?? event.logIndex,
+        type: 'LIST',
+        from: seller.toLowerCase(),
+        to: null,
+        collection: contractAddress,
+        tokenId: tokenId.toString(),
+        price: price.toString(),
+        blockNumber: event.log?.blockNumber ?? event.blockNumber,
+    });
+    console.log(`✨ Listed    ${nft.slice(0, 8)}… #${tokenId}`);
 }
 
 async function handleItemSold(buyer, nft, tokenId, price, event) {
     const contractAddress = nft.toLowerCase();
     await NFT.updateOne(
         { contractAddress, tokenId: tokenId.toString() },
-        { $set: { isListed: false, price: "0", ownerAddress: buyer.toLowerCase() }, $unset: { seller: "" } }
+        { $set: { isListed: false, price: '0', ownerAddress: buyer.toLowerCase() }, $unset: { seller: '' } }
     );
     await updateFloorAndVolume(contractAddress, BigInt(price.toString()));
-    console.log(`💰 Sold     ${nft.slice(0, 8)}… #${tokenId}`);
+    await saveActivity({
+        tx: event.log?.transactionHash ?? event.transactionHash,
+        logIndex: event.log?.index ?? event.index ?? event.logIndex,
+        type: 'SOLD',
+        from: null,
+        to: buyer.toLowerCase(),
+        collection: contractAddress,
+        tokenId: tokenId.toString(),
+        price: price.toString(),
+        blockNumber: event.log?.blockNumber ?? event.blockNumber,
+    });
+    console.log(`💰 Sold      ${nft.slice(0, 8)}… #${tokenId}`);
 }
 
 async function handleItemUpdated(seller, nft, tokenId, newPrice, event) {
+    const contractAddress = nft.toLowerCase();
     await NFT.updateOne(
-        { contractAddress: nft.toLowerCase(), tokenId: tokenId.toString() },
+        { contractAddress, tokenId: tokenId.toString() },
         { price: newPrice.toString() }
     );
+    await saveActivity({
+        tx: event.log?.transactionHash ?? event.transactionHash,
+        logIndex: event.log?.index ?? event.index ?? event.logIndex,
+        type: 'UPDATE',
+        from: seller.toLowerCase(),
+        to: null,
+        collection: contractAddress,
+        tokenId: tokenId.toString(),
+        price: newPrice.toString(),
+        blockNumber: event.log?.blockNumber ?? event.blockNumber,
+    });
     console.log(`📝 Updated  ${nft.slice(0, 8)}… #${tokenId}`);
 }
-
 async function handleItemCanceled(seller, nft, tokenId, event) {
+    const contractAddress = nft.toLowerCase();
     await NFT.updateOne(
-        { contractAddress: nft.toLowerCase(), tokenId: tokenId.toString() },
-        { $set: { isListed: false, price: "0" }, $unset: { seller: "" } }
+        { contractAddress, tokenId: tokenId.toString() },
+        { $set: { isListed: false, price: '0' }, $unset: { seller: '' } }
     );
+    await saveActivity({
+        tx: event.log?.transactionHash ?? event.transactionHash,
+        logIndex: event.log?.index ?? event.index ?? event.logIndex,
+        type: 'CANCEL',
+        from: seller.toLowerCase(),
+        to: null,
+        collection: contractAddress,
+        tokenId: tokenId.toString(),
+        price: '0',
+        blockNumber: event.log?.blockNumber ?? event.blockNumber,
+    });
     console.log(`❌ Canceled ${nft.slice(0, 8)}… #${tokenId}`);
 }
 
 async function handleTransfer(from, to, tokenId, contractAddress, event) {
-    //mint
     if (from.toLowerCase() === ZERO_ADDRESS) return;
-    //burn
+    const coll = contractAddress.toLowerCase();
     if (to.toLowerCase() === ZERO_ADDRESS) {
-        await NFT.deleteOne({
-            contractAddress: contractAddress.toLowerCase(),
-            tokenId: tokenId.toString()
-        });
-        console.log(`🔥 Burned   ${contractAddress.slice(0, 8)}… #${tokenId}`);
+        await NFT.deleteOne({ contractAddress: coll, tokenId: tokenId.toString() });
+        console.log(`🔥 Burned    ${coll.slice(0, 8)}… #${tokenId}`);
         return;
     }
-
     await NFT.updateOne(
-        { contractAddress: contractAddress.toLowerCase(), tokenId: tokenId.toString() },
-        { $set: { ownerAddress: to.toLowerCase(), isListed: false, price: "0" }, $unset: { seller: "" } }
+        { contractAddress: coll, tokenId: tokenId.toString() },
+        { $set: { ownerAddress: to.toLowerCase(), isListed: false, price: '0' }, $unset: { seller: '' } }
     );
-    console.log(`➡️  Transfer ${contractAddress.slice(0, 8)}… #${tokenId}`);
+    await saveActivity({
+        tx: event.log?.transactionHash ?? event.transactionHash,
+        logIndex: event.index ?? event.logIndex,
+        type: 'TRANSFER',
+        from: from.toLowerCase(),
+        to: to.toLowerCase(),
+        collection: coll,
+        tokenId: tokenId.toString(),
+        price: '0',
+        blockNumber: event.blockNumber,
+    });
+    console.log(`➡️  Transfer ${coll.slice(0, 8)}… #${tokenId}`);
 }
-
 
 function setupListeners() {
     marketplace.on("ItemListed", (s, n, i, p, e) => dispatchLive("LIST", [s, n, i, p], e));
