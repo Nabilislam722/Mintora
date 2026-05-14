@@ -12,6 +12,7 @@
     "list": "yarn workspace server sync"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.10",
     "zod": "^3.24.2"
   },
   "devDependencies": {

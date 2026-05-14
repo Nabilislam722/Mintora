@@ -12,6 +12,7 @@ import Create from "./pages/Create";
 import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import Welcome from "./pages/welcome";
+import Activity from "./pages/activity";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/create" component={Create} />
       <Route path="/settings" component={Settings} />
       <Route path="/welcome" component={Welcome}/>
+      <Route path="/activity" component={Activity}/>
       <Route component={NotFound} />
     </Switch>
   );
