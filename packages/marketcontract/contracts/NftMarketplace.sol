@@ -33,6 +33,7 @@ contract Mintora is
         address highestBidder;
         uint256 endTime;
         bool active;
+        uint8 extensionCount;
         uint256 reservePrice;
     }
 
@@ -49,20 +50,25 @@ contract Mintora is
     mapping(address => RoyaltyOverride) private s_royaltyOverrides;
     mapping(address => uint256) public s_pendingWithdrawals;
 
+    uint8 public constant MAX_BID_EXTENSIONS = 12;
     uint256 public constant MAX_ROYALTY = 3000;
     uint256 public marketplaceFee;
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 private s_accumulatedFees;
     uint256 public constant BID_EXTENSION_THRESHOLD = 10 minutes;
     uint256 public constant BID_EXTENSION_DURATION = 10 minutes;
-    uint256 public constant ROYALTY_GAS_STIPEND = 65_000;
+    uint256 public constant ROYALTY_GAS_STIPEND = 200_000;
     uint256 public constant AUCTION_GRACE_PERIOD = 7 days;
     uint256 public constant MIN_RESERVE_FLOOR = 0.01 ether;
+    uint256 public constant OWNER_OF_GAS_STIPEND = 100_000;
+    uint256 public constant GRIEF_SLASH_BPS = 1_000; // 10% penelty for Grief
     bool public offersEnabled;
     bool public auctionsEnabled;
     uint256 public s_totalPendingWithdrawals;
     uint256 public s_totalEscrowedFunds;
-    uint256[48] private __gap;
+
+    mapping(address => uint256) public s_ownerOfSkipCount;
+    uint256[47] private __gap;
 
     event ItemListed(
         address indexed seller,
@@ -135,6 +141,17 @@ contract Mintora is
         address indexed nft,
         uint256 indexed tokenId,
         uint256 newEndTime
+    );
+    event OwnerOfVerificationSkipped(
+        address indexed nft,
+        uint256 indexed tokenId,
+        address indexed bidder
+    );
+    event FinalizationFailed(
+        address indexed nft,
+        uint256 indexed tokenId,
+        address indexed bidder,
+        bytes32 reason // "LyingNFT" or "BidderGrief"
     );
     event OffersToggled(bool enabled);
     event AuctionsToggled(bool enabled);
@@ -245,13 +262,7 @@ contract Mintora is
     ) external whenNotPaused {
         Listing memory listing = s_listings[nft][tokenId];
         require(listing.seller != address(0), "Not listed");
-
-        address currentOwner = _getOwnerSafely(nft, tokenId);
-
-        require(
-            msg.sender == listing.seller || msg.sender == currentOwner,
-            "Not authorized"
-        );
+        require(msg.sender == listing.seller, "Not seller");
 
         delete s_listings[nft][tokenId];
         emit ItemCanceled(listing.seller, nft, tokenId);
@@ -353,7 +364,19 @@ contract Mintora is
 
         _refundAuctionBidder(nft, tokenId);
         delete s_offers[nft][tokenId][buyer];
-        delete s_listings[nft][tokenId];
+        Listing memory existingListing = s_listings[nft][tokenId];
+        if (existingListing.seller != address(0)) {
+            // Guard: if the SAME seller has a listing priced BELOW the offer,
+            // a searcher can front-run with buyItem then accept the offer themselves.
+            // Force the seller to resolve the conflict explicitly before accepting.
+            require(
+                !(existingListing.seller == msg.sender &&
+                    existingListing.price < amount),
+                "Cancel listing first: price undercuts offer"
+            );
+            delete s_listings[nft][tokenId];
+            emit ItemCanceled(existingListing.seller, nft, tokenId);
+        }
         delete s_auctions[nft][tokenId];
         s_totalEscrowedFunds -= amount;
 
@@ -377,15 +400,20 @@ contract Mintora is
             )
         }
 
-        // Verify ownership actually
-        require(
-            transferCallOk && _getOwnerSafely(nft, tokenId) == buyer,
-            "Transfer failed"
-        );
+        if (!transferCallOk) {
+            // buyer's onERC721Received reverted (EIP-7702 ghost offer).
+            // Do NOT revert — that would restore offer state and allow indefinite re-blocking.
+            // Instead: force-cancel. Offer + listing already deleted above.
+            // ETH was removed from s_totalEscrowedFunds above — credit it back as pending.
+            s_pendingWithdrawals[buyer] += amount;
+            s_totalPendingWithdrawals += amount;
+            emit FinalizationFailed(nft, tokenId, buyer, "LyingNFT");
+            return; // Offer is permanently gone — trap is one-shot, not indefinite
+        }
 
-        // Payout ONLY after confirmed transfer
+        // Transfer succeeded — verify ownership moved and pay out
+        require(_getOwnerSafely(nft, tokenId) == buyer, "Transfer failed");
         _handlePayout(nft, tokenId, amount, msg.sender, false);
-
         emit OfferAccepted(msg.sender, buyer, nft, tokenId, amount);
     }
 
@@ -417,6 +445,7 @@ contract Mintora is
             address(0),
             block.timestamp + duration,
             true,
+            0,
             reservePrice
         );
 
@@ -451,7 +480,16 @@ contract Mintora is
         require(auction.active, "Auction not found");
         require(block.timestamp < auction.endTime, "Ended");
         require(msg.sender != auction.seller, "Seller cannot bid");
+        require(msg.sender != auction.highestBidder, "Already highest bidder");
         require(msg.value > 0, "Bid must be > 0");
+        require(
+            _getOwnerSafely(nft, tokenId) == auction.seller,
+            "Seller not owner"
+        );
+        require(
+            _isApprovedSafely(nft, tokenId, auction.seller),
+            "Approval revoked"
+        );
 
         uint256 percentageIncrement = (s_auctions[nft][tokenId].highestBid *
             200) / 10000;
@@ -477,8 +515,11 @@ contract Mintora is
         auction.highestBid = msg.value;
         auction.highestBidder = msg.sender;
         if (auction.endTime - block.timestamp < BID_EXTENSION_THRESHOLD) {
-            auction.endTime += BID_EXTENSION_DURATION;
-            emit AuctionExtended(nft, tokenId, auction.endTime);
+            if (auction.extensionCount < MAX_BID_EXTENSIONS) {
+                auction.endTime += BID_EXTENSION_DURATION;
+                auction.extensionCount++;
+                emit AuctionExtended(nft, tokenId, auction.endTime);
+            }
         }
         emit BidPlaced(msg.sender, nft, tokenId, msg.value);
     }
@@ -487,8 +528,10 @@ contract Mintora is
         address nft,
         uint256 tokenId
     ) external nonReentrant whenNotPaused {
+        //Load into memory
         Auction memory auction = s_auctions[nft][tokenId];
 
+        //Validation
         require(auction.active, "Not active");
         require(block.timestamp >= auction.endTime, "Auction not ended");
 
@@ -500,27 +543,25 @@ contract Mintora is
             );
         }
 
+        // State Updates (Strict CEI pattern restored)
         delete s_auctions[nft][tokenId];
 
-        if (auction.highestBid > 0) {
-            s_totalEscrowedFunds -= auction.highestBid;
+        // Cache escrow values and update global accounting
+        uint256 finalBid = auction.highestBid;
+        if (finalBid > 0) {
+            s_totalEscrowedFunds -= finalBid;
         }
 
-        // Checking ownership safely
         bool sellerStillOwns = (_getOwnerSafely(nft, tokenId) ==
             auction.seller);
-
-        // This prevents a hostile NFT from reverting the entire finalizeAuction here
         bool approvalIntact = sellerStillOwns &&
             _isApprovedSafely(nft, tokenId, auction.seller);
-
-        // Initialize tracking variable for event streams (Resolves TT-17)
         bool finalizedWithTransfer = false;
 
-        if (auction.highestBid > 0 && sellerStillOwns && approvalIntact) {
+        // Execution
+        if (finalBid > 0 && sellerStillOwns && approvalIntact) {
             delete s_listings[nft][tokenId];
 
-            // Assembly call — retSize=0 makes gas-bomb impossible
             bool transferCallOk;
             bytes memory transferData = abi.encodeWithSelector(
                 bytes4(0x42842e0e),
@@ -528,7 +569,8 @@ contract Mintora is
                 auction.highestBidder,
                 tokenId
             );
-            assembly {
+
+            assembly ("memory-safe") {
                 transferCallOk := call(
                     gas(),
                     nft,
@@ -536,40 +578,79 @@ contract Mintora is
                     add(transferData, 0x20),
                     mload(transferData),
                     0,
-                    0 // retSize = 0
+                    0
                 )
             }
-            // Do not permit a post-transfer status call to retroactively trigger a refund.
+
             if (transferCallOk) {
-                finalizedWithTransfer = true;
-                _handlePayout(
+                bool sellerDivested = false;
+                try
+                    IERC721(nft).ownerOf{gas: OWNER_OF_GAS_STIPEND}(tokenId)
+                returns (address actual) {
+                    // Check if the asset left the seller's wallet
+                    sellerDivested = (actual != auction.seller);
+                    if (!sellerDivested) {
+                        emit FinalizationFailed(
+                            nft,
+                            tokenId,
+                            auction.highestBidder,
+                            "LyingNFT"
+                        );
+                    }
+                } catch {
+                    // ownerOf could not be verified (ERC721A / gas-heavy implementation).
+                    // Per V13-M2 remediation, trust successful transferCallOk to preserve liveness.
+                    sellerDivested = true;
+                    unchecked {
+                        s_ownerOfSkipCount[nft]++;
+                    }
+                    emit OwnerOfVerificationSkipped(
+                        nft,
+                        tokenId,
+                        auction.highestBidder
+                    );
+                }
+                if (sellerDivested) {
+                    finalizedWithTransfer = true;
+                    _handlePayout(nft, tokenId, finalBid, auction.seller, true);
+                } else {
+                    // Lying NFT: NFT contract fault — full refund, no bidder penalty.
+                    s_pendingWithdrawals[auction.highestBidder] += finalBid;
+                    s_totalPendingWithdrawals += finalBid;
+                }
+            } else {
+                // Apply GRIEF_SLASH_BPS (10%) to deter costless denial-of-sale.
+                uint256 slashAmount = (finalBid * GRIEF_SLASH_BPS) /
+                    FEE_DENOMINATOR;
+                uint256 refundAmount = finalBid - slashAmount;
+
+                s_pendingWithdrawals[auction.highestBidder] += refundAmount;
+                s_totalPendingWithdrawals += refundAmount;
+
+                s_pendingWithdrawals[auction.seller] += slashAmount;
+                s_totalPendingWithdrawals += slashAmount;
+
+                emit FinalizationFailed(
                     nft,
                     tokenId,
-                    auction.highestBid,
-                    auction.seller,
-                    true
+                    auction.highestBidder,
+                    "BidderGrief"
                 );
-            } else {
-                s_pendingWithdrawals[auction.highestBidder] += auction
-                    .highestBid;
-                s_totalPendingWithdrawals += auction.highestBid;
             }
-        } else if (auction.highestBid > 0) {
-            // Seller burned/moved NFT or revoked approval — refund bidder
-            s_pendingWithdrawals[auction.highestBidder] += auction.highestBid;
-            s_totalPendingWithdrawals += auction.highestBid;
+        } else if (finalBid > 0) {
+            // Seller-attributable: burned/moved NFT or revoked approval — full refund.
+            s_pendingWithdrawals[auction.highestBidder] += finalBid;
+            s_totalPendingWithdrawals += finalBid;
         }
 
-        // Updated to pass tracking flag for indexer and off-chain fidelity (Resolves TT-17)
         emit AuctionFinalized(
             auction.highestBidder,
             nft,
             tokenId,
-            auction.highestBid,
+            finalBid,
             finalizedWithTransfer
         );
     }
-
     // WITHDRAW FOR OUTBID BIDDERS
 
     function withdrawRefund() external nonReentrant {
@@ -662,7 +743,10 @@ contract Mintora is
             s_pendingWithdrawals[seller] += sellerProceeds;
             s_totalPendingWithdrawals += sellerProceeds;
         } else {
-            (bool sellerOk, ) = seller.call{value: sellerProceeds}("");
+            (bool sellerOk, ) = seller.call{
+                value: sellerProceeds,
+                gas: ROYALTY_GAS_STIPEND
+            }("");
             if (!sellerOk) {
                 s_pendingWithdrawals[seller] += sellerProceeds;
                 s_totalPendingWithdrawals += sellerProceeds;

@@ -2,7 +2,7 @@ import pkg from "hardhat";
 const { ethers, upgrades } = pkg;
 
 async function main() {
-  const proxyAddress = "0xf93AF302727E0ef59522Cd9Ff19Ba6b5BB7755"; 
+  const proxyAddress = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755"; 
 
   console.log("Checking for storage compatibility...");
   
