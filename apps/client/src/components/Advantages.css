@@ -59,8 +59,8 @@
 /* ── Diamond inner ── */
 .adv-diamond {
   background: #0BA14B;
-  border-radius: calc(5px * var(--scale));
-  border: calc(2.5px * var(--scale)) solid #38BDF8;
+  border-radius: calc(1px * var(--scale));
+  border: calc(2px * var(--scale)) solid #a5ffb2;
   box-shadow:
     0 0 calc(28px * var(--scale)) rgba(11, 161, 75, 0.6),
     0 0 calc(60px * var(--scale)) rgba(56, 189, 248, 0.22);

@@ -122,7 +122,7 @@ function Connectors({ active, hoveredId }) {
           key={`glow-${l.id}`}
           d={l.path}
           stroke={l.accent}
-          strokeWidth="3"
+          strokeWidth="1.5"
           fill="none"
           filter={`url(#glow-${l.id})`}
           strokeLinecap="round"
@@ -139,7 +139,7 @@ function Connectors({ active, hoveredId }) {
         return (
           <motion.circle
             key={`dot-${l.id}`}
-            r="5"
+            r="2"
             fill={l.accent}
             filter={`url(#glow-${l.id})`}
             initial={{ opacity: 0 }}
