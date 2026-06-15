@@ -95,7 +95,7 @@ function scheduleSaveBlock(block) {
         lastProcessedBlock = pendingBlock;
         await SyncState.updateOne(
             { key: "lastBlock" },
-            { value: pendingBlock },
+            { $set: { value: pendingBlock } },
             { upsert: true }
         ).catch(err => console.error("saveBlock failed:", err));
     }, 1_000);
@@ -110,7 +110,7 @@ async function saveBlockNow(block) {
     }
     await SyncState.updateOne(
         { key: "lastBlock" },
-        { value: block },
+        { $set: { value: pendingBlock } },
         { upsert: true }
     );
 }
@@ -356,12 +356,28 @@ async function saveActivity({ tx, logIndex, type, from, to, collection, tokenId,
     }
 }
 
+export async function markListingStale(contractAddress, tokenId) {
+    const coll = contractAddress.toLowerCase();
+    const id = tokenId.toString();
+
+    const { modifiedCount } = await NFT.updateOne(
+        { contractAddress: coll, tokenId: id, isListed: true },
+        { $set: { isListed: false, price: '0' }, $unset: { seller: '' } }
+    );
+
+    if (modifiedCount > 0) {
+        console.log(`⚠️  Desync corrected: ${coll.slice(0, 8)}… #${id} (DB said listed, chain says not listed)`);
+    }
+
+    return modifiedCount > 0;
+}
+
 
 async function handleItemListed(seller, nft, tokenId, price, event) {
     const contractAddress = nft.toLowerCase();
     await NFT.updateOne(
         { contractAddress, tokenId: tokenId.toString() },
-        { isListed: true, price: price.toString(), seller: seller.toLowerCase() }
+        { $set: { isListed: true, price: price.toString(), seller: seller.toLowerCase() } }
     );
     await saveActivity({
         tx: event.log?.transactionHash ?? event.transactionHash,

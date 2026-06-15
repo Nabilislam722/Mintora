@@ -6,7 +6,12 @@ import cors from "cors";
 import { registerUploadRoutes } from "./routes/upload.js";
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: ["http://127.0.0.1:5173", "http://localhost:5173"],
+  methods: ['GET', 'POST'],
+}));
+
 app.use(express.json());
 
 const MONGODB_URI = 'mongodb://127.0.0.1:27017/nft_marketplace';
