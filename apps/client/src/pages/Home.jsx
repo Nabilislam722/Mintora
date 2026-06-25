@@ -10,21 +10,23 @@ import { useRef, useState, useEffect } from "react";
 import "../components/home.css";
 import { BsFillCollectionFill } from "react-icons/bs";
 
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export default function Home() {
   const { data: collections = [], isLoading: loadingCols } = useQuery({
-    queryKey: ["/api/collections"],
+    queryKey: [`${BASE_URL}/api/collections`],
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   });
 
   const { data: topNfts = [], isLoading: loadingTopNfts } = useQuery({
-    queryKey: ["/api/featurednft?limit=8"],
+    queryKey: [`${BASE_URL}/api/featurednft?limit=8`],
     refetchInterval: 20_000,
     refetchIntervalInBackground: true,
   });
 
   const { data: latestNfts = [], isLoading: loadingLatest } = useQuery({
-    queryKey: ["/api/nfts"],
+    queryKey: [`${BASE_URL}/api/nfts`],
     refetchInterval: 10_000,
     refetchIntervalInBackground: true,
   });

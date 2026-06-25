@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useParams } from "wouter";
 
 export default function Profile() {
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const { address: urlAddress } = useParams();
   const { isConnected, address: walletAddress } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -19,9 +20,9 @@ export default function Profile() {
   const isOwnProfile = !urlAddress || urlAddress.toLowerCase() === walletAddress?.toLowerCase();
   const { data: balanceData } = useBalance({ address });
   const { data: dbUser } = useQuery({
-    queryKey: [`/api/users/${address}`],
+    queryKey: [`${BASE_URL}/api/users/${address}`],
     queryFn: async () => {
-      const res = await fetch(`/api/users/${address}`);
+      const res = await fetch(`${BASE_URL}/api/users/${address}`);
       if (!res.ok) return { username: "", bio: "", profileImageUrl: "", bannerImageUrl: "" };
       return res.json();
     },
@@ -31,9 +32,9 @@ export default function Profile() {
 
 
   const { data: nfts, isLoading: nftsLoading } = useQuery({
-    queryKey: [`/api/nfts?owner=${address}`],
+    queryKey: [`${BASE_URL}/api/nfts?owner=${address}`],
     queryFn: async () => {
-      const res = await fetch(`/api/nfts?owner=${address}`);
+      const res = await fetch(`${BASE_URL}/api/nfts?owner=${address}`);
       if (!res.ok) throw new Error("Failed to fetch NFTs");
       return res.json();
     },

@@ -35,46 +35,77 @@ function writeCache(price) {
   );
 }
 
+// Shared across every NftCard instance so we only ever make one
+// Moralis call / interval, no matter how many cards are mounted.
+let ethPriceState = readCache();
+let inFlightFetch = null;
+let intervalId = null;
+const subscribers = new Set();
+
+function notifySubscribers() {
+  subscribers.forEach((setPrice) => setPrice(ethPriceState));
+}
+
+async function fetchEthPrice() {
+  if (inFlightFetch) return inFlightFetch;
+
+  inFlightFetch = (async () => {
+    try {
+      const res = await fetch(
+        `https://deep-index.moralis.io/api/v2.2/erc20/${WETH}/price?chain=eth`,
+        {
+          headers: {
+            "X-API-Key": import.meta.env.VITE_MORALIS_API_KEY,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Moralis price request failed: ${res.status}`);
+      }
+
+      const data = await res.json();
+      const price = data?.usdPrice ?? null;
+
+      if (price) {
+        writeCache(price);
+        ethPriceState = price;
+        notifySubscribers();
+      }
+    } catch (err) {
+      console.error("ETH price fetch failed", err);
+    } finally {
+      inFlightFetch = null;
+    }
+  })();
+
+  return inFlightFetch;
+}
+
 function useEthPrice() {
-  const [ethPrice, setEthPrice] = useState(() => readCache());
+  const [price, setPrice] = useState(ethPriceState);
 
   useEffect(() => {
-    async function fetchPrice() {
-      try {
-        const res = await fetch(
-          `https://deep-index.moralis.io/api/v2.2/erc20/${WETH}/price?chain=eth`,
-          {
-            headers: {
-              "X-API-Key": import.meta.env.VITE_MORALIS_API_KEY,
-            },
-          }
-        );
+    subscribers.add(setPrice);
 
-        const data = await res.json();
-        const price = data?.usdPrice ?? null;
+    if (!ethPriceState) {
+      fetchEthPrice();
+    }
 
-        if (price) {
-          writeCache(price);
-          setEthPrice(price);
-        }
-      } catch (err) {
-        console.error("ETH price fetch failed", err);
+    if (!intervalId) {
+      intervalId = setInterval(fetchEthPrice, CACHE_TIME);
+    }
+
+    return () => {
+      subscribers.delete(setPrice);
+      if (subscribers.size === 0 && intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
       }
-    }
-
-    const cached = readCache();
-
-    if (!cached) {
-      fetchPrice(); 
-    } else {
-      setEthPrice(cached);
-    }
-    const interval = setInterval(fetchPrice, CACHE_TIME);
-
-    return () => clearInterval(interval);
+    };
   }, []);
 
-  return ethPrice;
+  return price;
 }
 
 

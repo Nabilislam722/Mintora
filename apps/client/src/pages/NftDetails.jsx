@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { parseEther } from "viem";
 
 export default function NftDetails() {
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const { address, isConnected } = useAccount();
   const { buyItem, listItem, approveNft, cancelListing } = useWeb3();
   const { toast } = useToast();
@@ -20,7 +21,7 @@ export default function NftDetails() {
   const [listPrice, setListPrice] = useState("");
   const queryClient = useQueryClient(); 
 
-  const queryKey = [`/api/nfts/${collectionId}/${tokenId}`];
+  const queryKey = [`${BASE_URL}/api/nfts/${collectionId}/${tokenId}`];
 
   const { data: nft, isLoading } = useQuery({
     queryKey,

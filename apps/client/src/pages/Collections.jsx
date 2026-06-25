@@ -6,9 +6,10 @@ import { useState } from "react";
 
 export default function Collections() {
   const [searchTerm, setSearchTerm] = useState("");
-  
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
   const { data: collections, isLoading } = useQuery({
-    queryKey: ["/api/collections"],
+    queryKey: [`${BASE_URL}/api/collections`],
   });
 
   const filteredCollections = collections?.filter((col) =>
