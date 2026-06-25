@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-const COLUMNS = ['Tx', 'From', 'To', 'Collection', 'Token ID', 'Action']
+const COLUMNS = ['Tx', 'From', 'To', 'Collection', 'Token ID', 'Action'];
 
 const ACTION_STYLES = {
   SOLD: { label: 'Sale', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
@@ -37,6 +37,8 @@ function UserCell({ address, user }) {
 function Activity() {
   const [copied, setCopied] = useState(null)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
   React.useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768)
@@ -45,9 +47,9 @@ function Activity() {
   }, [])
 
   const { data: activityData, isLoading } = useQuery({
-    queryKey: ['/api/activity'],
+    queryKey: [`${BASE_URL}/api/activity`],
     queryFn: async () => {
-      const res = await fetch('/api/activity?limit=20&page=1');
+      const res = await fetch(`${BASE_URL}/api/activity?limit=20&page=1`);
       if (!res.ok) return { items: [], total: 0 };
       return res.json();
     },

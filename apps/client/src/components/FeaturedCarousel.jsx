@@ -6,6 +6,8 @@ export default function FeaturedCarousel() {
   const [slides, setSlides] = useState([]);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
   const [isDark, setIsDark] = useState(    
     () => (localStorage.getItem("theme") || "dark") === "dark"
   );
@@ -24,7 +26,7 @@ export default function FeaturedCarousel() {
   useEffect(() => {
     const fetchFeatured = async () => {
       try {
-        const response = await fetch("/api/featured");
+        const response = await fetch(`${BASE_URL}/api/featured`);
         if (!response.ok) throw new Error("Could not fetch data");
         const data = await response.json();
         setSlides(data);
@@ -33,7 +35,7 @@ export default function FeaturedCarousel() {
         console.error("Error fetching featured slides:", error);
       } 
       finally {
-        setLoading(false);
+        loading.false || setLoading(false);
       }
     };
     fetchFeatured();
@@ -47,8 +49,13 @@ export default function FeaturedCarousel() {
     return () => clearInterval(timer);
   }, [slides.length]);
 
+  // Adjusted loading skeleton height to match the new container scaling
   if (loading) {
-    return <div className="h-[320px] md:h-[380px] bg-muted animate-pulse rounded-2xl flex items-center justify-center">Loading Featured...</div>;
+    return (
+      <div className="h-[250px] sm:h-[350px] md:h-[450px] xl:h-[500px] max-w-[2000px] mx-auto bg-muted animate-pulse rounded-2xl flex items-center justify-center">
+        Loading Featured...
+      </div>
+    );
   }
   if (slides.length === 0) return null;
 
@@ -56,16 +63,20 @@ export default function FeaturedCarousel() {
   const bgImage = isDark ? slide.bgImage : (slide.wbgImage || slide.bgImage); 
 
   return (
-    <div className="relative bottom-5 h-[320px] md:h-[420px] overflow-hidden">
+    /* Changed height rules to hit 500px at max-width and centered container */
+    <div className="relative bottom-5 h-[250px] sm:h-[350px] md:h-[450px] xl:h-[500px] w-full max-w-[2000px] mx-auto overflow-hidden sm:rounded-2xl">
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-700"
         style={{ backgroundImage: `url(${bgImage})` }} 
       />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/20 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent via-[40%] to-transparent" />
+      
+      {/* LIGHTENED OVERLAYS: Reduced opacities for a brighter background image */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/5 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background/10 via-transparent to-transparent" />
 
       <div className="relative h-full container mx-auto px-4 flex items-center">
-        <div className="bg-black/40 dark:bg-black/60 backdrop-blur-md rounded-2xl p-6 max-w-md border border-white/10">
+        {/* Kept text container dark/blurred for high contrast readability */}
+        <div className="bg-black/50 dark:bg-black/70 backdrop-blur-md rounded-2xl p-6 max-w-md border border-white/10 shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             {slide.logoLeft && (
               <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/20">
@@ -89,6 +100,7 @@ export default function FeaturedCarousel() {
         </div>
       </div>
 
+      {/* Slide Indicators */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
         {slides.map((_, idx) => (
           <button
@@ -100,6 +112,7 @@ export default function FeaturedCarousel() {
         ))}
       </div>
 
+      {/* Navigation Arrows */}
       <button
         onClick={() => setCurrent((prev) => (prev - 1 + slides.length) % slides.length)}
         className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors text-white"
@@ -109,7 +122,7 @@ export default function FeaturedCarousel() {
       </button>
       <button
         onClick={() => setCurrent((prev) => (prev + 1) % slides.length)}
-        className="absolute right-16 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors text-white"
+        className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors text-white"
         data-testid="button-carousel-next"
       >
         <ChevronRight className="w-5 h-5" />

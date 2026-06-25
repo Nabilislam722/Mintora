@@ -7,12 +7,14 @@ import { Loader2, CheckCircle, AlertCircle, Pencil, Wallet, Bell, Palette, Code2
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import "../components/settings.css";
-import { uploadToR2 } from "../lib/uploadToR2"
-
+import { uploadToR2 } from "../lib/uploadToR2";
 
 const MAX_MB     = 5;
 const ACCEPT     = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ACCEPT_STR = ACCEPT.join(",");
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const MAX_USERNAME = 32;
+const MAX_BIO = 160;
 
 const NAV = [
   { id: "profile",       label: "Profile",             Icon: User        },
@@ -71,6 +73,9 @@ function useImagePicker(initial) {
   return { file, preview, err, pick };
 }
 
+function isValidImage(file) {
+  return !!file && ACCEPT.includes(file.type) && file.size <= MAX_MB * 1024 * 1024;
+}
 
 function ProfileTab({ address, dbUser, onSaved }) {
   const avatar = useImagePicker(dbUser?.profileImageUrl || null);
@@ -94,7 +99,30 @@ function ProfileTab({ address, dbUser, onSaved }) {
     url.trim()      !== (dbUser?.url      || "");
 
   const handleSave = async () => {
-    setStatus("saving"); setProgress(0); setSaveErr("");
+    setSaveErr("");
+
+    if (username.trim().length > MAX_USERNAME) {
+      setSaveErr(`Username must be ${MAX_USERNAME} characters or fewer.`);
+      setStatus("error");
+      return;
+    }
+    if (bio.trim().length > MAX_BIO) {
+      setSaveErr(`Bio must be ${MAX_BIO} characters or fewer.`);
+      setStatus("error");
+      return;
+    }
+    if (avatar.file && !isValidImage(avatar.file)) {
+      setSaveErr(`Avatar must be JPG, PNG, WEBP, or GIF under ${MAX_MB} MB.`);
+      setStatus("error");
+      return;
+    }
+    if (banner.file && !isValidImage(banner.file)) {
+      setSaveErr(`Banner must be JPG, PNG, WEBP, or GIF under ${MAX_MB} MB.`);
+      setStatus("error");
+      return;
+    }
+
+    setStatus("saving"); setProgress(0);
     try {
       const patch = {};
 
@@ -118,7 +146,7 @@ function ProfileTab({ address, dbUser, onSaved }) {
       if (url.trim()      !== (dbUser?.url      || "")) patch.url      = url.trim();
 
       if (Object.keys(patch).length > 0) {
-        const r = await fetch(`/api/users/${address}`, {
+        const r = await fetch(`${BASE_URL}/api/users/${address}`, {
           method:  "PATCH",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify(patch),
@@ -174,10 +202,10 @@ function ProfileTab({ address, dbUser, onSaved }) {
       <div className="s-field">
         <label className="s-label">Username</label>
         <input type="text" className="s-input" placeholder="Enter a username"
-          value={username} maxLength={32} onChange={e => setUsername(e.target.value)} />
+          value={username} maxLength={MAX_USERNAME} onChange={e => setUsername(e.target.value.slice(0, MAX_USERNAME))} />
         <div className="flex items-center justify-between">
           <p className="s-hint">This is your public username.</p>
-          <span className={`s-charcount ${username.length > 28 ? "warn" : ""}`}>{username.length}/32</span>
+          <span className={`s-charcount ${username.length > 28 ? "warn" : ""}`}>{username.length}/{MAX_USERNAME}</span>
         </div>
       </div>
 
@@ -185,9 +213,9 @@ function ProfileTab({ address, dbUser, onSaved }) {
       <div className="s-field">
         <label className="s-label">Bio</label>
         <textarea className="s-input" placeholder="Tell the world about yourself…"
-          value={bio} maxLength={160} rows={3} onChange={e => setBio(e.target.value)} />
+          value={bio} maxLength={MAX_BIO} rows={3} onChange={e => setBio(e.target.value.slice(0, MAX_BIO))} />
         <div className="flex justify-end">
-          <span className={`s-charcount ${bio.length > 140 ? "warn" : ""}`}>{bio.length}/160</span>
+          <span className={`s-charcount ${bio.length > 140 ? "warn" : ""}`}>{bio.length}/{MAX_BIO}</span>
         </div>
       </div>
 
@@ -230,9 +258,9 @@ export default function Settings() {
   const [activeNav, setActiveNav] = useState("profile");
 
   const { data: dbUser, isLoading } = useQuery({
-    queryKey: [`/api/users/${address}`],
+    queryKey: [`${BASE_URL}/api/users/${address}`],
     queryFn:  async () => {
-      const res = await fetch(`/api/users/${address}`);
+      const res = await fetch(`${BASE_URL}/api/users/${address}`);
       if (!res.ok) return null;
       return res.json();
     },
@@ -240,7 +268,7 @@ export default function Settings() {
   });
 
   const handleSaved = (patch) => {
-    queryClient.invalidateQueries([`/api/users/${address}`]);
+    queryClient.invalidateQueries([`${BASE_URL}/api/users/${address}`]);
     toast({ title: "Profile updated!" });
   };
 

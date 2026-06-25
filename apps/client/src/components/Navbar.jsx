@@ -23,12 +23,13 @@ export default function Navbar() {
   const wrapRef = useRef(null);
   const debouncedQuery = useDebounce(query, 300);
   const [, navigate] = useLocation();
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
   /* Fetch results */
   useEffect(() => {
     if (debouncedQuery.length < 2) { setResults(null); return; }
     setLoading(true);
-    fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`)
+    fetch(`${BASE_URL}/api/search?q=${encodeURIComponent(debouncedQuery)}`)
       .then(r => r.json())
       .then(data => { setResults(data); setLoading(false); })
       .catch(() => setLoading(false));
@@ -183,8 +184,8 @@ export default function Navbar() {
 
           <Link href="/" className="flex items-center gap-2 ml-3" data-testid="link-home">
             <div className="w-12 h-12 rounded-lg flex items-center justify-center">
-              <img src="./logo.png" alt="logo" className="block  dark:hidden" />
-              <img src="./logo-white.png" alt="logo" className="hidden dark:block" />
+              <img src="/logo.png" alt="logo" className="block  dark:hidden" />
+              <img src="/logo-white.png" alt="logo" className="hidden dark:block" />
             </div>
             <span className="font-sans font-bold text-xl hidden sm:block">MINTORA</span>
           </Link>

@@ -9,15 +9,15 @@ import { useState, useMemo } from "react";
 export default function CollectionDetails() {
   const { slug } = useParams();
   const [viewMode, setViewMode] = useState("grid");
-
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const [showListedOnly, setShowListedOnly] = useState(true);
 
   const { data: collection, isLoading: loadingCol } = useQuery({
-    queryKey: [`/api/collections/${slug}`],
+    queryKey: [`${BASE_URL}/api/collections/${slug}`],
   });
 
   const { data: nfts, isLoading: loadingNfts } = useQuery({
-    queryKey: [`/api/nfts?collectionId=${collection?._id}`],
+    queryKey: [`${BASE_URL}/api/nfts?collectionId=${collection?._id}`],
     enabled: !!collection?._id,
   });
   const targetNft = nfts?.find(n => n.tokenId === "173");
@@ -96,7 +96,13 @@ export default function CollectionDetails() {
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="icon" className="border-white/10 hover:bg-white/10 rounded-xl" data-testid="button-external-link">
+            <Button
+              variant="outline"
+              size="icon"
+              className="border-white/10 hover:bg-white/10 rounded-xl"
+              data-testid="button-external-link"
+              onClick={() => window.open(`https://explorer.hemi.xyz/token/${collection.contractAddress}`, "_blank", "noopener,noreferrer")}
+            >
               <ExternalLink className="w-4 h-4" />
             </Button>
           </div>
@@ -189,4 +195,3 @@ export default function CollectionDetails() {
     </div>
   );
 }
-

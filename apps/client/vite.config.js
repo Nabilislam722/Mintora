@@ -9,6 +9,11 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  define: {
+    "process.env": {},
+    "process.argv": [],
+    "global": "window",
+  },
   server: {
     host: "127.0.0.1",
     port: 5173,
@@ -19,7 +24,7 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "http://localhost:3000/",
+        target: "https://api.mintora.app/",
         changeOrigin: true,
       },
     },

@@ -1,5 +1,7 @@
 export async function uploadToR2(file, uploadType, address, onProgress) {
-  const presignRes = await fetch("/api/upload/presign", {
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+  const presignRes = await fetch(`${BASE_URL}/api/upload/presign`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({
@@ -30,7 +32,7 @@ export async function uploadToR2(file, uploadType, address, onProgress) {
 
   onProgress?.(0.9); // nearly done
 
-  const confirmRes = await fetch("/api/upload/confirm", {
+  const confirmRes = await fetch(`${BASE_URL}/api/upload/confirm`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({ key, publicUrl, uploadType, mimeType: file.type, address }),
