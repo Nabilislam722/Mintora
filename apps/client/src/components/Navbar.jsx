@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import ThemeToggle from "./ThemeToggle";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
+import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
@@ -12,6 +13,18 @@ function useDebounce(value, delay) {
     return () => clearTimeout(t);
   }, [value, delay]);
   return debounced;
+}
+
+function Logo() {
+  return (
+    <Link href="/" className="flex items-center gap-2" data-testid="link-home">
+      <div className="w-12 h-12 rounded-lg flex items-center justify-center">
+        <img src="/logo.png" alt="logo" className="block dark:hidden" />
+        <img src="/logo-white.png" alt="logo" className="hidden dark:block" />
+      </div>
+      <span className="font-sans font-bold text-xl hidden sm:block">MINTORA</span>
+    </Link>
+  );
 }
 
 export default function Navbar() {
@@ -23,9 +36,9 @@ export default function Navbar() {
   const wrapRef = useRef(null);
   const debouncedQuery = useDebounce(query, 300);
   const [, navigate] = useLocation();
+  const { logoPosition } = useLayoutPreferences();
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-  /* Fetch results */
   useEffect(() => {
     if (debouncedQuery.length < 2) { setResults(null); return; }
     setLoading(true);
@@ -35,7 +48,6 @@ export default function Navbar() {
       .catch(() => setLoading(false));
   }, [debouncedQuery]);
 
-  /* Close on outside click */
   useEffect(() => {
     const handler = (e) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
@@ -50,6 +62,8 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/70 dark:bg-background/50 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
+
+        {logoPosition === "left" && <Logo />}
 
         {/* ── Search ── */}
         <div ref={wrapRef} className="flex-1 max-w-xl relative">
@@ -73,7 +87,6 @@ export default function Navbar() {
             />
           </div>
 
-          {/* ── Dropdown ── */}
           {open && query.length >= 2 && (
             <div className="absolute top-full mt-2 left-0 right-0 rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
 
@@ -85,7 +98,6 @@ export default function Navbar() {
                 <p className="text-xs text-muted-foreground px-4 py-3">No results for "{query}"</p>
               )}
 
-              {/* Collections */}
               {results?.collections.length > 0 && (
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pt-3 pb-1 font-semibold">
@@ -111,7 +123,6 @@ export default function Navbar() {
                 </div>
               )}
 
-              {/* Users */}
               {results?.users?.length > 0 && (
                 <div className={results?.collections.length > 0 ? "border-t border-border" : ""}>
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pt-3 pb-1 font-semibold">
@@ -142,7 +153,6 @@ export default function Navbar() {
                 </div>
               )}
 
-              {/* NFTs */}
               {results?.nfts.length > 0 && (
                 <div className={results?.collections.length > 0 ? "border-t border-border" : ""}>
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground px-4 pt-3 pb-1 font-semibold">
@@ -177,18 +187,10 @@ export default function Navbar() {
         {/* Right side */}
         <div className="flex items-center gap-5">
           <ThemeToggle />
-
           <div className="hidden md:flex items-center gap-6">
             <ConnectButton chainStatus="Hemi" />
           </div>
-
-          <Link href="/" className="flex items-center gap-2 ml-3" data-testid="link-home">
-            <div className="w-12 h-12 rounded-lg flex items-center justify-center">
-              <img src="/logo.png" alt="logo" className="block  dark:hidden" />
-              <img src="/logo-white.png" alt="logo" className="hidden dark:block" />
-            </div>
-            <span className="font-sans font-bold text-xl hidden sm:block">MINTORA</span>
-          </Link>
+          {logoPosition !== "left" && <Logo />}
         </div>
       </div>
     </nav>

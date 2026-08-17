@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Navbar from "./components/Navbar";
 import HoverSidebar from "./components/HoverSidebar";
+import { LayoutPreferencesProvider, useLayoutPreferences } from "./context/LayoutPreferencesContext";
 import Home from "./pages/Home";
 import Collections from "./pages/Collections";
 import CollectionDetails from "./pages/CollectionDetails";
@@ -32,21 +33,33 @@ function Router() {
   );
 }
 
-function App() {
+function AppShell() {
   const [location] = useLocation();
+  const { sidebarPosition } = useLayoutPreferences();
   const hideLayout = location === "/welcome";
 
   return (
-    <TooltipProvider>
-      <div className={!hideLayout ? "min-h-screen bg-background text-foreground" : ""}>
-        {!hideLayout && <Navbar />}
-        {!hideLayout && <HoverSidebar />}
-        <main className={!hideLayout ? "pt-16" : ""}>
-          <Router />
-        </main>
-      </div>
-      <Toaster />
-    </TooltipProvider>
+    <div className={!hideLayout ? "min-h-screen bg-background text-foreground" : ""}>
+      {!hideLayout && <Navbar />}
+      {!hideLayout && <HoverSidebar />}
+      <main
+        className={!hideLayout ? "pt-16" : ""}
+        style={!hideLayout ? { [sidebarPosition === "left" ? "paddingLeft" : "paddingRight"]: "4rem" } : undefined}
+      >
+        <Router />
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <LayoutPreferencesProvider>
+      <TooltipProvider>
+        <AppShell />
+        <Toaster />
+      </TooltipProvider>
+    </LayoutPreferencesProvider>
   );
 }
 

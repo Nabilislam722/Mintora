@@ -4,6 +4,7 @@ import { IoSettingsOutline, IoSettingsSharp, IoSparkles } from "react-icons/io5"
 import { Link, useLocation } from "wouter";
 import { BiSolidHome, BiUser, BiChevronLeft } from "react-icons/bi";
 import { PiRocketDuotone, PiRocketFill } from "react-icons/pi";
+import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 
 const navItems = [
   { href: "/", icon: BiSolidHome, iconFilled: null, label: "Home" },
@@ -13,7 +14,7 @@ const navItems = [
   { href: "/settings", icon: IoSettingsOutline, iconFilled: IoSettingsSharp, label: "Settings" },
 ];
 
-function NavItem({ item, expanded, isActive }) {
+function NavItem({ item, expanded, isActive, position }) {
   const [hovered, setHovered] = useState(false);
   const showFilled = (hovered || isActive) && item.iconFilled;
   const IconComponent = showFilled ? item.iconFilled : item.icon;
@@ -21,7 +22,7 @@ function NavItem({ item, expanded, isActive }) {
   return (
     <Link
       href={item.href}
-      className={`flex items-center gap-3 rounded-2xl transition-colors group ${
+      className={`relative flex items-center gap-3 rounded-2xl transition-colors group ${
         isActive ? "bg-secondary" : "hover:bg-secondary"
       } ${expanded ? "px-3 py-3" : "px-2 py-3 justify-center"}`}
       data-testid={`link-sidebar-${item.label.toLowerCase()}`}
@@ -38,9 +39,12 @@ function NavItem({ item, expanded, isActive }) {
           {item.label}
         </span>
       )}
-      {/* Active indicator dot when collapsed */}
       {!expanded && isActive && (
-        <span className="absolute right-1.5 w-1 h-1 rounded-full bg-primary" />
+        <span
+          className={`absolute w-1 h-1 rounded-full bg-primary ${
+            position === "left" ? "left-1.5" : "right-1.5"
+          }`}
+        />
       )}
     </Link>
   );
@@ -49,23 +53,25 @@ function NavItem({ item, expanded, isActive }) {
 export default function HoverSidebar() {
   const [expanded, setExpanded] = useState(false);
   const [location] = useLocation();
+  const { sidebarPosition } = useLayoutPreferences();
+  const isLeft = sidebarPosition === "left";
 
   return (
     <div
-      className="fixed right-0 top-16 bottom-0 z-40 flex"
+      className={`fixed top-16 bottom-0 z-40 flex ${isLeft ? "left-0" : "right-0"}`}
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
       <div
-        className={`h-full bg-card border-l border-border transition-all duration-300 ease-in-out ${
-          expanded ? "w-80 bg-card/70 backdrop-blur-lg" : "w-16"
-        }`}
+        className={`h-full bg-card transition-all duration-300 ease-in-out ${
+          isLeft ? "border-r border-border" : "border-l border-border"
+        } ${expanded ? "w-80 bg-card/70 backdrop-blur-lg" : "w-16"}`}
       >
         <div className="p-2 pt-4">
           <div className={`flex items-center gap-2 px-2 mb-4 ${expanded ? "justify-start" : "justify-center"}`}>
             <BiChevronLeft
               className={`w-5 h-5 text-muted-foreground transition-transform duration-300 ${
-                expanded ? "rotate-180" : ""
+                isLeft ? (expanded ? "" : "rotate-180") : (expanded ? "rotate-180" : "")
               }`}
             />
             {expanded && <span className="text-sm text-muted-foreground">Menu</span>}
@@ -77,6 +83,7 @@ export default function HoverSidebar() {
                 key={item.href}
                 item={item}
                 expanded={expanded}
+                position={sidebarPosition}
                 isActive={
                   item.href === "/"
                     ? location === "/"

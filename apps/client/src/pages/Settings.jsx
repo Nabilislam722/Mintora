@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import "../components/settings.css";
 import { uploadToR2 } from "../lib/uploadToR2";
+import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 
 const MAX_MB     = 5;
 const ACCEPT     = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -248,6 +249,70 @@ function ProfileTab({ address, dbUser, onSaved }) {
   );
 }
 
+function ToggleSwitch({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${
+        checked ? "bg-primary" : "bg-secondary"
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+  );
+}
+
+function ToggleRow({ label, description, value, onChange }) {
+  const isRight = value === "right";
+  return (
+    <div className="flex items-center justify-between py-4 border-b border-border last:border-b-0">
+      <div className="pr-4">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <span className={`text-xs font-medium ${!isRight ? "text-foreground" : "text-muted-foreground"}`}>Left</span>
+        <ToggleSwitch checked={isRight} onChange={(next) => onChange(next ? "right" : "left")} />
+        <span className={`text-xs font-medium ${isRight ? "text-foreground" : "text-muted-foreground"}`}>Right</span>
+      </div>
+    </div>
+  );
+}
+
+function CustomizeTab() {
+  const { sidebarPosition, logoPosition, setSidebarPosition, setLogoPosition } = useLayoutPreferences();
+
+  return (
+    <>
+      <p className="s-page-title">Customize</p>
+      <p className="text-sm text-muted-foreground mb-2">
+        Changes apply immediately and are saved to this device.
+      </p>
+
+      <ToggleRow
+        label="Sidebar position"
+        description="Move the hover navigation sidebar to the left or right edge of the screen."
+        value={sidebarPosition}
+        onChange={setSidebarPosition}
+      />
+
+      <ToggleRow
+        label="Navbar logo position"
+        description="Move the MINTORA logo to the left or right side of the top navbar."
+        value={logoPosition}
+        onChange={setLogoPosition}
+      />
+    </>
+  );
+}
+
 export default function Settings() {
   const { address, isConnected } = useAccount();
   const { openConnectModal }     = useConnectModal();
@@ -304,7 +369,7 @@ export default function Settings() {
       <div className="s-layout">
 
         {/* Sidebar */}
-        <nav className="s-sidebar">
+        <nav className="s-sidebar ml-64">
           <p className="s-sidebar-heading">Settings</p>
           {NAV.map(({ id, label, Icon }) => (
             <button
@@ -319,11 +384,12 @@ export default function Settings() {
         </nav>
 
         {/* Main */}
-        <main className="s-main">
+        <main className="s-main ml-60">
           {activeNav === "profile" && (
             <ProfileTab address={address} dbUser={dbUser} onSaved={handleSaved} />
           )}
-          {activeNav !== "profile" && (
+          {activeNav === "customize" && <CustomizeTab />}
+          {activeNav !== "profile" && activeNav !== "customize" && (
             <ComingSoon Icon={activeNavMeta?.Icon} />
           )}
         </main>
