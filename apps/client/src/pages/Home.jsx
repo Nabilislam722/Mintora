@@ -219,10 +219,10 @@ export default function Home() {
       <footer className="border-t border-border py-6 px-4 sm:px-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-0 justify-between text-sm text-muted-foreground">
         <div>© 2026 Mintora. All rights reserved.</div>
         <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
-          <a href="#" target="_blank" className="hover:text-foreground transition">FAQ</a>
+          <a href="/faq" className="hover:text-foreground transition">FAQ</a>
           <a href="#" target="_blank" className="hover:text-foreground transition">Terms of Use</a>
-          <a href="https://github.com/Nabilislam722" target="_blank" className="hover:text-foreground transition">Team</a>
-          <a href="#" target="_blank" className="hover:text-foreground transition">Careers</a>
+          <a href="https://www.team.mintora.app" target="_blank" rel="noopener noreferrer"  className="hover:text-foreground transition">Team</a>
+          <a href="https://www.careers.mintora.app" target="_blank" className="hover:text-foreground transition">Careers</a>
         </div>
       </footer>
     </div>
