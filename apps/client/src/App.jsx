@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import Settings from "./pages/Settings";
 import Welcome from "./pages/welcome";
 import Activity from "./pages/activity";
+import Faq from "./pages/faq";
 
 function Router() {
   return (
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/welcome" component={Welcome}/>
       <Route path="/activity" component={Activity}/>
+      <Route path="/faq" component={Faq}/>
       <Route component={NotFound} />
     </Switch>
   );
@@ -36,15 +38,15 @@ function Router() {
 function AppShell() {
   const [location] = useLocation();
   const { sidebarPosition } = useLayoutPreferences();
-  const hideLayout = location === "/welcome";
+  const HIDE_LAYOUT_ROUTES = ["/welcome"];
+  const hideLayout = HIDE_LAYOUT_ROUTES.includes(location);
 
   return (
-    <div className={!hideLayout ? "min-h-screen bg-background text-foreground" : ""}>
+    <div className="min-h-screen bg-background text-foreground">
       {!hideLayout && <Navbar />}
       {!hideLayout && <HoverSidebar />}
-      <main
-        className={!hideLayout ? "pt-16" : ""}
-        style={!hideLayout ? { [sidebarPosition === "left" ? "paddingLeft" : "paddingRight"]: "4rem" } : undefined}
+       <main
+        className={!hideLayout ? `pt-32 md:pt-16 ${sidebarPosition === "left" ? "md:pl-16" : "md:pr-16"}` : ""}
       >
         <Router />
       </main>

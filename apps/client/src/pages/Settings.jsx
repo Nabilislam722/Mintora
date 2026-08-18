@@ -18,7 +18,7 @@ const MAX_USERNAME = 32;
 const MAX_BIO = 160;
 
 const NAV = [
-  { id: "profile",       label: "Profile",             Icon: User        },
+  { id: "profile",       label: "Profile",            Icon: User        },
   { id: "wallets",       label: "Linked Wallets",      Icon: Wallet      },
   { id: "notifications", label: "Email Notifications", Icon: Bell        },
   { id: "customize",     label: "Customize",           Icon: Palette     },
@@ -167,7 +167,7 @@ function ProfileTab({ address, dbUser, onSaved }) {
   return (
     <>
       {/* Banner */}
-      <div className="s-banner" onClick={() => bannerRef.current?.click()}>
+      <div className="s-banner max-md:!h-32" onClick={() => bannerRef.current?.click()}>
         {banner.preview && <img src={banner.preview} alt="banner" />}
         <div className="s-banner-overlay">
           <div className="s-pencil-lg"><Pencil className="w-4 h-4 text-white" /></div>
@@ -178,7 +178,7 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
       {/* Avatar */}
       <div className="flex items-end mb-7">
-        <div className="s-avatar" onClick={() => avatarRef.current?.click()}>
+        <div className="s-avatar max-md:!w-16 max-md:!h-16" onClick={() => avatarRef.current?.click()}>
           {avatar.preview
             ? <img src={avatar.preview} alt="avatar" />
             : <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
@@ -234,7 +234,7 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
       <div className="flex justify-end">
         <Button
-          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-8 h-11 disabled:opacity-40"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-8 h-11 disabled:opacity-40 max-md:!w-full max-md:!px-4"
           onClick={handleSave}
           disabled={!hasChanges || status === "saving" || status === "success"}
         >
@@ -272,8 +272,8 @@ function ToggleSwitch({ checked, onChange }) {
 function ToggleRow({ label, description, value, onChange }) {
   const isRight = value === "right";
   return (
-    <div className="flex items-center justify-between py-4 border-b border-border last:border-b-0">
-      <div className="pr-4">
+    <div className="flex max-[420px]:flex-col max-[420px]:items-start max-[420px]:gap-3 items-center justify-between py-4 border-b border-border last:border-b-0">
+      <div className="pr-4 min-w-0">
         <p className="text-sm font-medium text-foreground">{label}</p>
         {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
       </div>
@@ -365,35 +365,34 @@ export default function Settings() {
   const activeNavMeta = NAV.find(n => n.id === activeNav);
 
   return (
-    <>
-      <div className="s-layout">
+    <div className="s-layout max-md:!flex max-md:!flex-col max-md:!gap-4 max-md:!px-4 max-md:!py-2">
 
-        {/* Sidebar */}
-        <nav className="s-sidebar ml-64">
-          <p className="s-sidebar-heading">Settings</p>
-          {NAV.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              className={`s-nav-btn ${activeNav === id ? "active" : ""}`}
-              onClick={() => setActiveNav(id)}
-            >
-              <Icon className="w-4 h-4 shrink-0" style={{ opacity: activeNav === id ? 1 : 0.6 }} />
-              {label}
-            </button>
-          ))}
-        </nav>
+      {/* Sidebar - Converts to a horizontal scrollable menu on mobile */}
+      <nav className="s-sidebar ml-64 max-md:!static max-md:!w-full max-md:!h-auto max-md:!ml-0 max-md:!p-0 max-md:!flex max-md:!flex-row max-md:!items-center max-md:overflow-x-auto max-md:gap-2 max-md:pb-3 max-md:border-r-0 max-md:border-b max-md:border-border max-md:[&::-webkit-scrollbar]:hidden">
+        <p className="s-sidebar-heading max-md:hidden">Settings</p>
+        {NAV.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            className={`s-nav-btn max-md:!w-auto max-md:!inline-flex max-md:!shrink-0 max-md:whitespace-nowrap max-md:text-xs max-md:px-3.5 max-md:py-2 max-md:rounded-full ${activeNav === id ? "active" : ""}`}
+            onClick={() => setActiveNav(id)}
+          >
+            <Icon className="w-4 h-4 shrink-0" style={{ opacity: activeNav === id ? 1 : 0.6 }} />
+            {label}
+          </button>
+        ))}
+      </nav>
 
-        {/* Main */}
-        <main className="s-main ml-60">
-          {activeNav === "profile" && (
-            <ProfileTab address={address} dbUser={dbUser} onSaved={handleSaved} />
-          )}
-          {activeNav === "customize" && <CustomizeTab />}
-          {activeNav !== "profile" && activeNav !== "customize" && (
-            <ComingSoon Icon={activeNavMeta?.Icon} />
-          )}
-        </main>
-      </div>
-    </>
+      {/* Main Content Area */}
+      <main className="s-main ml-60 max-md:!static max-md:!w-full max-md:!ml-0 max-md:!p-0">
+        {activeNav === "profile" && (
+          <ProfileTab address={address} dbUser={dbUser} onSaved={handleSaved} />
+        )}
+        {activeNav === "customize" && <CustomizeTab />}
+        {activeNav !== "profile" && activeNav !== "customize" && (
+          <ComingSoon Icon={activeNavMeta?.Icon} />
+        )}
+      </main>
+
+    </div>
   );
 }

@@ -156,7 +156,6 @@ function Hero({ onWatchDemo }) {
             className="title"
             {...fadeUp(1.7)}
             style={{
-              // Reads the variables directly from the DOM, bypassing React renders
               backgroundImage: 'linear-gradient(160deg, #205F3B var(--g0, 0%), #FFFFFF var(--g1, 45%), #7FDDAA var(--g2, 70%), #13643d var(--g3, 100%))',
             }}
           >

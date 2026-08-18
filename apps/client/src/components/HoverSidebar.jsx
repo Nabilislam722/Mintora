@@ -1,18 +1,9 @@
 import { useState } from "react";
-import { BsCollection, BsFillCollectionFill } from "react-icons/bs";
-import { IoSettingsOutline, IoSettingsSharp, IoSparkles } from "react-icons/io5";
+import { IoSparkles } from "react-icons/io5";
 import { Link, useLocation } from "wouter";
-import { BiSolidHome, BiUser, BiChevronLeft } from "react-icons/bi";
-import { PiRocketDuotone, PiRocketFill } from "react-icons/pi";
+import { BiChevronLeft } from "react-icons/bi";
+import { navItems } from "../lib/navItems";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
-
-const navItems = [
-  { href: "/", icon: BiSolidHome, iconFilled: null, label: "Home" },
-  { href: "/collections", icon: BsCollection, iconFilled: BsFillCollectionFill, label: "Collections" },
-  { href: "/create", icon: PiRocketDuotone, iconFilled: PiRocketFill, label: "Launchpool" },
-  { href: "/profile", icon: BiUser, iconFilled: null, label: "Profile" },
-  { href: "/settings", icon: IoSettingsOutline, iconFilled: IoSettingsSharp, label: "Settings" },
-];
 
 function NavItem({ item, expanded, isActive, position }) {
   const [hovered, setHovered] = useState(false);
@@ -58,7 +49,7 @@ export default function HoverSidebar() {
 
   return (
     <div
-      className={`fixed top-16 bottom-0 z-40 flex ${isLeft ? "left-0" : "right-0"}`}
+      className={`fixed top-16 bottom-0 z-40 hidden md:flex ${isLeft ? "left-0" : "right-0"}`}
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
