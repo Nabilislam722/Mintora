@@ -1,7 +1,8 @@
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { formatEther } from "viem";
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect } from "react";
+import ResilientNftImage from "@/components/ResilientNftImage";
 
 
 const CACHE_KEY = "eth_usd_price";
@@ -114,71 +115,6 @@ function formatUsd(ethAmount, ethPrice) {
   const eth = parseFloat(formatEther(BigInt(ethAmount)));
   const usd = eth * ethPrice;
   return usd.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-}
-
-//IPFS image fallback chain
-
-const FREE_IPFS_GATEWAYS = [
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
-  "https://dweb.link/ipfs/",
-  "https://nftstorage.link/ipfs/",
-  "https://ipfs.io/ipfs/",
-];
-
-
-const DEDICATED_IPFS_GATEWAY = "https://maroon-impressed-toucan-831.mypinata.cloud/ipfs/";
-
-function extractIpfsCidPath(url) {
-  if (!url || typeof url !== "string") return null;
-  const match = url.match(/\/ipfs\/(.+)$/);
-  return match ? match[1] : null;
-}
-
-function buildImageFallbackChain(originalUrl) {
-  const cidPath = extractIpfsCidPath(originalUrl);
-  if (!cidPath) return [originalUrl];
-
-  const chain = [originalUrl];
-  for (const gw of FREE_IPFS_GATEWAYS) {
-    const candidate = `${gw}${cidPath}`;
-    if (candidate !== originalUrl) chain.push(candidate);
-  }
-  chain.push(`${DEDICATED_IPFS_GATEWAY}${cidPath}`);
-  return chain;
-}
-
-/**
- * Drop-in replacement for <img> that transparently retries through free
- * IPFS gateways on load failure, only reaching for the quota-limited
- * dedicated gateway as the very last attempt. Each step only runs if the
- * previous one genuinely failed to load in this browser.
- */
-function ResilientNftImage({ src, alt, className, loading = "lazy" }) {
-  const chain = useMemo(() => buildImageFallbackChain(src), [src]);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    setAttempt(0);
-  }, [src]);
-
-  const hasMoreFallbacks = attempt + 1 < chain.length;
-
-  const handleError = () => {
-    if (hasMoreFallbacks) {
-      setAttempt((i) => i + 1);
-    }
-  };
-
-  return (
-    <img
-      src={chain[attempt]}
-      alt={alt}
-      className={className}
-      loading={loading}
-      onError={hasMoreFallbacks ? handleError : undefined}
-    />
-  );
 }
 
 export default function NftCard({ nft, size = "default" }) {
