@@ -8,18 +8,7 @@ const MONGODB_URI = 'mongodb://127.0.0.1:27017/nft_marketplace';
 const HEMI_RPC = "https://rpc.hemi.network/rpc";
 const MARKETPLACE_ADDRESS = "0xAf9194ad4D453Ce8f9B819f65542dfCbfB36E078";
 
-// Gateway configuration
-// All of these are raced in parallel per request (see raceFirstSuccess /
-// raceFirstReachable), so order here only matters as a tie-breaker — a
-// slow or dead gateway can never block resolution as long as one other
-// gateway in the list is healthy.
-//
-// NOTE: your DEDICATED Pinata gateway only serves CIDs that were pinned
-// through YOUR Pinata account. Any CID pinned by someone else (e.g. an
-// asset from the original collection you didn't personally re-pin) will
-// always 404 / ERR_ID:00006 there, no matter how many retries — it's a
-// permissions boundary, not flakiness. It's kept in the race below because
-// it's fast for content you DO own, but resolution never blindly trusts it.
+
 const IPFS_GATEWAYS = [
     "https://amaranth-imperial-otter-134.mypinata.cloud/ipfs/",
     "https://gateway.pinata.cloud/ipfs/",                      
@@ -29,11 +18,7 @@ const IPFS_GATEWAYS = [
     "https://ipfs.io/ipfs/",                                 
 ];
 
-// Any of these hostnames appearing in a tokenURI mean "this is a gateway
-// wrapper around an IPFS CID", not a genuine bespoke HTTP metadata API —
-// so we unwrap it back down to a raw CID+path and re-resolve across ALL
-// gateways above, instead of being stuck with whichever gateway happened
-// to be baked into the tokenURI.
+
 const GATEWAY_HOSTNAMES = [
     'ipfs.io',
     'mypinata.cloud',
@@ -192,7 +177,7 @@ function buildPathCandidates(uri, tokenId) {
         };
     }
 
-    //   IPFS / gateway-wrapped URL                     ─
+    // IPFS / gateway-wrapped URL
     const cidPath = extractCidPath(uri);
     if (!cidPath) return { kind: 'none', candidates: [] };
 
