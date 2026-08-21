@@ -21,12 +21,12 @@ const MARKETPLACE_ADDRESS = "0xAf9194ad4D453Ce8f9B819f65542dfCbfB36E078";
 // permissions boundary, not flakiness. It's kept in the race below because
 // it's fast for content you DO own, but resolution never blindly trusts it.
 const IPFS_GATEWAYS = [
-    "https://amaranth-imperial-otter-134.mypinata.cloud/ipfs/", // your dedicated Pinata gateway (only your own pins)
-    "https://gateway.pinata.cloud/ipfs/",                       // shared Pinata gateway — serves any public CID
+    "https://amaranth-imperial-otter-134.mypinata.cloud/ipfs/",
+    "https://gateway.pinata.cloud/ipfs/",                      
     "https://cloudflare-ipfs.com/ipfs/",
     "https://dweb.link/ipfs/",
     "https://nftstorage.link/ipfs/",
-    "https://ipfs.io/ipfs/",                                    // public gateway – kept last, most prone to rate-limits/timeouts
+    "https://ipfs.io/ipfs/",                                 
 ];
 
 // Any of these hostnames appearing in a tokenURI mean "this is a gateway
@@ -43,7 +43,7 @@ const GATEWAY_HOSTNAMES = [
     'nftstorage.link',
 ];
 
-const FETCH_TIMEOUT_MS = 15000; // per-gateway request timeout
+const FETCH_TIMEOUT_MS = 15000; 
 
 const ERC721_ABI = [
     "function name() view returns (string)",
@@ -135,7 +135,7 @@ function raceFirstReachable(urls) {
 /**
  * Resolve an IPFS/HTTP URI into a gateway URL that has actually been
  * VERIFIED to serve this content — used for anything getting saved to the
- * DB (e.g. an image URL). Unlike a plain string substitution, this can't
+ * DB ( an image URL). Unlike a plain string substitution, this can't
  * silently pick a gateway (like a dedicated Pinata gateway) that 404s on
  * content it doesn't personally have pinned.
  */

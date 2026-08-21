@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import Welcome from "./pages/welcome";
 import Activity from "./pages/activity";
 import Faq from "./pages/faq";
+import Genisis from "./pages/Genisis";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/welcome" component={Welcome}/>
       <Route path="/activity" component={Activity}/>
       <Route path="/faq" component={Faq}/>
+      <Route path="/genesis" component={Genisis}/>
       <Route component={NotFound} />
     </Switch>
   );
