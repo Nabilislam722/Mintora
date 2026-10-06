@@ -50,6 +50,7 @@ function NavItem({ item, expanded, isActive, position }) {
   const showFilled = (hovered || isActive) && item.iconFilled;
   const IconComponent = showFilled ? item.iconFilled : item.icon;
   const isHighlight = !!item.highlight;
+  const isGlow = !!item.glow;
 
   return (
     <Link
@@ -57,6 +58,8 @@ function NavItem({ item, expanded, isActive, position }) {
       className={`relative flex items-center gap-3 rounded-2xl transition-colors group overflow-hidden ${
         isHighlight
           ? "bg-secondary/40"
+          : isGlow
+          ? "bg-secondary/40 hover:bg-yellow-400/10"
           : isActive
           ? "bg-secondary"
           : "hover:bg-secondary"
@@ -65,7 +68,6 @@ function NavItem({ item, expanded, isActive, position }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Moving gradient glow layer */}
       {isHighlight && (
         <motion.div
           className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary opacity-10 group-hover:opacity-35 transition-opacity"
@@ -75,7 +77,6 @@ function NavItem({ item, expanded, isActive, position }) {
         />
       )}
 
-      {/* Pulsing ring for extra emphasis */}
       {isHighlight && (
         <motion.div
           className="absolute inset-0 rounded-2xl ring-1 ring-primary/40"
@@ -84,8 +85,38 @@ function NavItem({ item, expanded, isActive, position }) {
         />
       )}
 
+      {isGlow && (
+        <div className="absolute inset-0 rounded-2xl ring-1 ring-yellow-400/0 group-hover:ring-yellow-400/60 transition-all duration-300" />
+      )}
+
+      {isGlow && hovered && (
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(110deg, transparent 25%, rgba(255, 215, 0, 0.45) 50%, transparent 75%)",
+          }}
+          initial={{ x: "-100%" }}
+          animate={{ x: "100%" }}
+          transition={{ duration: 1.3, repeat: Infinity, ease: "linear" }}
+        />
+      )}
+
       {isHighlight ? (
         <GradientSweepIcon Icon={IconComponent} size={20} duration={3} />
+      ) : isGlow ? (
+        <motion.span
+          className="relative flex-shrink-0"
+          animate={{
+            scale: hovered ? 1.15 : 1,
+            filter: hovered
+              ? "drop-shadow(0 0 8px rgba(255, 200, 0, 0.9))"
+              : "drop-shadow(0 0 0px rgba(255, 200, 0, 0))",
+          }}
+          transition={{ duration: 0.25 }}
+        >
+          <IconComponent className="w-5 h-5 object-contain" />
+        </motion.span>
       ) : (
         <IconComponent
           className={`w-5 h-5 flex-shrink-0 transition-colors ${
@@ -105,7 +136,24 @@ function NavItem({ item, expanded, isActive, position }) {
         </motion.span>
       )}
 
-      {expanded && !isHighlight && (
+      {expanded && isGlow && hovered && (
+        <motion.span
+          className="relative font-semibold bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600 bg-clip-text text-transparent"
+          style={{ backgroundSize: "200% 100%" }}
+          animate={{ backgroundPosition: ["0% 50%", "200% 50%"] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+        >
+          {item.label}
+        </motion.span>
+      )}
+
+      {expanded && isGlow && !hovered && (
+        <span className={`relative font-medium ${isActive ? "text-primary" : ""}`}>
+          {item.label}
+        </span>
+      )}
+
+      {expanded && !isHighlight && !isGlow && (
         <span className={`font-medium ${isActive ? "text-primary" : ""}`}>
           {item.label}
         </span>
