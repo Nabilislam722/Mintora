@@ -5,6 +5,8 @@ const collectionSchema = new mongoose.Schema({
   name: { type: String, required: true },
   slug: { type: String, unique: true, required: true },
   description: String,
+  twitter: String,
+  website: String,
   logoUrl: String,
   bannerUrl: String,
   contractAddress: { type: String, lowercase: true, required: true, unique: true },

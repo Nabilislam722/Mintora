@@ -4,6 +4,7 @@ import { User } from "./models/User.js";
 import { Featured } from "./models/Featured.js";
 import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
+import { getPrices, PRICE_TTL } from "./prices.js";
 
 export async function registerRoutes(app) {
 
@@ -188,6 +189,19 @@ export async function registerRoutes(app) {
       res.status(500).json({ message: "Featured NFT API Error" });
     }
   });
+
+  // --- TOKEN PRICES (USD, cached server-side for 8 hours) ---
+  app.get("/api/prices", async (req, res) => {
+    try {
+      const { prices, updatedAt } = await getPrices();
+      const secondsLeft = Math.max(0, Math.floor((updatedAt + PRICE_TTL - Date.now()) / 1000));
+      res.set("Cache-Control", `public, max-age=${secondsLeft}`);
+      res.json({ prices, updatedAt });
+    } catch (err) {
+      res.status(502).json({ message: err.message });
+    }
+  });
+
   //activity logs
   app.get('/api/activity', async (req, res) => {
     try {

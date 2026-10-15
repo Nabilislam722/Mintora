@@ -2,7 +2,8 @@ import { Search, X } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import ThemeToggle from "./ThemeToggle";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import NetworkSelector from "./NetworkSelector";
+import WalletButton from "./WalletButton";
 import { formatEther } from "viem";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 import { navItems } from "../lib/navItems";
@@ -205,11 +206,9 @@ export default function Navbar() {
 
           <ThemeToggle />
 
-          <ConnectButton
-            chainStatus={{ smallScreen: "icon", largeScreen: "full" }}
-            accountStatus={{ smallScreen: "avatar", largeScreen: "full" }}
-            showBalance={{ smallScreen: false, largeScreen: true }}
-          />
+          <NetworkSelector />
+
+          <WalletButton />
 
           {logoPosition !== "left" && <Logo />}
         </div>

@@ -1,67 +1,39 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAccount, useBalance } from "wagmi";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useLocation } from "wouter";
-import NftCard from "../components/NftCard";
+import { useLocation, useParams } from "wouter";
+import { isAddress } from "viem";
+import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Wallet, Copy, Settings } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useParams } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ProfileHero from "@/components/profile/ProfileHero";
+import ActivityFeed from "@/components/ActivityFeed";
+import { EmptyState, NftResults, SearchInput, Segmented, ViewToggle, controlCls, tabCls } from "@/components/NftBrowse";
+import { NFT_SORTS, isListed, shortAddress } from "@/lib/nft";
+
+const SORTS = {
+  recent: { label: "Recently active", fn: null },
+  priceAsc: NFT_SORTS.priceAsc,
+  priceDesc: NFT_SORTS.priceDesc,
+};
+
+const collectionKey = (n) => n.collectionId?._id ?? n.contractAddress;
 
 export default function Profile() {
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
   const { address: urlAddress } = useParams();
-  const { isConnected, address: walletAddress } = useAccount();
+  const { address: walletAddress } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { toast } = useToast();
-  const [, navigate] = useLocation();
   const address = urlAddress || walletAddress;
-  const isOwnProfile = !urlAddress || urlAddress.toLowerCase() === walletAddress?.toLowerCase();
-  const { data: balanceData } = useBalance({ address });
-  const { data: dbUser } = useQuery({
-    queryKey: [`${BASE_URL}/api/users/${address}`],
-    queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/api/users/${address}`);
-      if (!res.ok) return { username: "", bio: "", profileImageUrl: "", bannerImageUrl: "" };
-      return res.json();
-    },
-    enabled: !!address,
-  });
 
-
-
-  const { data: nfts, isLoading: nftsLoading } = useQuery({
-    queryKey: [`${BASE_URL}/api/nfts?owner=${address}`],
-    queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/api/nfts?owner=${address}`);
-      if (!res.ok) throw new Error("Failed to fetch NFTs");
-      return res.json();
-    },
-    enabled: !!address,
-  });
-
-  const shortenAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "";
-
-  const copyAddress = () => {
-    if (address) {
-      navigator.clipboard.writeText(address);
-      toast({ title: "Copied!", description: "Address copied to clipboard" });
-    }
-  };
-
-  const avatarUrl = dbUser?.profileImageUrl || null;
-  const bannerUrl = dbUser?.bannerImageUrl || null;
-
-  if (!isConnected || !address) {
+  // Only your own profile (/profile with no address) needs a connected wallet
+  if (!address) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <div className="max-w-md mx-auto glass rounded-2xl border border-white/10 p-8">
           <Wallet className="w-16 h-16 text-primary mx-auto mb-6" />
           <h1 className="text-2xl font-display font-bold mb-4">Connect Your Wallet</h1>
-          <p className="text-muted-foreground mb-6">
-            Connect your wallet to view your NFT collection and manage your profile.
-          </p>
+          <p className="text-muted-foreground mb-6">Connect your wallet to view your NFT collection and manage your profile.</p>
           <Button onClick={openConnectModal} className="bg-primary hover:bg-primary/90 text-black font-semibold rounded-xl">
             <Wallet className="w-4 h-4 mr-2" /> Connect Wallet
           </Button>
@@ -70,97 +42,134 @@ export default function Profile() {
     );
   }
 
+  if (!isAddress(address)) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <h1 className="text-2xl font-display font-bold mb-2">Profile not found</h1>
+        <p className="text-muted-foreground">"{address}" isn't a valid wallet address.</p>
+      </div>
+    );
+  }
+
+  // Keyed by address so filters reset when you move between profiles
+  return (
+    <ProfileView
+      key={address.toLowerCase()}
+      address={address}
+      isOwnProfile={address.toLowerCase() === walletAddress?.toLowerCase()}
+    />
+  );
+}
+
+function ProfileView({ address, isOwnProfile }) {
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+  const [, navigate] = useLocation();
+  const [tab, setTab] = useState("items");
+  const [collection, setCollection] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("recent");
+  const [view, setView] = useState("grid");
+
+  const { data: user } = useQuery({
+    queryKey: [`${BASE_URL}/api/users/${address}`],
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/api/users/${address}`);
+      if (!res.ok) return { username: "", bio: "", profileImageUrl: "", bannerImageUrl: "" };
+      return res.json();
+    },
+  });
+
+  const { data: nfts, isLoading } = useQuery({
+    queryKey: [`${BASE_URL}/api/nfts?owner=${address}`],
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/api/nfts?owner=${address}`);
+      if (!res.ok) throw new Error("Failed to fetch NFTs");
+      return res.json();
+    },
+  });
+
+  const collections = useMemo(() => {
+    const byId = new Map();
+    for (const n of nfts ?? []) {
+      const id = collectionKey(n);
+      const entry = byId.get(id) ?? { id, name: n.collectionId?.name ?? shortAddress(n.contractAddress), count: 0 };
+      entry.count++;
+      byId.set(id, entry);
+    }
+    return [...byId.values()].sort((a, b) => b.count - a.count);
+  }, [nfts]);
+
+  const items = useMemo(() => {
+    const q = search.trim().toLowerCase().replace(/^#/, "");
+    const list = (nfts ?? []).filter(
+      (n) =>
+        (collection === "all" || collectionKey(n) === collection) &&
+        (status === "all" || isListed(n)) &&
+        (!q || (n.name ?? "").toLowerCase().includes(q) || String(n.tokenId).includes(q))
+    );
+    return SORTS[sort].fn ? list.sort(SORTS[sort].fn) : list;
+  }, [nfts, collection, status, search, sort]);
+
+  const searching = search.trim();
+  const empty = searching ? (
+    <EmptyState message={`No items match "${searching}"`} action="Clear search" onAction={() => setSearch("")} />
+  ) : status === "listed" ? (
+    <EmptyState message="No items listed for sale" action="View all items" onAction={() => setStatus("all")} />
+  ) : isOwnProfile ? (
+    <EmptyState message="You don't own any NFTs yet" action="Explore collections" onAction={() => navigate("/collections")} />
+  ) : (
+    <EmptyState message="This wallet doesn't own any NFTs yet" />
+  );
+
   return (
     <div className="pb-20">
-      {/* Banner */}
-      <div
-        className="relative h-48 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: bannerUrl ? `url(${bannerUrl})` : "linear-gradient(to right,#22c55e33,#3b82f633)" }}
-      >
-        <div className="absolute inset-0 bg-black/20" />
-      </div>
+      <ProfileHero address={address} user={user} nfts={nfts} isOwnProfile={isOwnProfile} />
 
-      <div className="container mx-auto px-4 -mt-16 relative z-10">
-        <div className="flex flex-col md:flex-row gap-6 mb-8">
+      <div className="container mx-auto px-4 sm:pr-12 mt-8">
+        <Tabs value={tab} onValueChange={setTab}>
+          <div className="md:sticky md:top-16 z-20 -mx-4 px-4 py-3 mb-5 bg-background/80 backdrop-blur-md flex flex-col lg:flex-row lg:items-center gap-3">
+            <TabsList className="h-10 p-1 w-fit rounded-full bg-secondary/50 border border-white/10">
+              <TabsTrigger value="items" className={tabCls}>
+                Items
+                {nfts && <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">{nfts.length.toLocaleString()}</span>}
+              </TabsTrigger>
+              <TabsTrigger value="activity" className={tabCls}>Activity</TabsTrigger>
+            </TabsList>
 
-          {/* Avatar */}
-          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-background bg-card flex-shrink-0 shadow-xl">
-            {avatarUrl
-              ? <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-              : <div className="w-full h-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <span className="text-4xl font-display font-bold text-black">{address.slice(2, 4).toUpperCase()}</span>
+            {tab === "items" && (
+              <div className="flex flex-wrap items-center gap-2 lg:flex-1">
+                <SearchInput value={search} onChange={setSearch} placeholder="Search by name or #ID" />
+                <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                  {collections.length > 1 && (
+                    <select
+                      value={collection}
+                      onChange={(e) => setCollection(e.target.value)}
+                      aria-label="Collection"
+                      className={`${controlCls} px-3 max-w-[14rem]`}
+                    >
+                      <option value="all">All collections</option>
+                      {collections.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.count})</option>)}
+                    </select>
+                  )}
+                  <Segmented label="Status" value={status} onChange={setStatus} options={[["all", "All"], ["listed", "Listed"]]} />
+                  <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" className={`${controlCls} px-3`}>
+                    {Object.entries(SORTS).map(([id, s]) => <option key={id} value={id}>{s.label}</option>)}
+                  </select>
+                  <ViewToggle value={view} onChange={setView} />
+                </div>
               </div>
-            }
-          </div>
-
-          {/* Info */}
-          <div className="flex-1 pt-4 md:pt-20">
-            <h1 className="text-3xl font-display font-bold mb-1">{dbUser?.username || "Unnamed User"}</h1>
-
-            <div className="flex items-center gap-2 text-muted-foreground mb-4">
-              <span className="font-mono bg-white/5 px-2 py-0.5 rounded text-sm">{shortenAddress(address)}</span>
-              <button onClick={copyAddress} className="hover:text-white transition-colors p-1">
-                <Copy className="w-4 h-4" />
-              </button>
-            </div>
-
-            {dbUser?.bio && (
-              <p className="text-muted-foreground mb-6 max-w-2xl leading-relaxed">{dbUser.bio}</p>
             )}
-
-            <div className="flex flex-wrap gap-4">
-              <div className="glass rounded-xl px-4 py-3 border border-white/10 min-w-[120px]">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Balance</p>
-                <p className="font-bold text-lg">
-                  {balanceData ? parseFloat(balanceData.formatted).toFixed(4) : "0.0000"}
-                  <span className="text-primary text-xs ml-1">ETH</span>
-                </p>
-              </div>
-              <div className="glass rounded-xl px-4 py-3 border border-white/10 min-w-[120px]">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">NFTs Owned</p>
-                <p className="font-bold text-lg">{nfts?.length || 0}</p>
-              </div>
-            </div>
           </div>
 
-          {/* Edit button → goes to /settings */}
-          {isOwnProfile && (
-            <Button  
-              className="bg-foreground/90 hover:bg-white/50 hover:text-black rounded-2xl h-11 self-start md:mt-24 transition-colors duration-300 ease-in-out"
-              onClick={() => navigate("/settings")}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Edit Profile
-            </Button>
-          )}
-        </div>
+          <TabsContent value="items" className="mt-0">
+            <NftResults items={items} loading={isLoading} view={view} empty={empty} />
+          </TabsContent>
 
-        <hr className="border-white/5 mb-10" />
-
-        {/* NFT grid */}
-        <div>
-          <h2 className="text-xl font-display font-bold mb-6 flex items-center gap-2">
-            My Collection
-            <span className="text-sm font-normal text-muted-foreground">({nfts?.length || 0})</span>
-          </h2>
-
-          {nftsLoading ? (
-            <div className="flex justify-center py-20">
-              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : nfts?.length === 0 ? (
-            <div className="glass rounded-2xl border border-white/10 p-16 text-center">
-              <p className="text-muted-foreground mb-6 text-lg">Your gallery is empty</p>
-              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-border font-semibold rounded-2xl px-8">
-                <a href="/collections">Start Exploring</a>
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {nfts?.map(nft => <NftCard key={nft._id} nft={nft} />)}
-            </div>
-          )}
-        </div>
+          <TabsContent value="activity" className="mt-0">
+            <ActivityFeed filter={{ address }} nfts={nfts} showCollection />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
