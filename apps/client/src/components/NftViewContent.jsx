@@ -2,6 +2,7 @@ import { LayoutGrid, LayoutList, ArrowUpRight, TrendingUp, TrendingDown } from "
 import { Link } from "wouter";
 import { formatEther } from "viem";
 import NftCard from "./NftCard";
+import ResilientNftImage from "@/components/ResilientNftImage";
 
 export function NftControls({ timeFilter, setTimeFilter, nftView, setNftView }) {
   return (
@@ -81,7 +82,7 @@ function NftListRow({ nft, index }) {
 
         {/* Thumbnail */}
         <div className="w-10 h-10 rounded-lg overflow-hidden bg-foreground/5 shrink-0">
-          <img
+          <ResilientNftImage
             src={nft.imageUrl}
             alt={nft.name}
             className="w-full h-full object-cover"

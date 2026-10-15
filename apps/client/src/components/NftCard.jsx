@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { formatEther } from "viem";
 import { useRef, useState, useEffect } from "react";
+import ResilientNftImage from "@/components/ResilientNftImage";
 
 
 const CACHE_KEY = "eth_usd_price";
@@ -82,7 +83,7 @@ async function fetchEthPrice() {
   return inFlightFetch;
 }
 
-function useEthPrice() {
+export function useEthPrice() {
   const [price, setPrice] = useState(ethPriceState);
 
   useEffect(() => {
@@ -121,6 +122,7 @@ export default function NftCard({ nft, size = "default" }) {
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
   const [isHovered, setIsHovered] = useState(false);
   const ethPrice = useEthPrice();
+  const hasPrice = !!nft.price && nft.price !== "0";
 
   const handleMouseMove = (e) => {
     if (!cardRef.current) return;
@@ -157,7 +159,7 @@ export default function NftCard({ nft, size = "default" }) {
 
               {/* Thumbnail */}
               <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-secondary/30">
-                <img
+                <ResilientNftImage
                   src={nft.imageUrl}
                   alt={nft.name}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
@@ -182,7 +184,7 @@ export default function NftCard({ nft, size = "default" }) {
                   <>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Price</p>
                     <p className="font-bold text-primary text-base font-mono">
-                      {nft.price ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(3)} ETH` : "—"}
+                      {nft.price ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(4)} ETH` : "—"}
                     </p>
                     {nft.price && ethPrice && (
                       <p className="text-[11px] text-muted-foreground font-mono">
@@ -220,7 +222,7 @@ export default function NftCard({ nft, size = "default" }) {
       >
         <Card className="relative bg-card/90 backdrop-blur-xl border-none overflow-hidden rounded-xl h-full z-10">
           <div className={`${sizeClasses[size]} overflow-hidden bg-secondary/30 relative`}>
-            <img
+            <ResilientNftImage
               src={nft.imageUrl}
               alt={nft.name}
               className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
@@ -244,10 +246,10 @@ export default function NftCard({ nft, size = "default" }) {
             <div className="flex items-center justify-between gap-2 bg-white/5 backdrop-blur-md p-2 rounded-lg border border-white/5">
               <span className="text-xs text-muted-foreground">Price</span>
               <div className="text-right">
-                <div className="font-bold text-primary text-sm">
-                  {nft.price ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(4)} ETH` : "Unlisted"}
+                <div className={`font-bold text-sm ${hasPrice ? "text-primary" : "text-muted-foreground"}`}>
+                  {hasPrice ? `${parseFloat(formatEther(BigInt(nft.price))).toFixed(4)} ETH` : "Unlisted"}
                 </div>
-                {nft.price && ethPrice && (
+                {hasPrice && ethPrice && (
                   <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
                     {formatUsd(nft.price, ethPrice)}
                   </div>

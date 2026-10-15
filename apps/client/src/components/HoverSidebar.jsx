@@ -1,36 +1,165 @@
-import { useState } from "react";
+import { useState, useId } from "react";
+import { motion } from "framer-motion";
 import { IoSparkles } from "react-icons/io5";
 import { Link, useLocation } from "wouter";
 import { BiChevronLeft } from "react-icons/bi";
 import { navItems } from "../lib/navItems";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 
+
+function GradientSweepIcon({ Icon, size = 20, duration = 3 }) {
+  const maskId = useId();
+  const rectWidth = size * 3;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="flex-shrink-0"
+      style={{ display: "block" }}
+    >
+      <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width={size} height={size}>
+        <Icon size={size} color="#ffffff" />
+      </mask>
+
+      <g mask={`url(#${maskId})`}>
+        <motion.rect
+          y="0"
+          width={rectWidth}
+          height={size}
+          fill={`url(#${maskId}-gradient)`}
+          animate={{ x: [-(rectWidth - size), 0] }}
+          transition={{ duration, repeat: Infinity, ease: "linear" }}
+        />
+      </g>
+
+      <defs>
+        <linearGradient id={`${maskId}-gradient`} x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="hsl(var(--primary))" />
+          <stop offset="50%" stopColor="hsl(var(--accent))" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 function NavItem({ item, expanded, isActive, position }) {
   const [hovered, setHovered] = useState(false);
   const showFilled = (hovered || isActive) && item.iconFilled;
   const IconComponent = showFilled ? item.iconFilled : item.icon;
+  const isHighlight = !!item.highlight;
+  const isGlow = !!item.glow;
 
   return (
     <Link
       href={item.href}
-      className={`relative flex items-center gap-3 rounded-2xl transition-colors group ${
-        isActive ? "bg-secondary" : "hover:bg-secondary"
+      className={`relative flex items-center gap-3 rounded-2xl transition-colors group overflow-hidden ${
+        isHighlight
+          ? "bg-secondary/40"
+          : isGlow
+          ? "bg-secondary/40 hover:bg-yellow-400/10"
+          : isActive
+          ? "bg-secondary"
+          : "hover:bg-secondary"
       } ${expanded ? "px-3 py-3" : "px-2 py-3 justify-center"}`}
       data-testid={`link-sidebar-${item.label.toLowerCase()}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <IconComponent
-        className={`w-5 h-5 flex-shrink-0 transition-colors ${
-          isActive || hovered ? "text-primary" : "text-muted-foreground"
-        }`}
-      />
-      {expanded && (
+      {isHighlight && (
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary opacity-10 group-hover:opacity-35 transition-opacity"
+          style={{ backgroundSize: "200% 100%" }}
+          animate={{ backgroundPosition: ["0% 50%", "200% 50%"] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+        />
+      )}
+
+      {isHighlight && (
+        <motion.div
+          className="absolute inset-0 rounded-2xl ring-1 ring-primary/40"
+          animate={{ opacity: [0.4, 0.9, 0.4] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        />
+      )}
+
+      {isGlow && (
+        <div className="absolute inset-0 rounded-2xl ring-1 ring-yellow-400/0 group-hover:ring-yellow-400/60 transition-all duration-300" />
+      )}
+
+      {isGlow && hovered && (
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(110deg, transparent 25%, rgba(255, 215, 0, 0.45) 50%, transparent 75%)",
+          }}
+          initial={{ x: "-100%" }}
+          animate={{ x: "100%" }}
+          transition={{ duration: 1.3, repeat: Infinity, ease: "linear" }}
+        />
+      )}
+
+      {isHighlight ? (
+        <GradientSweepIcon Icon={IconComponent} size={20} duration={3} />
+      ) : isGlow ? (
+        <motion.span
+          className="relative flex-shrink-0"
+          animate={{
+            scale: hovered ? 1.15 : 1,
+            filter: hovered
+              ? "drop-shadow(0 0 8px rgba(255, 200, 0, 0.9))"
+              : "drop-shadow(0 0 0px rgba(255, 200, 0, 0))",
+          }}
+          transition={{ duration: 0.25 }}
+        >
+          <IconComponent className="w-5 h-5 object-contain" />
+        </motion.span>
+      ) : (
+        <IconComponent
+          className={`w-5 h-5 flex-shrink-0 transition-colors ${
+            isActive || hovered ? "text-primary" : "text-muted-foreground"
+          }`}
+        />
+      )}
+
+      {expanded && isHighlight && (
+        <motion.span
+          className="relative font-semibold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent"
+          style={{ backgroundSize: "200% 100%" }}
+          animate={{ backgroundPosition: ["0% 50%", "200% 50%"] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+        >
+          {item.label}
+        </motion.span>
+      )}
+
+      {expanded && isGlow && hovered && (
+        <motion.span
+          className="relative font-semibold bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600 bg-clip-text text-transparent"
+          style={{ backgroundSize: "200% 100%" }}
+          animate={{ backgroundPosition: ["0% 50%", "200% 50%"] }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+        >
+          {item.label}
+        </motion.span>
+      )}
+
+      {expanded && isGlow && !hovered && (
+        <span className={`relative font-medium ${isActive ? "text-primary" : ""}`}>
+          {item.label}
+        </span>
+      )}
+
+      {expanded && !isHighlight && !isGlow && (
         <span className={`font-medium ${isActive ? "text-primary" : ""}`}>
           {item.label}
         </span>
       )}
-      {!expanded && isActive && (
+
+      {!expanded && isActive && !isHighlight && (
         <span
           className={`absolute w-1 h-1 rounded-full bg-primary ${
             position === "left" ? "left-1.5" : "right-1.5"

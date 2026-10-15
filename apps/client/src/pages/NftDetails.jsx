@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useWeb3 } from "../lib/web3.jsx";
 import { useToast } from "@/hooks/use-toast";
 import { parseEther } from "viem";
+import ResilientNftImage from "@/components/ResilientNftImage";
 
 export default function NftDetails() {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -109,7 +110,7 @@ export default function NftDetails() {
         {/* Visuals */}
         <div>
           <div className="rounded-2xl overflow-hidden bg-card border border-white/10 shadow-2xl">
-            <img src={nft.imageUrl} alt={nft.name} className="w-full aspect-square object-cover" />
+            <ResilientNftImage src={nft.imageUrl} alt={nft.name} className="w-full aspect-square object-cover" />
           </div>
 
           {nft.attributes?.length > 0 && (

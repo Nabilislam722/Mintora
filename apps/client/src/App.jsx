@@ -15,6 +15,10 @@ import Settings from "./pages/Settings";
 import Welcome from "./pages/welcome";
 import Activity from "./pages/activity";
 import Faq from "./pages/faq";
+import Genisis from "./pages/Genisis";
+import PointProgram from "./pages/PointProgram";
+import veHemi from "./pages/veHemi.jsx"
+import VeHemiDetails from "./pages/veHemiDetails.jsx"
 
 function Router() {
   return (
@@ -30,6 +34,10 @@ function Router() {
       <Route path="/welcome" component={Welcome}/>
       <Route path="/activity" component={Activity}/>
       <Route path="/faq" component={Faq}/>
+      <Route path="/genesis" component={Genisis}/>
+      <Route path="/rewards" component={PointProgram}/>
+      <Route path="/vehemi" component={veHemi}/>
+      <Route path="/vehemi/:id" component={VeHemiDetails}/>
       <Route component={NotFound} />
     </Switch>
   );
