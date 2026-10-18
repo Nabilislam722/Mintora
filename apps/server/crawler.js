@@ -302,7 +302,6 @@ async function processRecoveryQueue() {
         if (nftOps.length > 0) {
             await NFT.bulkWrite(nftOps, { ordered: false });
         }
-    });
 
         if (activityOps.length > 0) {
             await Activity.bulkWrite(activityOps, { ordered: false });
