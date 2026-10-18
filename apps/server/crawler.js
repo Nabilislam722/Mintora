@@ -4,6 +4,7 @@ import { NFT } from "./models/NFT.js";
 import { Collection } from "./models/Collection.js";
 import { SyncState } from "./models/SyncState.js";
 import { Activity } from "./models/Activity.js";
+import { getFloorPrices } from "./lib/floor.js";
 
 const HEMI_RPC = "https://rpc.hemi.network/rpc";
 
@@ -275,6 +276,9 @@ async function processRecoveryQueue() {
                     break;
             }
 
+            // Any listing change can move the floor, not just sales (volume only grows on SOLD)
+            if (!statsToUpdate.has(contractAddress)) statsToUpdate.set(contractAddress, 0n);
+
             // Add to Activity bulk ops
             activityOps.push({
                 updateOne: {
@@ -324,15 +328,13 @@ async function processRecoveryQueue() {
 async function updateFloorAndVolume(contractAddress, salePriceBigInt) {
     setImmediate(async () => {
         try {
-            const cheapest = await NFT.findOne({ contractAddress, isListed: true })
-                .sort({ price: 1 })
-                .select('price')
-                .lean();
+            // Numeric comparison of wei strings (a string sort ranked 0.01 ETH below 0.0075 ETH)
+            const floors = await getFloorPrices([contractAddress]);
 
             await Collection.updateOne(
                 { contractAddress },
                 {
-                    $set: { floorPrice: ethers.formatEther(cheapest?.price || "0") },
+                    $set: { floorPrice: floors.get(contractAddress) ?? "0" },
                     $inc: { volume: parseFloat(ethers.formatEther(salePriceBigInt)) }
                 }
             );
@@ -389,6 +391,7 @@ async function handleItemListed(seller, nft, tokenId, price, event) {
         price: price.toString(),
         blockNumber: event.log?.blockNumber ?? event.blockNumber,
     });
+    await updateFloorAndVolume(contractAddress, 0n);
     console.log(`✨ Listed    ${nft.slice(0, 8)}… #${tokenId}`);
 }
 
@@ -430,6 +433,7 @@ async function handleItemUpdated(seller, nft, tokenId, newPrice, event) {
         price: newPrice.toString(),
         blockNumber: event.log?.blockNumber ?? event.blockNumber,
     });
+    await updateFloorAndVolume(contractAddress, 0n);
     console.log(`📝 Updated  ${nft.slice(0, 8)}… #${tokenId}`);
 }
 async function handleItemCanceled(seller, nft, tokenId, event) {
@@ -449,6 +453,7 @@ async function handleItemCanceled(seller, nft, tokenId, event) {
         price: '0',
         blockNumber: event.log?.blockNumber ?? event.blockNumber,
     });
+    await updateFloorAndVolume(contractAddress, 0n);
     console.log(`❌ Canceled ${nft.slice(0, 8)}… #${tokenId}`);
 }
 
@@ -457,6 +462,7 @@ async function handleTransfer(from, to, tokenId, contractAddress, event) {
     const coll = contractAddress.toLowerCase();
     if (to.toLowerCase() === ZERO_ADDRESS) {
         await NFT.deleteOne({ contractAddress: coll, tokenId: tokenId.toString() });
+        await updateFloorAndVolume(coll, 0n);
         console.log(`🔥 Burned    ${coll.slice(0, 8)}… #${tokenId}`);
         return;
     }
@@ -475,6 +481,7 @@ async function handleTransfer(from, to, tokenId, contractAddress, event) {
         price: '0',
         blockNumber: event.blockNumber,
     });
+    await updateFloorAndVolume(coll, 0n);
     console.log(`➡️  Transfer ${coll.slice(0, 8)}… #${tokenId}`);
 }
 

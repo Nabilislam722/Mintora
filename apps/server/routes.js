@@ -5,6 +5,7 @@ import { Featured } from "./models/Featured.js";
 import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 import { getPrices, PRICE_TTL } from "./prices.js";
+import { withLiveFloors } from "./lib/floor.js";
 
 export async function registerRoutes(app) {
 
@@ -25,7 +26,7 @@ export async function registerRoutes(app) {
       ).limit(5),
     ]);
 
-    res.json({ nfts, collections, users });
+    res.json({ nfts, collections: await withLiveFloors(collections), users });
   });
 
   //Users
@@ -80,7 +81,7 @@ export async function registerRoutes(app) {
   app.get("/api/collections", async (req, res) => {
     try {
       const collections = await Collection.find();
-      res.json(collections);
+      res.json(await withLiveFloors(collections));
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
@@ -90,7 +91,8 @@ export async function registerRoutes(app) {
     try {
       const collection = await Collection.findOne({ slug: req.params.slug });
       if (!collection) return res.status(404).json({ message: "Collection not found" });
-      res.json(collection);
+      const [withFloor] = await withLiveFloors([collection]);
+      res.json(withFloor);
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
