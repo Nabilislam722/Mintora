@@ -8,6 +8,7 @@ import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileHero from "@/components/profile/ProfileHero";
+import ProfileVeHemi from "@/components/profile/ProfileVeHemi";
 import ActivityFeed from "@/components/ActivityFeed";
 import { EmptyState, NftResults, SearchInput, Segmented, ViewToggle, controlCls, tabCls } from "@/components/NftBrowse";
 import { NFT_SORTS, isListed, shortAddress } from "@/lib/nft";
@@ -171,6 +172,8 @@ function ProfileView({ address, isOwnProfile }) {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ProfileVeHemi address={address} isOwnProfile={isOwnProfile} />
     </div>
   );
 }

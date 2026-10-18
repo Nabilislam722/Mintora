@@ -66,7 +66,7 @@ export default function VeHemiCard({ listing, currency, onBuy }) {
         <Link
           href={`/vehemi/${listing.id}`}
           tabIndex={-1}
-          className="relative flex h-full items-center justify-center overflow-hidden rounded-b-xl bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] text-[11px] font-semibold text-black -translate-y-full transition-transform duration-1000 ease-out group-hover:translate-y-0 group-hover:pointer-events-auto group-hover:animate-gradient-flow motion-reduce:!animate-none"
+          className="relative flex h-full items-center tracking-wider justify-center overflow-hidden rounded-b-xl bg-gradient-to-r from-primary via-accent to-primary bg-[length:200%_100%] text-[11px] font-semibold text-foreground -translate-y-full transition-transform duration-1000 ease-out group-hover:translate-y-0 group-hover:pointer-events-auto group-hover:animate-gradient-flow motion-reduce:!animate-none"
         >
           <span className="absolute inset-y-0 left-0 w-1/5 -translate-x-full bg-gradient-to-r from-transparent via-white/80 to-transparent group-hover:animate-shine motion-reduce:hidden" />
           <span className="relative">Click for more details…</span>

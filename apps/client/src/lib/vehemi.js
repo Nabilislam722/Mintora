@@ -2,6 +2,7 @@ export const VE_HEMI_CONTRACT = "0x371d3718D5b7F75EAb050FAe6Da7DF3092031c89";
 export const HEMI_USD = 0.05;
 export const CURRENCIES = ["USDC", "HEMI"];
 export const MAX_LOCK_DAYS = 1461; // 4 years of 365.25 days, veHEMI's max lock
+export const LISTING_FEE_BPS = 500; // keep in sync with the veHEMI marketplace contract's platform fee
 
 export const LOCK_FILTERS = [
   { id: "short", label: "< 3 months", test: (d) => d < 90 },

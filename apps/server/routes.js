@@ -190,7 +190,7 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- TOKEN PRICES (USD, cached server-side for 8 hours) ---
+  // --- TOKEN PRICES (USD, cached server-side for 4 hours) ---
   app.get("/api/prices", async (req, res) => {
     try {
       const { prices, updatedAt } = await getPrices();

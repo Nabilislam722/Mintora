@@ -3,10 +3,11 @@ import axios from 'axios';
 import mongoose from 'mongoose';
 import { NFT } from './models/NFT.js';
 import { Collection } from './models/Collection.js';
+import { discoverTokenIds } from './lib/token-discovery.js';
 
 const MONGODB_URI = 'mongodb://127.0.0.1:27017/nft_marketplace';
 const HEMI_RPC = "https://rpc.hemi.network/rpc";
-const MARKETPLACE_ADDRESS = "0xAf9194ad4D453Ce8f9B819f65542dfCbfB36E078";
+const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755";
 
 
 const IPFS_GATEWAYS = [
@@ -389,21 +390,26 @@ async function syncExistingCollection(contractAddress) {
         }
     }
 
-    // Determine token range  
-    let totalSupply;
+    // Find the token ids that actually exist (not just 0..totalSupply)
+    const contractKey = contractAddress.toLowerCase();
+    const knownIds = (await NFT.find({ contractAddress: contractKey }, { tokenId: 1 }).lean()).map((n) => n.tokenId);
+    let tokenIds;
     try {
-        totalSupply = await nftContract.totalSupply();
-        console.log(`📦 Total supply: ${totalSupply}. Starting sync...`);
+        const { ids, removed, method } = await discoverTokenIds(provider, contractAddress, knownIds);
+        tokenIds = ids;
+        console.log(`📦 Found ${ids.length} tokens via ${method}. Starting sync...`);
+        if (removed.length) {
+            await NFT.deleteMany({ contractAddress: contractKey, tokenId: { $in: removed } });
+            console.log(`🔥 Removed ${removed.length} burned tokens: ${removed.join(', ')}`);
+        }
     } catch (e) {
-        console.error('❌ Could not read totalSupply:', e.message);
+        console.error('❌ Could not discover token ids:', e.message);
         process.exit(1);
     }
 
     let synced = 0, skipped = 0, failed = 0;
 
-    for (let i = 0; i <= Number(totalSupply); i++) {
-        const tokenId = i.toString();
-
+    for (const tokenId of tokenIds) {
         try {
             const [uri, owner, listing] = await Promise.all([
                 nftContract.tokenURI(tokenId),

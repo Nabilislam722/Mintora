@@ -173,7 +173,7 @@ export default function VeHemiDetails() {
               <DetailRow label="Payment token">{listing.currency}</DetailRow>
               <DetailRow label="Owner">
                 <a
-                  href={`https://explorer.hemi.xyz/token/ONWER`}
+                  href={`https://explorer.hemi.xyz/token/owner`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"

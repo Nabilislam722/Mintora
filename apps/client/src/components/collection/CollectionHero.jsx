@@ -4,7 +4,7 @@ import { useReadContract } from "wagmi";
 import { formatEther, zeroAddress } from "viem";
 import { BadgeCheck, ExternalLink, Globe } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
-import { useEthPrice } from "@/components/NftCard";
+import { useEthPrice } from "@/hooks/use-token-prices";
 import { hemi } from "@/lib/hemi";
 import { isListed, shortAddress } from "@/lib/nft";
 

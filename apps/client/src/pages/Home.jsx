@@ -3,6 +3,7 @@ import FeaturedCarousel from "../components/FeaturedCarousel";
 import CollectionCard from "../components/CollectionCard";
 import TopNftsSection from "../components/TopNftsSection";
 import LatestListingsSection from "../components/LatestListingsSection";
+import VeHemiPromo from "../components/vehemi/VeHemiPromo";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -71,6 +72,8 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-10 sm:pr-12">
       <FeaturedCarousel />
+
+      <VeHemiPromo />
 
       {/* Collections */}
       <section className="container mx-auto px-4">
