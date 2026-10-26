@@ -1,8 +1,11 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Home } from "lucide-react";
+import { useSeo } from "@/hooks/use-seo";
+import { NOT_FOUND_SEO } from "@/lib/seo";
 
 export default function NotFound() {
+  useSeo(NOT_FOUND_SEO);
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
       <div className="text-center">

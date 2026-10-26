@@ -2,18 +2,14 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Loader2, Lock, X } from "lucide-react";
 import hemiLogo from "/hemi.svg";
-import { Segmented, controlCls } from "@/components/NftBrowse";
-import { useTokenPrices } from "@/hooks/use-token-prices";
-import { CURRENCIES, LISTING_FEE_BPS, fmt } from "@/lib/vehemi";
+import { controlCls } from "@/components/NftBrowse";
+import { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
+import { LISTING_DURATIONS, LISTING_FEE_BPS, MAX_LISTING_DAYS, MIN_LISTING_DAYS, fmt } from "@/lib/vehemi";
 
-const DURATIONS = [["1", "1 day"], ["7", "7 days"], ["30", "30 days"]];
-
-// List one of the user's veHEMI positions for sale. `position` comes from useVeHemiPositions.
+// List one of the user's veHEMI positions for sale, priced in HEMI. `position` comes from useVeHemiPositions.
 export default function VeHemiListDialog({ position: p, onClose }) {
-  const { data: prices } = useTokenPrices();
-  const [currency, setCurrency] = useState("USDC");
   const [price, setPrice] = useState("");
-  const [days, setDays] = useState("7");
+  const [days, setDays] = useState(MIN_LISTING_DAYS);
   const [step, setStep] = useState("approve"); // approve -> list -> done
   const [busy, setBusy] = useState(false);
 
@@ -23,13 +19,11 @@ export default function VeHemiListDialog({ position: p, onClose }) {
 
   const amount = Number(price);
   const valid = amount > 0;
-  const lockedValue =
-    currency === "HEMI" ? p.hemi : prices?.HEMI != null ? (p.hemi * prices.HEMI) / (prices.USDC ?? 1) : null;
-  const discount = valid && lockedValue ? Math.round((1 - amount / lockedValue) * 100) : null;
+  const discount = valid && p.hemi > 0 ? Math.round((1 - amount / p.hemi) * 100) : null;
   const fee = valid ? (amount * LISTING_FEE_BPS) / 10000 : null;
 
   // TODO: wire to the veHEMI marketplace contract once deployed —
-  // approve(marketplace, tokenId) on veHEMI, then list(tokenId, price, paymentToken, duration)
+  // approve(marketplace, tokenId) on veHEMI, then list(tokenId, price in HEMI wei, days * 86400)
   const run = (next) => {
     setBusy(true);
     setTimeout(() => { setBusy(false); setStep(next); }, 1400);
@@ -83,19 +77,14 @@ export default function VeHemiListDialog({ position: p, onClose }) {
             <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
             <p className="font-bold mb-1">Listed for sale</p>
             <p className="text-xs text-muted-foreground mb-5">
-              veHEMI #{p.id} is listed for {fmt(amount, 4)} {currency} for {DURATIONS.find(([d]) => d === days)[1]}.
+              veHEMI #{p.id} is listed for {fmt(amount, 4)} HEMI for {days} days.
             </p>
             <button type="button" onClick={onClose} className="h-10 px-6 rounded-lg bg-secondary text-sm font-medium hover:bg-secondary/70">Done</button>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Get paid in</span>
-              <Segmented label="Payment token" value={currency} onChange={setCurrency} options={CURRENCIES.map((c) => [c, c])} />
-            </div>
-
             <div>
-              <label htmlFor="list-price" className="text-xs text-muted-foreground">Price</label>
+              <label htmlFor="list-price" className="text-xs text-muted-foreground">Price in HEMI</label>
               <div className="relative mt-1.5">
                 <input
                   id="list-price"
@@ -109,10 +98,10 @@ export default function VeHemiListDialog({ position: p, onClose }) {
                   disabled={step !== "approve" || busy}
                   className="w-full h-12 rounded-xl bg-secondary/50 border border-white/10 focus:border-primary/50 outline-none pl-4 pr-16 text-lg font-semibold tabular-nums disabled:opacity-60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">{currency}</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">HEMI</span>
               </div>
               <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
-                <span>Locked value {lockedValue != null ? `≈ ${fmt(lockedValue, 2)} ${currency}` : "—"}</span>
+                <span>Locked value {fmt(p.hemi, 2)} HEMI</span>
                 {discount != null && (
                   <span className={discount >= 0 ? "text-emerald-400" : "text-amber-400"}>
                     {discount >= 0 ? `${discount}% below` : `${-discount}% above`} locked value
@@ -122,26 +111,32 @@ export default function VeHemiListDialog({ position: p, onClose }) {
             </div>
 
             <div className="flex items-center justify-between">
-              <label htmlFor="list-duration" className="text-xs text-muted-foreground">Listing duration</label>
+              <div>
+                <label htmlFor="list-duration" className="text-xs text-muted-foreground">Listing duration</label>
+                <p className="text-[11px] text-muted-foreground/70">{MIN_LISTING_DAYS} to {MAX_LISTING_DAYS} days</p>
+              </div>
               <select
                 id="list-duration"
                 value={days}
-                onChange={(e) => setDays(e.target.value)}
+                onChange={(e) => setDays(Number(e.target.value))}
                 disabled={step !== "approve" || busy}
                 className={`${controlCls} px-3`}
               >
-                {DURATIONS.map(([d, label]) => <option key={d} value={d}>{label}</option>)}
+                {LISTING_DURATIONS.map((d) => <option key={d} value={d}>{d} days</option>)}
               </select>
             </div>
 
             <div className="rounded-xl bg-secondary/40 border border-white/5 divide-y divide-white/5 text-sm">
               <div className="flex justify-between px-3 py-2">
                 <span className="text-muted-foreground">Marketplace fee ({LISTING_FEE_BPS / 100}%)</span>
-                <span className="tabular-nums">{fee != null ? `${fmt(fee, 4)} ${currency}` : "—"}</span>
+                <span className="tabular-nums">{fee != null ? `${fmt(fee, 4)} HEMI` : "—"}</span>
               </div>
               <div className="flex justify-between px-3 py-2.5">
                 <span className="text-muted-foreground">You receive</span>
-                <span className="font-semibold tabular-nums">{valid ? `${fmt(amount - fee, 4)} ${currency}` : "—"}</span>
+                <div className="text-right">
+                  <span className="font-semibold tabular-nums">{valid ? `${fmt(amount - fee, 4)} HEMI` : "—"}</span>
+                  {valid && <VeHemiUsd amount={amount - fee} className="block text-[11px] text-muted-foreground" />}
+                </div>
               </div>
             </div>
 
@@ -152,7 +147,7 @@ export default function VeHemiListDialog({ position: p, onClose }) {
               className="w-full h-11 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 transition-colors"
             >
               {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {busy ? "Confirm in wallet…" : step === "approve" ? "Approve veHEMI" : `List for ${fmt(amount, 4)} ${currency}`}
+              {busy ? "Confirm in wallet…" : step === "approve" ? "Approve veHEMI" : `List for ${fmt(amount, 4)} HEMI`}
             </button>
             <p className="text-[11px] text-muted-foreground text-center">
               Step {step === "approve" ? 1 : 2} of 2 · {step === "approve" ? "let the marketplace transfer this position" : "create the listing"}

@@ -12,6 +12,8 @@ import ProfileVeHemi from "@/components/profile/ProfileVeHemi";
 import ActivityFeed from "@/components/ActivityFeed";
 import { EmptyState, NftResults, SearchInput, Segmented, ViewToggle, controlCls, tabCls } from "@/components/NftBrowse";
 import { NFT_SORTS, isListed, shortAddress } from "@/lib/nft";
+import { useSeo } from "@/hooks/use-seo";
+import { NOT_FOUND_SEO, pageSeo, profileSeo } from "@/lib/seo";
 
 const SORTS = {
   recent: { label: "Recently active", fn: null },
@@ -26,6 +28,8 @@ export default function Profile() {
   const { address: walletAddress } = useAccount();
   const { openConnectModal } = useConnectModal();
   const address = urlAddress || walletAddress;
+  // ProfileView sets the tags when it renders; this covers the early returns below
+  useSeo(!address ? pageSeo("/profile") : !isAddress(address) ? NOT_FOUND_SEO : null);
 
   // Only your own profile (/profile with no address) needs a connected wallet
   if (!address) {
@@ -58,11 +62,13 @@ export default function Profile() {
       key={address.toLowerCase()}
       address={address}
       isOwnProfile={address.toLowerCase() === walletAddress?.toLowerCase()}
+      ownRoute={!urlAddress}
     />
   );
 }
 
-function ProfileView({ address, isOwnProfile }) {
+// ownRoute: opened as /profile (your own, wallet-only) rather than /profile/:address
+function ProfileView({ address, isOwnProfile, ownRoute }) {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   const [, navigate] = useLocation();
   const [tab, setTab] = useState("items");
@@ -80,6 +86,9 @@ function ProfileView({ address, isOwnProfile }) {
       return res.json();
     },
   });
+
+  // Until the user loads, keep the current tags (on a first visit the Worker already sent the right ones)
+  useSeo(ownRoute ? pageSeo("/profile") : user ? profileSeo(address, user) : null);
 
   const { data: nfts, isLoading } = useQuery({
     queryKey: [`${BASE_URL}/api/nfts?owner=${address}`],

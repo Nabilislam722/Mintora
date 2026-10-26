@@ -4,6 +4,8 @@ import '../components/welcome.css';
 import Demo from '../components/Demo';
 import Advantages from '../components/Advantages';
 import { Link } from 'wouter';
+import { useSeo } from '@/hooks/use-seo';
+import { pageSeo } from '@/lib/seo';
 
 const PARTICLES = [
   { x: '12%', y: '18%', size: 3, color: 'rgba(111,207,151,0.35)', duration: 8, delay: 0 },
@@ -198,6 +200,7 @@ function Hero({ onWatchDemo }) {
 }
 
 export default function Welcome() {
+  useSeo(pageSeo('/welcome'));
   const [page, setPage] = useState(0);
   const [locked, setLocked] = useState(false);
   const rootRef = useRef(null);

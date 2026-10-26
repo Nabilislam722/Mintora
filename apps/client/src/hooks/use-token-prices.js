@@ -44,3 +44,8 @@ export function useTokenPrices() {
 export function useEthPrice() {
   return useTokenPrices().data?.ETH ?? null;
 }
+
+// USD price of 1 HEMI, or null until known
+export function useHemiPrice() {
+  return useTokenPrices().data?.HEMI ?? null;
+}

@@ -8,38 +8,21 @@ import VeHemiFilters from "@/components/vehemi/VeHemiFilters";
 import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import VeHemiBackdrop from "@/components/vehemi/VeHemiBackdrop";
 import { useVeHemiListings } from "@/hooks/use-vehemi";
-import { CURRENCIES, LOCK_FILTERS, discountOf, fmt, inputCls, priceIn, weightOf } from "@/lib/vehemi";
+import { LOCK_FILTERS, discountOf, fmt, inputCls, weightOf } from "@/lib/vehemi";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 const SORTS = {
-  priceAsc: { label: "Price: low to high", fn: (a, b) => priceIn(a, "HEMI") - priceIn(b, "HEMI") },
-  discount: { label: "Biggest discount", fn: (a, b) => priceIn(a, "HEMI") / a.hemi - priceIn(b, "HEMI") / b.hemi },
+  priceAsc: { label: "Price: low to high", fn: (a, b) => a.price - b.price },
+  discount: { label: "Biggest discount", fn: (a, b) => a.price / a.hemi - b.price / b.hemi },
   unlock: { label: "Unlocks soonest", fn: (a, b) => a.left - b.left },
   amount: { label: "Most HEMI locked", fn: (a, b) => b.hemi - a.hemi },
   weight: { label: "Most voting weight", fn: (a, b) => weightOf(b) - weightOf(a) },
 };
 
-function Segmented({ value, onChange, options }) {
-  return (
-    <div className="inline-flex p-0.5 rounded-full bg-secondary/50 border border-white/10">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={`h-7 px-3 rounded-full text-xs font-medium transition-colors ${
-            value === o ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function VeHemi() {
+  useSeo(pageSeo("/vehemi"));
   const all = useVeHemiListings();
-  const [currency, setCurrency] = useState("USDC");
   const [search, setSearch] = useState("");
   const [minHemi, setMinHemi] = useState("");
   const [lock, setLock] = useState(null);
@@ -53,10 +36,10 @@ export default function VeHemi() {
     return all.filter((l) => (!q || String(l.id).includes(q)) && l.hemi >= min && test(l.left)).sort(SORTS[sort].fn);
   }, [all, search, minHemi, lock, sort]);
 
-  const floorListing = all.reduce((min, l) => (priceIn(l, "HEMI") < priceIn(min, "HEMI") ? l : min));
+  const floorListing = all.reduce((min, l) => (l.price < min.price ? l : min));
   const avgDiscount = Math.round(all.reduce((s, l) => s + discountOf(l), 0) / all.length);
   const stats = [
-    ["Floor price", <VeHemiPrice key="f" listing={floorListing} currency={currency} className="text-lg" />],
+    ["Floor price", <VeHemiPrice key="f" listing={floorListing} className="text-lg" />],
     ["Listed", <span key="l" className="text-lg font-semibold tabular-nums">{all.length}</span>],
     ["HEMI locked", <span key="h" className="text-lg font-semibold tabular-nums">{fmt(all.reduce((s, l) => s + l.hemi, 0) / 1e6, 2)}M</span>],
     ["Avg. discount", <span key="d" className="text-lg font-semibold tabular-nums text-emerald-400">{avgDiscount}%</span>],
@@ -77,12 +60,10 @@ export default function VeHemi() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground leading-tight">veHEMI</h1>
-              <p className="text-sm text-muted-foreground">Trade locked HEMI positions before they unlock</p>
+              <p className="text-sm text-muted-foreground">Trade locked HEMI positions before they unlock · priced in HEMI</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Prices in</span>
-            <Segmented value={currency} onChange={setCurrency} options={CURRENCIES} />
             <button type="button" className="h-9 p-6 rounded-full border border-white/10 bg-primary/90 font-semibold font-display hover:bg-secondary text-lg inline-flex items-center gap-2 transition-colors">
               <Plus className="w-3.5 h-3.5" /> List veHEMI
             </button>
@@ -119,7 +100,7 @@ export default function VeHemi() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 sm:gap-x-5 gap-y-10">
-            {listings.map((l) => <VeHemiCard key={l.id} listing={l} currency={currency} onBuy={setBuying} />)}
+            {listings.map((l) => <VeHemiCard key={l.id} listing={l} onBuy={setBuying} />)}
           </div>
         )}
 

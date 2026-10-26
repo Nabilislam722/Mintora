@@ -12,7 +12,7 @@ export default function VeHemiBuyDialog({ listing, onClose }) {
   const [step, setStep] = useState("approve"); // approve -> buy -> done
   const [busy, setBusy] = useState(false);
 
-  // TODO: wire to wagmi — approve(listing.currency) on the marketplace, then buy(tokenId)
+  // TODO: wire to wagmi — approve HEMI for the marketplace (the listing price), then buy(tokenId, listingId)
   const run = (next) => {
     setBusy(true);
     setTimeout(() => { setBusy(false); setStep(next); }, 1400);
@@ -74,10 +74,10 @@ export default function VeHemiBuyDialog({ listing, onClose }) {
               className="w-full h-10 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 transition-colors"
             >
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : !isConnected ? <Wallet className="w-3.5 h-3.5" /> : null}
-              {!isConnected ? "Connect Wallet" : busy ? "Confirm in wallet…" : step === "approve" ? `Approve ${listing.currency}` : "Buy now"}
+              {!isConnected ? "Connect Wallet" : busy ? "Confirm in wallet…" : step === "approve" ? "Approve HEMI" : "Buy now"}
             </button>
             <p className="text-[11px] text-muted-foreground text-center">
-              {isConnected ? `Step ${step === "approve" ? 1 : 2} of 2 · paid in ${listing.currency}` : "Connect a wallet to continue"}
+              {isConnected ? `Step ${step === "approve" ? 1 : 2} of 2 · paid in HEMI` : "Connect a wallet to continue"}
             </p>
           </div>
         )}

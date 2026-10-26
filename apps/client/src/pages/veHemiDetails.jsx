@@ -4,11 +4,13 @@ import { AnimatePresence } from "framer-motion";
 import { ArrowLeft, ExternalLink, Info, Scale, ShoppingCart, TrendingDown } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import VeHemiBackdrop from "@/components/vehemi/VeHemiBackdrop";
-import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
+import VeHemiPrice, { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
 import VeHemiWeightChart from "@/components/vehemi/VeHemiWeightChart";
 import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import { useVeHemiListing } from "@/hooks/use-vehemi";
-import { CURRENCIES, VE_HEMI_CONTRACT, discountOf, fmt, priceIn, timeLeft, unlockDate, weightOf } from "@/lib/vehemi";
+import { VE_HEMI_CONTRACT, discountOf, fmt, timeLeft, unlockDate, weightOf } from "@/lib/vehemi";
+import { useSeo } from "@/hooks/use-seo";
+import { NOT_FOUND_SEO, veHemiSeo } from "@/lib/seo";
 
 const panelCls = "rounded-2xl border border-border/50 bg-card/50 backdrop-blur-md p-5";
 
@@ -25,6 +27,7 @@ export default function VeHemiDetails() {
   const { id } = useParams();
   const listing = useVeHemiListing(id);
   const [buying, setBuying] = useState(false);
+  useSeo(listing ? veHemiSeo(id) : NOT_FOUND_SEO);
 
   if (!listing) {
     return (
@@ -38,18 +41,15 @@ export default function VeHemiDetails() {
   const pct = discountOf(listing);
   const weight = weightOf(listing);
   const progress = Math.max(0, Math.min(100, (listing.left / listing.total) * 100));
-  const estimate = listing.currency !== "HEMI" ? "≈ " : "";
-  const lockedValue = priceIn({ price: listing.hemi, currency: "HEMI" }, listing.currency);
-
   const stats = [
     ["HEMI locked", fmt(listing.hemi)],
     ["Time left", timeLeft(listing.left)],
     ["Unlocks", unlockDate(listing.left)],
   ];
   const breakdown = [
-    ["Locked value", `${estimate}${fmt(lockedValue)} ${listing.currency}`],
-    ["Price per HEMI", `${fmt(listing.price / listing.hemi, 4)} ${listing.currency}`],
-    ["Price per veHEMI weight", `${fmt(listing.price / weight, 4)} ${listing.currency}`],
+    ["Locked value", `${fmt(listing.hemi)} HEMI`],
+    ["Price per locked HEMI", `${fmt(listing.price / listing.hemi, 4)} HEMI`],
+    ["Price per veHEMI weight", `${fmt(listing.price / weight, 4)} HEMI`],
   ];
 
   return (
@@ -109,11 +109,7 @@ export default function VeHemiDetails() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Price</p>
               <VeHemiPrice listing={listing} className="text-3xl font-display" />
-              <VeHemiPrice
-                listing={listing}
-                currency={CURRENCIES.find((c) => c !== listing.currency)}
-                className="block text-sm font-normal text-muted-foreground"
-              />
+              <VeHemiUsd amount={listing.price} className="block text-sm text-muted-foreground" />
             </div>
 
             <div className="rounded-xl bg-secondary/40 border border-white/5 divide-y divide-white/5">
@@ -133,7 +129,7 @@ export default function VeHemiDetails() {
               <ShoppingCart className="w-4 h-4" /> Buy now
             </button>
             <p className="-mt-3 text-[11px] text-muted-foreground text-center">
-              Paid in {listing.currency} · approve, then buy
+              Paid in HEMI · approve, then buy
             </p>
 
             <div className="flex gap-2.5 rounded-xl border border-white/10 bg-secondary/30 p-3 text-xs text-muted-foreground">
@@ -170,7 +166,7 @@ export default function VeHemiDetails() {
                 </a>
               </DetailRow>
               <DetailRow label="Network">Hemi</DetailRow>
-              <DetailRow label="Payment token">{listing.currency}</DetailRow>
+              <DetailRow label="Payment token">HEMI</DetailRow>
               <DetailRow label="Owner">
                 <a
                   href={`https://explorer.hemi.xyz/token/owner`}

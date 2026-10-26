@@ -12,6 +12,9 @@ import ResilientNftImage from "@/components/ResilientNftImage";
 import { VerifiedBadge } from "@/components/CollectionCard";
 import { hemi } from "@/lib/hemi";
 import { formatEth, shortAddress } from "@/lib/nft";
+import { useSeo } from "@/hooks/use-seo";
+import { NOT_FOUND_SEO, nftSeo } from "@/lib/seo";
+import { isNotFoundError } from "@/lib/queryClient";
 
 const FEE_ABI = [{ name: "marketplaceFee", type: "function", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
 const DEFAULT_FEE_BPS = 500;
@@ -114,10 +117,14 @@ export default function NftDetails() {
 
   const queryKey = [`${BASE_URL}/api/nfts/${collectionId}/${tokenId}`];
 
-  const { data: nft, isLoading } = useQuery({
+  const { data: nft, isLoading, error: nftError } = useQuery({
     queryKey,
     enabled: !!collectionId && !!tokenId,
   });
+
+  // While loading, or if the request fails (API down), keep the current tags: on a first visit they're the
+  // Worker's, which already match this NFT, so an outage never marks it noindex
+  useSeo(nft ? nftSeo(nft, collectionId) : isNotFoundError(nftError) ? NOT_FOUND_SEO : null);
 
   const { data: feeData } = useReadContract({ address: MARKETPLACE_CONTRACT, abi: FEE_ABI, functionName: "marketplaceFee", chainId: hemi.id });
   const feeBps = feeData != null ? Number(feeData) : DEFAULT_FEE_BPS;

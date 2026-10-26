@@ -6,6 +6,8 @@ import CollectionCard from "../components/CollectionCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import "../components/home.css";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -92,6 +94,7 @@ function FeaturedPanel({ collections }) {
 }
 
 export default function Collections() {
+  useSeo(pageSeo("/collections"));
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("default");

@@ -7,6 +7,10 @@ async function throwIfResNotOk(res) {
   }
 }
 
+// True when a query failed because the API answered 4xx (the thing doesn't exist or the URL is invalid),
+// as opposed to a network error or server outage
+export const isNotFoundError = (error) => /^4\d\d:/.test(error?.message ?? "");
+
 export async function apiRequest(method, url, data) {
   const res = await fetch(url, {
     method,

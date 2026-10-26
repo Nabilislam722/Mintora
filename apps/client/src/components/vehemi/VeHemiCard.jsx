@@ -1,10 +1,10 @@
 import { Link } from "wouter";
 import { Clock, Scale, TrendingDown } from "lucide-react";
 import hemiLogo from "/hemi.svg";
-import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
-import { CURRENCIES, discountOf, fmt, timeLeft, unlockDate, weightOf } from "@/lib/vehemi";
+import VeHemiPrice, { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
+import { discountOf, fmt, timeLeft, unlockDate, weightOf } from "@/lib/vehemi";
 
-export default function VeHemiCard({ listing, currency, onBuy }) {
+export default function VeHemiCard({ listing, onBuy }) {
   const pct = discountOf(listing);
   const progress = Math.max(0, Math.min(100, (listing.left / listing.total) * 100));
   return (
@@ -44,12 +44,8 @@ export default function VeHemiCard({ listing, currency, onBuy }) {
       <div className="flex items-center justify-between rounded-xl bg-secondary/40 border border-white/5 px-3 py-2.5">
         <div>
           <p className="text-[11px] text-muted-foreground">Price</p>
-          <VeHemiPrice listing={listing} currency={currency} className="text-sm" />
-          <VeHemiPrice
-            listing={listing}
-            currency={CURRENCIES.find((c) => c !== currency)}
-            className="block text-[11px] font-normal text-muted-foreground"
-          />
+          <VeHemiPrice listing={listing} className="text-sm" />
+          <VeHemiUsd amount={listing.price} className="block text-[11px] text-muted-foreground" />
         </div>
         <button
           type="button"

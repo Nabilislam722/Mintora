@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import "../components/settings.css";
 import { uploadToR2 } from "../lib/uploadToR2";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 const MAX_MB     = 5;
 const ACCEPT     = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -314,6 +316,7 @@ function CustomizeTab() {
 }
 
 export default function Settings() {
+  useSeo(pageSeo("/settings"));
   const { address, isConnected } = useAccount();
   const { openConnectModal }     = useConnectModal();
   const { toast }                = useToast();

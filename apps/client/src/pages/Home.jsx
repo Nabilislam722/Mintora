@@ -10,10 +10,13 @@ import { Link } from "wouter";
 import { useRef, useState, useEffect } from "react";
 import "../components/home.css";
 import { BsFillCollectionFill } from "react-icons/bs";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export default function Home() {
+  useSeo(pageSeo("/"));
   const { data: collections = [], isLoading: loadingCols } = useQuery({
     queryKey: [`${BASE_URL}/api/collections`],
     refetchInterval: 60_000,
