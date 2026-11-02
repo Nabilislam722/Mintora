@@ -19,5 +19,7 @@ const nftSchema = new mongoose.Schema({
 });
 
 nftSchema.index({ contractAddress: 1, tokenId: 1 }, { unique: true });
+// Collection pages load every NFT of one collection
+nftSchema.index({ collectionId: 1 });
 
 export const NFT = mongoose.model('NFT', nftSchema);

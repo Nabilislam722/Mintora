@@ -6,7 +6,7 @@ import { waitForTransactionReceipt } from "@wagmi/core";
 import { useToast } from "@/hooks/use-toast";
 import { hemi } from "@/lib/hemi";
 import { MARKET_ABI, MARKET_ERRORS, VE_HEMI_ABI } from "@/lib/vehemi-abi";
-import { VE_HEMI_CONTRACT, VE_HEMI_MARKET, maxLockAmountFor, sameAddress, txErrorMessage } from "@/lib/vehemi";
+import { VE_HEMI_CONTRACT, VE_HEMI_MARKET, isHemiShortfall, maxLockAmountFor, sameAddress, txErrorMessage } from "@/lib/vehemi";
 
 const market = { address: VE_HEMI_MARKET, abi: MARKET_ABI };
 // When veHEMI hands a position to the market, the market's errors bubble up through veHEMI, so decode them too
@@ -58,12 +58,22 @@ export function useVeHemiActions() {
     makeOffer: (tokenId, amountWei, days) => send({ ...market, functionName: "makeOffer", args: [tokenId, amountWei, seconds(days)] }),
     cancelOffer: (tokenId) => send({ ...market, functionName: "cancelOffer", args: [tokenId] }),
     // Sending the position to the market with the offer attached accepts it, so no approval is needed
-    acceptOffer: (offer, maxFeeBps) =>
-      send({
-        ...ve,
-        functionName: "safeTransferFrom",
-        args: [address, VE_HEMI_MARKET, offer.tokenId, encodeAbiParameters(OFFER_DATA, [offer.buyer, offer.offerId, maxFeeBps])],
-      }),
+    acceptOffer: async (offer, maxFeeBps) => {
+      try {
+        return await send({
+          ...ve,
+          functionName: "safeTransferFrom",
+          args: [address, VE_HEMI_MARKET, offer.tokenId, encodeAbiParameters(OFFER_DATA, [offer.buyer, offer.offerId, maxFeeBps])],
+        });
+      } catch (error) {
+        // Offers aren't escrowed, and it's the buyer's HEMI that couldn't be pulled: don't tell the holder
+        // "you don't have enough HEMI". Nothing moved; the position is still theirs.
+        if (isHemiShortfall(error)) {
+          throw new Error("The buyer no longer has enough HEMI in their wallet, or approved, to cover this offer. Your position hasn't moved.");
+        }
+        throw error;
+      }
+    },
   };
 }
 

@@ -5,8 +5,7 @@ import { Collection } from "./models/Collection.js";
 import { SyncState } from "./models/SyncState.js";
 import { Activity } from "./models/Activity.js";
 import { getFloorPrices } from "./lib/floor.js";
-
-const HEMI_RPC = "https://rpc.hemi.network/rpc";
+import { createHemiProvider } from "./lib/provider.js";
 
 const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -123,9 +122,7 @@ async function loadBlock() {
 
 
 function createProvider() {
-    const p = new ethers.JsonRpcProvider(HEMI_RPC, undefined, {
-        pollingInterval: 500
-    });
+    const p = createHemiProvider("crawler", { pollingInterval: 500 });
     p.on("error", async (err) => {
         console.error("Provider error:", err.message);
         await reconnect();

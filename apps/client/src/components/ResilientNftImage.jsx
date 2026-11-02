@@ -1,113 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
+import { ImageOff } from "lucide-react";
+import { imageCandidates, reportImageFailed, reportImageLoaded } from "@/lib/ipfs-image";
 
-const FREE_IPFS_GATEWAYS = [
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
-  "https://dweb.link/ipfs/",
-  "https://nftstorage.link/ipfs/",
-  "https://ipfs.io/ipfs/",
-];
-
-// failed to load for this visitor.
-const DEDICATED_IPFS_GATEWAY = "https://maroon-impressed-toucan-831.mypinata.cloud/ipfs/";
-
-const IMAGE_CACHE_PREFIX = "resolved_nft_img:";
-const IMAGE_CACHE_TTL = 24 * 60 * 60 * 1000; 
-
-function readCachedImageUrl(cidPath) {
-  if (!cidPath) return null;
-  try {
-    const raw = localStorage.getItem(IMAGE_CACHE_PREFIX + cidPath);
-    if (!raw) return null;
-    const { url, timestamp } = JSON.parse(raw);
-    if (Date.now() - timestamp > IMAGE_CACHE_TTL) return null;
-    return url;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedImageUrl(cidPath, url) {
-  if (!cidPath) return;
-  try {
-    localStorage.setItem(
-      IMAGE_CACHE_PREFIX + cidPath,
-      JSON.stringify({ url, timestamp: Date.now() })
-    );
-  } catch {
-   
-  }
-}
-
-function clearCachedImageUrl(cidPath) {
-  if (!cidPath) return;
-  try {
-    localStorage.removeItem(IMAGE_CACHE_PREFIX + cidPath);
-  } catch {
-    // ignore
-  }
-}
-
-function extractIpfsCidPath(url) {
-  if (!url || typeof url !== "string") return null;
-  const match = url.match(/\/ipfs\/(.+)$/);
-  return match ? match[1] : null;
-}
-
-function buildImageFallbackChain(originalUrl, cidPath) {
-  if (!cidPath) return [originalUrl];
-
-  const cached = readCachedImageUrl(cidPath);
-  const chain = cached ? [cached] : [];
-
-  if (originalUrl && originalUrl !== cached) chain.push(originalUrl);
-
-  for (const gw of FREE_IPFS_GATEWAYS) {
-    const candidate = `${gw}${cidPath}`;
-    if (!chain.includes(candidate)) chain.push(candidate);
-  }
-
-  const dedicated = `${DEDICATED_IPFS_GATEWAY}${cidPath}`;
-  if (!chain.includes(dedicated)) chain.push(dedicated);
-
-  return chain;
-}
-
+// An NFT image that falls back across IPFS gateways. Which URL it tries first, and which gateways it skips, is
+// decided in lib/ipfs-image.js so already-loaded images come from the browser's cache.
 export default function ResilientNftImage({ src, alt, className, loading = "lazy" }) {
-  const cidPath = useMemo(() => extractIpfsCidPath(src), [src]);
-  const chain = useMemo(() => buildImageFallbackChain(src, cidPath), [src, cidPath]);
+  const candidates = useMemo(() => imageCandidates(src), [src]);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     setAttempt(0);
   }, [src]);
 
-  const hasMoreFallbacks = attempt + 1 < chain.length;
+  const url = candidates[attempt];
 
-  const handleError = () => {
-    if (hasMoreFallbacks) {
-      setAttempt((i) => i + 1);
-    } 
-    else if (cidPath) {
-
-      clearCachedImageUrl(cidPath);
-    }
-  };
-
-  const handleLoad = () => {
-    if (cidPath) {
-      writeCachedImageUrl(cidPath, chain[attempt]);
-    }
-  };
+  // No image stored yet (see apps/server/sync.js), or every gateway failed
+  if (!url) {
+    return (
+      <div role="img" aria-label={alt} className={`${className ?? ""} flex items-center justify-center bg-secondary/40 text-muted-foreground`}>
+        <ImageOff className="w-1/4 h-1/4 max-w-10 max-h-10 opacity-60" />
+      </div>
+    );
+  }
 
   return (
     <img
-      src={chain[attempt]}
+      src={url}
       alt={alt}
       className={className}
       loading={loading}
-      onError={hasMoreFallbacks ? handleError : undefined}
-      onLoad={handleLoad}
+      decoding="async"
+      onLoad={() => reportImageLoaded(src, url)}
+      onError={() => {
+        reportImageFailed(src, url);
+        setAttempt((i) => i + 1);
+      }}
     />
   );
 }

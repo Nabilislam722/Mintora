@@ -96,6 +96,15 @@ const REASON_MESSAGES = [
   ["exceeds balance", ERROR_MESSAGES.ERC20InsufficientBalance],
 ];
 
+// True when a trade failed because HEMI couldn't be pulled: the payer's balance or approval is too low
+export function isHemiShortfall(error) {
+  const reverted = error?.walk?.((e) => e?.name === "ContractFunctionRevertedError");
+  return (
+    ["ERC20InsufficientAllowance", "ERC20InsufficientBalance"].includes(reverted?.data?.errorName) ||
+    REASON_MESSAGES.some(([text]) => reverted?.reason?.includes(text))
+  );
+}
+
 // A short, readable reason for a failed wallet request or transaction
 export function txErrorMessage(error) {
   const reverted = error?.walk?.((e) => e?.name === "ContractFunctionRevertedError");

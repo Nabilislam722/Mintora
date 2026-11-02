@@ -4,9 +4,9 @@ import mongoose from 'mongoose';
 import { NFT } from './models/NFT.js';
 import { Collection } from './models/Collection.js';
 import { discoverTokenIds } from './lib/token-discovery.js';
+import { createHemiProvider } from './lib/provider.js';
 
 const MONGODB_URI = 'mongodb://127.0.0.1:27017/nft_marketplace';
-const HEMI_RPC = "https://rpc.hemi.network/rpc";
 const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755";
 
 
@@ -243,9 +243,27 @@ async function fetchJson(url) {
         requestCache.set(url, 'FAILED');
         return null;
     } catch (err) {
-        requestCache.set(url, 'FAILED');
+        // Remember definite answers (e.g. 404), but not rate limits (429), server errors or timeouts:
+        // public gateways throw those in bursts, and caching them would make every retry fail at once
+        const status = err.response?.status;
+        if (status && status < 500 && status !== 429) requestCache.set(url, 'FAILED');
         return null;
     }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Gateways rate-limit in bursts, so each token gets a few tries, further apart each time
+async function resolveMetadataWithRetry(uri, tokenId, attempts = 3) {
+    for (let i = 1; i <= attempts; i++) {
+        const metadata = await resolveMetadata(uri, tokenId);
+        if (metadata) return metadata;
+        if (i < attempts) {
+            console.warn(`   ↳ retrying #${tokenId} in ${2 * i}s`);
+            await sleep(2000 * i);
+        }
+    }
+    return null;
 }
 
 /**
@@ -358,7 +376,7 @@ async function syncExistingCollection(contractAddress) {
     }
 
     await mongoose.connect(MONGODB_URI);
-    const provider = new ethers.JsonRpcProvider(HEMI_RPC);
+    const provider = createHemiProvider('collection sync');
     const nftContract = new ethers.Contract(contractAddress, ERC721_ABI, provider);
     const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
@@ -407,7 +425,8 @@ async function syncExistingCollection(contractAddress) {
         process.exit(1);
     }
 
-    let synced = 0, skipped = 0, failed = 0;
+    let synced = 0, failed = 0;
+    const withoutMetadata = [];
 
     for (const tokenId of tokenIds) {
         try {
@@ -419,13 +438,32 @@ async function syncExistingCollection(contractAddress) {
                     price: 0n,
                 })),
             ]);
+            const chainState = {
+                collectionId: collection._id,
+                ownerAddress: owner.toLowerCase(),
+                isListed: listing.price > 0n,
+                price: listing.price.toString(),
+                seller: listing.seller !== ethers.ZeroAddress ? listing.seller.toLowerCase() : null,
+                lastSyncedAt: new Date(),
+            };
 
             console.log(`🔎 Resolving #${tokenId}  (uri: ${uri})`);
-            const metadata = await resolveMetadata(uri, tokenId);
+            const metadata = await resolveMetadataWithRetry(uri, tokenId);
 
             if (!metadata) {
-                console.warn(`⚠️  Unresolvable metadata for #${tokenId}  (uri: ${uri})`);
-                skipped++;
+                // Skipping the token here kept it off Mintora entirely (e.g. Hemi Bros #769 and #5145 after
+                // gateways rate-limited the sync). Store it with its owner and listing instead; the next run fills
+                // in the metadata. A token that's already stored keeps the metadata it has.
+                await NFT.updateOne(
+                    { tokenId, contractAddress: contractKey },
+                    {
+                        $set: chainState,
+                        $setOnInsert: { name: `${collection.name} #${tokenId}`, description: '', imageUrl: '', attributes: [] },
+                    },
+                    { upsert: true }
+                );
+                console.warn(`⚠️  Metadata unreachable for #${tokenId}; stored without it  (uri: ${uri})`);
+                withoutMetadata.push(tokenId);
                 continue;
             }
 
@@ -434,20 +472,13 @@ async function syncExistingCollection(contractAddress) {
             );
 
             await NFT.findOneAndUpdate(
-                { tokenId, contractAddress: contractAddress.toLowerCase() },
+                { tokenId, contractAddress: contractKey },
                 {
-                    collectionId: collection._id,
+                    ...chainState,
                     name: metadata.name || `${collection.name} #${tokenId}`,
                     description: metadata.description || '',
                     imageUrl,
                     attributes: metadata.attributes || metadata.traits || [],
-                    ownerAddress: owner.toLowerCase(),
-                    isListed: listing.price > 0n,
-                    price: listing.price.toString(),
-                    seller: listing.seller !== ethers.ZeroAddress
-                        ? listing.seller.toLowerCase()
-                        : null,
-                    lastSyncedAt: new Date(),
                 },
                 { upsert: true }
             );
@@ -455,7 +486,7 @@ async function syncExistingCollection(contractAddress) {
             console.log(`✅ Synced  #${tokenId.padStart(5)}  –  ${metadata.name || '(no name)'}`);
             synced++;
 
-            await new Promise(r => setTimeout(r, 50));
+            await sleep(50);
 
         } catch (err) {
             if (err.code === 'CALL_EXCEPTION') {
@@ -467,7 +498,10 @@ async function syncExistingCollection(contractAddress) {
         }
     }
 
-    console.log(`\n🎉 Sync complete.  Synced: ${synced}  |  Skipped: ${skipped}  |  Failed: ${failed}`);
+    console.log(`\n🎉 Sync complete.  Synced: ${synced}  |  Without metadata: ${withoutMetadata.length}  |  Failed: ${failed}`);
+    if (withoutMetadata.length) {
+        console.log(`   Stored without metadata (run the sync again to fill it in): ${withoutMetadata.join(', ')}`);
+    }
     await mongoose.disconnect();
     process.exit(0);
 }

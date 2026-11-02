@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import ThemeToggle from "./ThemeToggle";
 import NetworkSelector from "./NetworkSelector";
 import WalletButton from "./WalletButton";
+import ResilientNftImage from "./ResilientNftImage";
 import { formatEther } from "viem";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 import { navItems } from "../lib/navItems";
@@ -144,7 +145,7 @@ export default function Navbar() {
           {results.nfts.map(nft => (
             <Link key={nft._id} href={`/nfts/${nft.collectionId?._id}/${nft.tokenId}`} onClick={closeMobileSearch}>
               <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-secondary transition-colors cursor-pointer">
-                <img src={nft.imageUrl} alt={nft.name} className="w-8 h-8 rounded-lg object-cover bg-secondary shrink-0" />
+                <ResilientNftImage src={nft.imageUrl} alt={nft.name} className="w-8 h-8 rounded-lg object-cover bg-secondary shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">{nft.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{nft.collectionId?.name}</p>

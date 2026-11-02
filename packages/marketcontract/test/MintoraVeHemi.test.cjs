@@ -471,6 +471,21 @@ describe("MintoraVeHemi", function () {
       expect(await market.isOfferValid(1, buyer.address)).to.equal(false);
     });
 
+    it("can't be accepted once the buyer moves their HEMI out, and the holder keeps the position", async function () {
+      const f = await loadFixture(offerFixture);
+      const { market, marketAddr, ve, hemi, seller, buyer, other, offerId } = f;
+      // The approval stays in place; only the balance behind it goes
+      await hemi.connect(buyer).transfer(other.address, await hemi.balanceOf(buyer.address));
+      expect(await market.isOfferValid(1, buyer.address)).to.equal(false);
+
+      await expect(accept(f, seller, 1, buyer.address, offerId)).to.be.revertedWithCustomError(hemi, "ERC20InsufficientBalance");
+      expect(await ve.ownerOf(1)).to.equal(seller.address);
+      expect(await hemi.balanceOf(seller.address)).to.equal(0);
+      expect(await hemi.balanceOf(marketAddr)).to.equal(0);
+      // Nothing was used up: the offer is still stored, and fills again if the buyer brings the HEMI back
+      expect((await market.getOffer(1, buyer.address)).id).to.equal(offerId);
+    });
+
     it("blocks a buyer contract from re-entering when its offer is accepted", async function () {
       const f = await loadFixture(deployFixture);
       const { market, marketAddr, ve, hemi, seller } = f;

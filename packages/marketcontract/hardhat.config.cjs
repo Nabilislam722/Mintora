@@ -15,6 +15,11 @@ const settings = {
 // so pin the EVM target instead of using 0.8.38's default (osaka).
 const veHemi = { version: "0.8.38", settings: { ...settings, evmVersion: "cancun" } };
 
+// Hemi's RPC blocks requests without a User-Agent; this uses the standard "product/version (description; +url)" form
+const HEMI_RPC_HEADERS = {
+  "User-Agent": `Mintora/${require("./package.json").version} (contracts; +https://mintora.app)`,
+};
+
 module.exports = {
   solidity: {
     // Mintora (NftMarketplace.sol) stays on the compiler it was deployed with
@@ -63,11 +68,12 @@ module.exports = {
   networks: {
     // Set HEMI_FORK_URL to run tests on a fork of Hemi mainnet (test/MintoraVeHemi.fork.test.cjs)
     hardhat: {
-      ...(process.env.HEMI_FORK_URL && { forking: { url: process.env.HEMI_FORK_URL } }),
+      ...(process.env.HEMI_FORK_URL && { forking: { url: process.env.HEMI_FORK_URL, httpHeaders: HEMI_RPC_HEADERS } }),
     },
     hemi: {
       url: "https://rpc.hemi.network/rpc",
       accounts: [process.env.WALLET_PRIVATE_KEY],
+      httpHeaders: HEMI_RPC_HEADERS,
     },
   },
 };
