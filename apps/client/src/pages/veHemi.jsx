@@ -1,45 +1,37 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
 import { AnimatePresence } from "framer-motion";
-import { Search, Plus } from "lucide-react";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { Info, Search, Plus } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import VeHemiCard from "@/components/vehemi/VeHemiCard";
 import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
 import VeHemiFilters from "@/components/vehemi/VeHemiFilters";
 import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import VeHemiBackdrop from "@/components/vehemi/VeHemiBackdrop";
-import { useVeHemiListings } from "@/hooks/use-vehemi";
-import { CURRENCIES, LOCK_FILTERS, discountOf, fmt, inputCls, priceIn, weightOf } from "@/lib/vehemi";
+import { useVeHemiListings, useVeHemiMarket } from "@/hooks/use-vehemi";
+import { LOCK_FILTERS, discountOf, fmtCompact, inputCls } from "@/lib/vehemi";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 const SORTS = {
-  priceAsc: { label: "Price: low to high", fn: (a, b) => priceIn(a, "HEMI") - priceIn(b, "HEMI") },
-  discount: { label: "Biggest discount", fn: (a, b) => priceIn(a, "HEMI") / a.hemi - priceIn(b, "HEMI") / b.hemi },
+  priceAsc: { label: "Price: low to high", fn: (a, b) => a.price - b.price },
+  discount: { label: "Biggest discount", fn: (a, b) => a.price / a.hemi - b.price / b.hemi },
   unlock: { label: "Unlocks soonest", fn: (a, b) => a.left - b.left },
   amount: { label: "Most HEMI locked", fn: (a, b) => b.hemi - a.hemi },
-  weight: { label: "Most voting weight", fn: (a, b) => weightOf(b) - weightOf(a) },
+  weight: { label: "Most voting weight", fn: (a, b) => b.weight - a.weight },
 };
 
-function Segmented({ value, onChange, options }) {
-  return (
-    <div className="inline-flex p-0.5 rounded-full bg-secondary/50 border border-white/10">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={`h-7 px-3 rounded-full text-xs font-medium transition-colors ${
-            value === o ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
+const emptyCls = "flex flex-col items-center text-center gap-5 py-16 rounded-2xl border border-dashed border-border";
 
 export default function VeHemi() {
-  const all = useVeHemiListings();
-  const [currency, setCurrency] = useState("USDC");
+  useSeo(pageSeo("/vehemi"));
+  const { listings: all, loading, error, refetch } = useVeHemiListings();
+  const { paused } = useVeHemiMarket();
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [minHemi, setMinHemi] = useState("");
   const [lock, setLock] = useState(null);
@@ -53,13 +45,17 @@ export default function VeHemi() {
     return all.filter((l) => (!q || String(l.id).includes(q)) && l.hemi >= min && test(l.left)).sort(SORTS[sort].fn);
   }, [all, search, minHemi, lock, sort]);
 
-  const floorListing = all.reduce((min, l) => (priceIn(l, "HEMI") < priceIn(min, "HEMI") ? l : min));
-  const avgDiscount = Math.round(all.reduce((s, l) => s + discountOf(l), 0) / all.length);
+  // Your positions are on your profile: pick one there to list it
+  const onList = () => (isConnected ? navigate("/profile") : openConnectModal?.());
+
+  const floorListing = all.length ? all.reduce((min, l) => (l.price < min.price ? l : min)) : null;
+  const avgDiscount = all.length ? Math.round(all.reduce((s, l) => s + discountOf(l), 0) / all.length) : null;
+  const value = (text, className = "") => <span className={`text-lg font-semibold tabular-nums ${className}`}>{text}</span>;
   const stats = [
-    ["Floor price", <VeHemiPrice key="f" listing={floorListing} currency={currency} className="text-lg" />],
-    ["Listed", <span key="l" className="text-lg font-semibold tabular-nums">{all.length}</span>],
-    ["HEMI locked", <span key="h" className="text-lg font-semibold tabular-nums">{fmt(all.reduce((s, l) => s + l.hemi, 0) / 1e6, 2)}M</span>],
-    ["Avg. discount", <span key="d" className="text-lg font-semibold tabular-nums text-emerald-400">{avgDiscount}%</span>],
+    ["Floor price", floorListing ? <VeHemiPrice key="f" listing={floorListing} className="text-lg" /> : value("—")],
+    ["Listed", value(loading ? "—" : all.length)],
+    ["HEMI locked", value(loading ? "—" : fmtCompact(all.reduce((s, l) => s + l.hemi, 0)))],
+    ["Avg. discount", value(avgDiscount == null ? "—" : `${avgDiscount}%`, avgDiscount > 0 ? "text-emerald-400" : "")],
   ];
 
   const reset = () => { setSearch(""); setMinHemi(""); setLock(null); };
@@ -77,24 +73,28 @@ export default function VeHemi() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground leading-tight">veHEMI</h1>
-              <p className="text-sm text-muted-foreground">Trade locked HEMI positions before they unlock</p>
+              <p className="text-sm text-muted-foreground">Trade locked HEMI positions before they unlock · priced in HEMI</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Prices in</span>
-            <Segmented value={currency} onChange={setCurrency} options={CURRENCIES} />
-            <button type="button" className="h-9 p-6 rounded-full border border-white/10 bg-primary/90 font-semibold font-display hover:bg-secondary text-lg inline-flex items-center gap-2 transition-colors">
+            <button type="button" onClick={onList} className="h-9 p-6 rounded-full border border-white/10 bg-primary/90 font-semibold font-display hover:bg-secondary text-lg inline-flex items-center gap-2 transition-colors">
               <Plus className="w-3.5 h-3.5" /> List veHEMI
             </button>
           </div>
         </header>
 
+        {paused && (
+          <div className="flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            <Info className="w-4 h-4 shrink-0" /> Trading on the veHEMI market is paused right now, so listings are hidden. Cancelling still works.
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {stats.map(([label, value]) => (
+          {stats.map(([label, stat]) => (
             <div key={label} className="rounded-3xl border border-border/50 bg-card px-6 py-3">
               <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-              {value}
+              {stat}
             </div>
           ))}
         </div>
@@ -112,14 +112,31 @@ export default function VeHemi() {
         </div>
 
         {/* Listings */}
-        {listings.length === 0 ? (
-          <div className="flex flex-col items-center text-center gap-5 py-16 rounded-2xl border border-dashed border-border">
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 sm:gap-x-5 gap-y-10">
+            {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-80 rounded-2xl bg-secondary/40 animate-pulse" />)}
+          </div>
+        ) : error ? (
+          <div className={emptyCls}>
+            <p className="font-medium">Couldn't load listings from Hemi</p>
+            <button type="button" onClick={() => refetch()} className="h-8 px-4 rounded-xl border border-white/10 text-sm hover:bg-secondary">Try again</button>
+          </div>
+        ) : all.length === 0 ? (
+          <div className={emptyCls}>
+            <div>
+              <p className="font-medium">No veHEMI listed yet</p>
+              <p className="text-sm text-muted-foreground">Be the first: list a position, or make an offer on one from its page.</p>
+            </div>
+            <button type="button" onClick={onList} className="h-9 px-5 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-semibold">List veHEMI</button>
+          </div>
+        ) : listings.length === 0 ? (
+          <div className={emptyCls}>
             <p className="font-medium">No listings match your filters</p>
             <button type="button" onClick={reset} className="h-8 px-4 rounded-xl border border-white/10 text-sm hover:bg-secondary">Clear filters</button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 sm:gap-x-5 gap-y-10">
-            {listings.map((l) => <VeHemiCard key={l.id} listing={l} currency={currency} onBuy={setBuying} />)}
+            {listings.map((l) => <VeHemiCard key={l.id} listing={l} onBuy={setBuying} />)}
           </div>
         )}
 

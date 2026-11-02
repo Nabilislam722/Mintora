@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import "../components/settings.css";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 // FAQ Categories with Lucide icons
 const CATEGORIES = [
@@ -133,6 +135,7 @@ function FaqItem({ faq, isOpen, onToggle }) {
 }
 
 export default function Faq() {
+  useSeo(pageSeo("/faq"));
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [openId, setOpenId] = useState("what-is-mintora");

@@ -3,16 +3,20 @@ import FeaturedCarousel from "../components/FeaturedCarousel";
 import CollectionCard from "../components/CollectionCard";
 import TopNftsSection from "../components/TopNftsSection";
 import LatestListingsSection from "../components/LatestListingsSection";
+import VeHemiPromo from "../components/vehemi/VeHemiPromo";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useRef, useState, useEffect } from "react";
 import "../components/home.css";
 import { BsFillCollectionFill } from "react-icons/bs";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export default function Home() {
+  useSeo(pageSeo("/"));
   const { data: collections = [], isLoading: loadingCols } = useQuery({
     queryKey: [`${BASE_URL}/api/collections`],
     refetchInterval: 60_000,
@@ -71,6 +75,8 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-10 sm:pr-12">
       <FeaturedCarousel />
+
+      <VeHemiPromo />
 
       {/* Collections */}
       <section className="container mx-auto px-4">

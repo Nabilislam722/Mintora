@@ -1,16 +1,85 @@
-// Mock listings until the veHEMI marketplace contract is live
-// [tokenId, HEMI locked, lock length (days), days left, price, payment token]
-const MOCK = [
-  [1042, 250000, 1460, 612, 8400, "USDC"], [877, 40000, 730, 95, 36800, "HEMI"], [2310, 1200000, 1460, 1390, 32000, "USDC"],
-  [1503, 85000, 365, 40, 80100, "HEMI"], [388, 500000, 1095, 880, 15050, "USDC"], [2951, 15000, 180, 150, 11200, "HEMI"],
-  [1199, 320000, 730, 330, 12050, "USDC"], [640, 72000, 1460, 1020, 40500, "HEMI"], [3077, 910000, 1095, 120, 842000, "HEMI"],
-  [1764, 28000, 365, 290, 1095, "USDC"], [455, 160000, 1460, 1180, 92000, "HEMI"], [2208, 60000, 730, 640, 2050, "USDC"],
-].map(([id, hemi, total, left, price, currency]) => ({ id, hemi, total, left, price, currency }));
+import { useQuery } from "@tanstack/react-query";
+import { erc20Abi } from "viem";
+import { usePublicClient, useReadContracts } from "wagmi";
+import { hemi } from "@/lib/hemi";
+import { MARKET_ABI } from "@/lib/vehemi-abi";
+import { fetchListings, fetchOffers, fetchPosition, openOffersTotal } from "@/lib/vehemi-chain";
+import { LISTING_FEE_BPS, VE_HEMI_MARKET } from "@/lib/vehemi";
 
+// Market state changes with every trade, unlike the app's default never-stale queries
+const LIVE = { staleTime: 30_000, refetchInterval: 60_000, refetchOnWindowFocus: true };
+
+const isTokenId = (id) => /^\d+$/.test(String(id ?? ""));
+
+// Every listing that would fill right now
 export function useVeHemiListings() {
-  return MOCK;
+  const client = usePublicClient({ chainId: hemi.id });
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["vehemi", "listings"],
+    queryFn: () => fetchListings(client),
+    ...LIVE,
+  });
+  return { listings: data ?? [], loading: isLoading, error, refetch };
 }
 
-export function useVeHemiListing(id) {
-  return MOCK.find((l) => String(l.id) === String(id));
+// One position with its listing state; data is null when the token doesn't exist
+export function useVeHemiPosition(id) {
+  const client = usePublicClient({ chainId: hemi.id });
+  return useQuery({
+    queryKey: ["vehemi", "position", String(id)],
+    queryFn: () => fetchPosition(client, BigInt(id)),
+    enabled: isTokenId(id),
+    ...LIVE,
+  });
+}
+
+// Offers stored for these token ids, best first
+export function useVeHemiOffers(ids) {
+  const client = usePublicClient({ chainId: hemi.id });
+  const { data, isLoading } = useQuery({
+    queryKey: ["vehemi", "offers", ids.join(",")],
+    queryFn: () => fetchOffers(client, ids.map(BigInt)),
+    enabled: ids.length > 0,
+    ...LIVE,
+  });
+  return { offers: data ?? [], loading: isLoading && ids.length > 0 };
+}
+
+// The market's live fee and pause state
+export function useVeHemiMarket() {
+  const { data } = useReadContracts({
+    contracts: ["feeBps", "paused"].map((functionName) => ({
+      address: VE_HEMI_MARKET,
+      abi: MARKET_ABI,
+      functionName,
+      chainId: hemi.id,
+    })),
+    query: { staleTime: 60_000 },
+  });
+  return {
+    feeBps: data?.[0]?.result ?? LISTING_FEE_BPS,
+    paused: data?.[1]?.result === true,
+    loaded: data?.[0]?.status === "success",
+  };
+}
+
+// What `owner` can pay with: their HEMI balance and approval for the market, and how much of that approval
+// their open offers rely on (leaving out the offer on `tokenId`, which a trade on it replaces or clears).
+// `token` is the market's payment token, read from the market rather than assumed.
+export function useHemiFunds(owner, tokenId) {
+  const client = usePublicClient({ chainId: hemi.id });
+  return useQuery({
+    queryKey: ["vehemi", "funds", owner, String(tokenId)],
+    queryFn: async () => {
+      const token = await client.readContract({ address: VE_HEMI_MARKET, abi: MARKET_ABI, functionName: "hemi" });
+      const [reserved, allowance, balance] = await Promise.all([
+        openOffersTotal(client, owner, tokenId),
+        client.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, VE_HEMI_MARKET] }),
+        client.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [owner] }),
+      ]);
+      return { token, reserved, allowance, balance };
+    },
+    enabled: !!owner,
+    staleTime: 0,
+  });
 }

@@ -5,3 +5,5 @@ vite.config.ts.*
 *.tar.gz
 .env
 cache
+packages/marketcontract/artifacts/
+packages/marketcontract/cache/

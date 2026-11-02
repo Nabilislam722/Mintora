@@ -6,6 +6,9 @@ import CollectionHero from "@/components/collection/CollectionHero";
 import ActivityFeed from "@/components/ActivityFeed";
 import { EmptyState, NftResults, SearchInput, Segmented, ViewToggle, controlCls, tabCls } from "@/components/NftBrowse";
 import { NFT_SORTS, isListed } from "@/lib/nft";
+import { useSeo } from "@/hooks/use-seo";
+import { NOT_FOUND_SEO, collectionSeo } from "@/lib/seo";
+import { isNotFoundError } from "@/lib/queryClient";
 
 export default function CollectionDetails() {
   const { slug } = useParams();
@@ -16,7 +19,7 @@ export default function CollectionDetails() {
   const [sort, setSort] = useState("priceAsc");
   const [view, setView] = useState("grid");
 
-  const { data: collection, isLoading: loadingCol } = useQuery({
+  const { data: collection, isLoading: loadingCol, error: collectionError } = useQuery({
     queryKey: [`${BASE_URL}/api/collections/${slug}`],
   });
 
@@ -32,6 +35,10 @@ export default function CollectionDetails() {
       .filter((n) => !q || (n.name ?? "").toLowerCase().includes(q) || String(n.tokenId).includes(q))
       .sort(NFT_SORTS[sort].fn);
   }, [nfts, status, search, sort]);
+
+  // While loading, or if the request fails (API down), keep the current tags: on a first visit they're the
+  // Worker's, which already match this collection, so an outage never marks it noindex
+  useSeo(collection ? collectionSeo(collection) : isNotFoundError(collectionError) ? NOT_FOUND_SEO : null);
 
   if (loadingCol) {
     return (

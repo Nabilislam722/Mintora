@@ -5,6 +5,7 @@ import { Featured } from "./models/Featured.js";
 import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 import { getPrices, PRICE_TTL } from "./prices.js";
+import { withLiveFloors } from "./lib/floor.js";
 
 export async function registerRoutes(app) {
 
@@ -25,7 +26,7 @@ export async function registerRoutes(app) {
       ).limit(5),
     ]);
 
-    res.json({ nfts, collections, users });
+    res.json({ nfts, collections: await withLiveFloors(collections), users });
   });
 
   //Users
@@ -80,7 +81,7 @@ export async function registerRoutes(app) {
   app.get("/api/collections", async (req, res) => {
     try {
       const collections = await Collection.find();
-      res.json(collections);
+      res.json(await withLiveFloors(collections));
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
@@ -90,16 +91,21 @@ export async function registerRoutes(app) {
     try {
       const collection = await Collection.findOne({ slug: req.params.slug });
       if (!collection) return res.status(404).json({ message: "Collection not found" });
-      res.json(collection);
+      const [withFloor] = await withLiveFloors([collection]);
+      res.json(withFloor);
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
   });
 
   // --- NFTs ---
+  // What the list views (cards, rows, collection and wallet stats) use. Descriptions and attributes are only
+  // shown on an NFT's own page, which has its own endpoint, and would make a whole collection several times
+  // bigger to send.
+  const LIST_FIELDS = "tokenId name imageUrl price priceChange isListed ownerAddress contractAddress collectionId";
+
   app.get("/api/nfts", async (req, res) => {
-    let { limit = 500, owner, collectionId } = req.query;
-    const finalLimit = Math.min(parseInt(limit), 1000);
+    const { limit = 500, owner, collectionId } = req.query;
 
     try {
       let query = {};
@@ -116,13 +122,18 @@ export async function registerRoutes(app) {
         query.isListed = true;
       }
 
-      const nfts = await NFT.find(query)
-        .populate("collectionId")
+      let nfts = NFT.find(query)
+        .select(LIST_FIELDS)
+        .populate("collectionId", "name")
         .collation({ locale: "en_US", numericOrdering: true })
         .sort(sortConfig)
-        .limit(finalLimit);
+        .lean();
+      // Collection and wallet pages filter, search, sort and count in the browser, so they need every match:
+      // capping them hid everything past the 500th token (Hemi Bros #6246, AirHemiHatchlings #500+) and made
+      // the item, owner and listed counts wrong. Only the site-wide listed feed is capped.
+      if (!owner && !collectionId) nfts = nfts.limit(Math.min(parseInt(limit) || 500, 1000));
 
-      res.json(nfts);
+      res.json(await nfts);
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
@@ -190,7 +201,7 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- TOKEN PRICES (USD, cached server-side for 8 hours) ---
+  // --- TOKEN PRICES (USD, cached server-side for 4 hours) ---
   app.get("/api/prices", async (req, res) => {
     try {
       const { prices, updatedAt } = await getPrices();

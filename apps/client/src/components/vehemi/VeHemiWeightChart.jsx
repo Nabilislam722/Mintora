@@ -30,7 +30,7 @@ export default function VeHemiWeightChart({ weight, days }) {
   return (
     <div>
       <div className="flex gap-3">
-        <div className="relative w-14 shrink-0 h-44 text-[11px] text-muted-foreground tabular-nums text-right">
+        <div className="relative w-14 shrink-0 h-64 sm:h-80 text-[11px] text-muted-foreground tabular-nums text-right">
           {[[0, weight], [50, weight / 2], [100, 0]].map(([top, v]) => (
             <span key={top} className="absolute right-0 -translate-y-1/2" style={{ top: `${top}%` }}>{fmt(v)}</span>
           ))}
@@ -44,7 +44,7 @@ export default function VeHemiWeightChart({ weight, days }) {
           onFocus={() => setHover(0)}
           onBlur={() => setHover(null)}
           onKeyDown={onKeyDown}
-          className="relative flex-1 h-44 cursor-crosshair outline-none rounded focus-visible:ring-2 focus-visible:ring-primary/50"
+          className="relative flex-1 h-64 sm:h-80 cursor-crosshair outline-none rounded focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full overflow-visible" aria-hidden>
             {[0, 50, 100].map((y) => (

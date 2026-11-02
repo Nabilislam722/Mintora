@@ -1,11 +1,11 @@
 // Token USD prices from CryptoRank (free plan: 10,000 credits/month, 10 req/min).
 // One request (1 credit) covers every token, and the result is shared by all visitors
-// for PRICE_TTL, so the API is hit at most ~3 times a day no matter how much traffic we get.
+// for PRICE_TTL, so the API is hit at most ~6 times a day (~180 credits/month) no matter how much traffic we get.
 
 // CryptoRank currency ids, from GET /v3/currencies/map
 const CRYPTORANK_IDS = { ETH: 3, HEMI: 192009, USDC: 5487 };
 
-export const PRICE_TTL = 8 * 60 * 60 * 1000;
+export const PRICE_TTL = 4 * 60 * 60 * 1000;
 const RETRY_DELAY = 5 * 60 * 1000;
 
 let cache = null; // { prices: { ETH, HEMI, USDC }, updatedAt }

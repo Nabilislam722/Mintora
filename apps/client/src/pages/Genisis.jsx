@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Wallet, Minus, Plus, ExternalLink, CheckCircle2, AlertCircle, Loader2, Lock } from "lucide-react";
 import { formatEther, zeroAddress } from "viem";
 import { BsStars } from "react-icons/bs";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 // Config
 const GENESIS_CONTRACT = "0x0000000000000000000000000000000000000000";
@@ -119,6 +121,7 @@ function QuantityStepper({ value, onChange, min = 1, max = 10, disabled = false 
 
 // Main page
 export default function Genesis() {
+  useSeo(pageSeo("/genesis"));
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [quantity, setQuantity] = useState(1);

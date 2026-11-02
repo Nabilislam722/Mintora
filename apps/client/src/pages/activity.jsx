@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSeo } from '@/hooks/use-seo';
+import { pageSeo } from '@/lib/seo';
 
 const COLUMNS = ['Tx', 'From', 'To', 'Collection', 'Token ID', 'Action'];
 
@@ -35,6 +37,7 @@ function UserCell({ address, user }) {
 }
 
 function Activity() {
+  useSeo(pageSeo('/activity'));
   const [copied, setCopied] = useState(null)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   

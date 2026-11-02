@@ -1,5 +1,8 @@
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
 
 export default function Create() {
+  useSeo(pageSeo("/create"));
   
    
   return (
