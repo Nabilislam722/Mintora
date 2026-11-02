@@ -4,7 +4,8 @@ pragma solidity ^0.8.38;
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {MintoraVeHemi} from "../MintoraVeHemi.sol";
 
-/// @dev Test-only buyer contract that tries to buy a second listing from inside the NFT receive hook.
+/// @dev Test-only buyer contract that tries to buy a second listing from inside the NFT receive hook, whether it
+///      got the NFT by buying a listing or by having its offer accepted.
 contract ReentrantBuyer is IERC721Receiver {
     MintoraVeHemi private immutable market;
     uint256 private reenterTokenId;
@@ -22,6 +23,12 @@ contract ReentrantBuyer is IERC721Receiver {
         reenterTokenId = reenterTokenId_;
         reenterListingId = reenterListingId_;
         market.buy(tokenId, listingId);
+    }
+
+    function makeOffer(uint256 tokenId, uint256 amount, uint256 reenterTokenId_, uint256 reenterListingId_) external {
+        reenterTokenId = reenterTokenId_;
+        reenterListingId = reenterListingId_;
+        market.makeOffer(tokenId, amount, 7 days);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {

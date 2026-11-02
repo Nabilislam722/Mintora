@@ -1,28 +1,30 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "wouter";
-import { AnimatePresence } from "framer-motion";
+import { useReadContracts } from "wagmi";
 import { ArrowRight, Clock, Lock, Scale, Unlock } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
-import VeHemiListDialog from "@/components/vehemi/VeHemiListDialog";
-import { useVeHemiListings } from "@/hooks/use-vehemi";
+import { useVeHemiListings, useVeHemiOffers } from "@/hooks/use-vehemi";
 import { useVeHemiPositions } from "@/hooks/use-vehemi-positions";
-import { VE_HEMI_CONTRACT, fmt, timeLeft } from "@/lib/vehemi";
+import { hemi } from "@/lib/hemi";
+import { MARKET_ABI } from "@/lib/vehemi-abi";
+import { VE_HEMI_MARKET, fmt, formatDate, sameAddress, timeLeft } from "@/lib/vehemi";
 
 const badgeCls = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border";
 const cardCls =
   "group text-left snap-start shrink-0 w-64 sm:w-auto rounded-2xl border border-border/50 bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl";
 
-function PositionCard({ position: p, listing, isOwnProfile, onList }) {
+function PositionCard({ position: p, listing, inactiveListing, bestOffer, isOwnProfile }) {
   const daysLeft = Math.max(0, Math.ceil((p.end - Date.now()) / 864e5));
   const unlocked = daysLeft === 0;
-  const listable = p.transferable || unlocked;
+  const listable = p.transferable && !unlocked;
   // weight / amount = time left / 4-year max lock, so this is how much of its max weight it still has
   const share = p.hemi > 0 ? Math.min(100, (p.weight / p.hemi) * 100) : 0;
-  const unlockDate = new Date(p.end).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
   const badge = listing ? (
     <span className={`${badgeCls} bg-emerald-500/10 text-emerald-400 border-emerald-500/20`}>Listed</span>
+  ) : inactiveListing ? (
+    <span className={`${badgeCls} bg-amber-500/10 text-amber-400 border-amber-500/20`}>Inactive listing</span>
   ) : unlocked ? (
     <span className={`${badgeCls} bg-amber-500/10 text-amber-400 border-amber-500/20`}><Unlock className="w-3 h-3" /> Unlocked</span>
   ) : !p.transferable ? (
@@ -31,11 +33,11 @@ function PositionCard({ position: p, listing, isOwnProfile, onList }) {
     <span className={`${badgeCls} bg-secondary/60 text-muted-foreground border-white/10`}>Not listed</span>
   );
 
-  // Buttons inside the card are visual only; the whole card is the click target
-  const action = listing ? "View" : isOwnProfile && listable ? "List" : null;
+  // The button is visual only; the whole card links to the position's page
+  const action = listing || bestOffer || inactiveListing ? "View" : isOwnProfile && listable ? "List" : null;
 
-  const body = (
-    <>
+  return (
+    <Link href={`/vehemi/${p.id}`} className={cardCls}>
       <div className="flex items-center justify-between gap-2 mb-4">
         <span className="flex items-center gap-1.5 text-sm font-display font-bold">
           <img src={hemiLogo} alt="" className="w-6 h-6" /> veHEMI #{p.id}
@@ -57,14 +59,16 @@ function PositionCard({ position: p, listing, isOwnProfile, onList }) {
         <span className="inline-flex items-center gap-1">
           <Clock className="w-3 h-3" /> {unlocked ? "Ready to withdraw" : `${timeLeft(daysLeft)} left`}
         </span>
-        <span>{unlocked ? "Unlocked" : "Unlocks"} {unlockDate}</span>
+        <span>{unlocked ? "Unlocked" : "Unlocks"} {formatDate(p.end)}</span>
       </div>
 
       <div className="mt-4 flex items-center justify-between rounded-xl bg-secondary/40 border border-white/5 px-3 py-2.5">
         <div>
-          <p className="text-[11px] text-muted-foreground">Price</p>
+          <p className="text-[11px] text-muted-foreground">{listing ? "Price" : bestOffer ? "Best offer" : "Price"}</p>
           {listing ? (
             <VeHemiPrice listing={listing} className="text-sm" />
+          ) : bestOffer ? (
+            <VeHemiPrice listing={{ price: bestOffer.amount }} className="text-sm" />
           ) : (
             <p className="text-sm font-semibold text-muted-foreground">Not listed</p>
           )}
@@ -75,25 +79,42 @@ function PositionCard({ position: p, listing, isOwnProfile, onList }) {
           </span>
         )}
       </div>
-    </>
-  );
-
-  if (listing) return <Link href={`/vehemi/${listing.id}`} className={cardCls}>{body}</Link>;
-  if (isOwnProfile) return <button type="button" onClick={() => onList(p)} className={cardCls}>{body}</button>;
-  return (
-    <a href={`https://explorer.hemi.xyz/token/${VE_HEMI_CONTRACT}/instance/${p.id}`} target="_blank" rel="noopener noreferrer" className={cardCls}>
-      {body}
-    </a>
+    </Link>
   );
 }
 
 // veHEMI positions held by this wallet; renders nothing for wallets without any.
-// On your own profile, clicking an unlisted position opens the listing dialog.
+// Each card opens the position's page, where its holder can list it or accept offers.
 export default function ProfileVeHemi({ address, isOwnProfile }) {
   const { count, positions, loading } = useVeHemiPositions(address);
-  const listings = useVeHemiListings();
+  const { listings } = useVeHemiListings();
+  const { offers } = useVeHemiOffers(positions?.map((p) => p.id) ?? []);
   const listingById = useMemo(() => new Map(listings.map((l) => [l.id, l])), [listings]);
-  const [listing, setListing] = useState(null);
+  // Offers come best first, so the first acceptable one per position is its best
+  const bestOfferById = useMemo(() => {
+    const best = new Map();
+    for (const o of offers) if (o.valid && !best.has(o.id)) best.set(o.id, o);
+    return best;
+  }, [offers]);
+  // The owner's stored listings, so ones that stopped filling show up here to be relisted or cancelled
+  const { data: stored } = useReadContracts({
+    contracts: (isOwnProfile ? positions ?? [] : []).map((p) => ({
+      address: VE_HEMI_MARKET,
+      abi: MARKET_ABI,
+      functionName: "getListing",
+      args: [BigInt(p.id)],
+      chainId: hemi.id,
+    })),
+    query: { enabled: isOwnProfile && !!positions?.length },
+  });
+  const inactiveIds = useMemo(() => {
+    const ids = new Set();
+    (stored ?? []).forEach(({ result: l }, i) => {
+      const id = positions?.[i]?.id;
+      if (l && sameAddress(l.seller, address) && Number(l.expiry) * 1000 > Date.now() && !listingById.has(id)) ids.add(id);
+    });
+    return ids;
+  }, [stored, positions, address, listingById]);
   if (!count) return null;
 
   const totals = [
@@ -112,7 +133,7 @@ export default function ProfileVeHemi({ address, isOwnProfile }) {
                 veHEMI positions <span className="ml-1 text-sm font-normal text-muted-foreground tabular-nums">{count}</span>
               </h2>
               <p className="text-xs text-muted-foreground">
-                {isOwnProfile ? "Your locked HEMI · click a position to list it for sale" : "Locked HEMI held by this wallet"}
+                {isOwnProfile ? "Your locked HEMI · open a position to list it or review offers" : "Locked HEMI held by this wallet"}
               </p>
             </div>
           </div>
@@ -141,17 +162,20 @@ export default function ProfileVeHemi({ address, isOwnProfile }) {
                 <div key={i} className="shrink-0 w-64 sm:w-auto h-64 rounded-2xl bg-secondary/40 animate-pulse" />
               ))
             : positions.map((p) => (
-                <PositionCard key={p.id} position={p} listing={listingById.get(p.id)} isOwnProfile={isOwnProfile} onList={setListing} />
+                <PositionCard
+                  key={p.id}
+                  position={p}
+                  listing={listingById.get(p.id)}
+                  inactiveListing={inactiveIds.has(p.id)}
+                  bestOffer={bestOfferById.get(p.id)}
+                  isOwnProfile={isOwnProfile}
+                />
               ))}
         </div>
         {positions && count > positions.length && (
           <p className="mt-3 text-[11px] text-muted-foreground">Showing {positions.length} of {count} positions</p>
         )}
       </div>
-
-      <AnimatePresence>
-        {listing && <VeHemiListDialog position={listing} onClose={() => setListing(null)} />}
-      </AnimatePresence>
     </section>
   );
 }

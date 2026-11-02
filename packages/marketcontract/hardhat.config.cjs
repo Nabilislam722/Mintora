@@ -42,7 +42,29 @@ module.exports = {
       },
     ],
   },
+  // Hemi's own explorer. Off for `npx hardhat verify`, because only the Etherscan path above understands proxies;
+  // scripts/deploy-vehemi.js verifies implementations here directly.
+  blockscout: {
+    enabled: true,
+    customChains: [
+      {
+        network: "hemi",
+        chainId: 43111,
+        urls: {
+          apiURL: "https://explorer.hemi.xyz/api",
+          browserURL: "https://explorer.hemi.xyz",
+        },
+      },
+    ],
+  },
+  sourcify: {
+    enabled: false,
+  },
   networks: {
+    // Set HEMI_FORK_URL to run tests on a fork of Hemi mainnet (test/MintoraVeHemi.fork.test.cjs)
+    hardhat: {
+      ...(process.env.HEMI_FORK_URL && { forking: { url: process.env.HEMI_FORK_URL } }),
+    },
     hemi: {
       url: "https://rpc.hemi.network/rpc",
       accounts: [process.env.WALLET_PRIVATE_KEY],

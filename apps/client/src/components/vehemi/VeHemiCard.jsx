@@ -1,12 +1,15 @@
 import { Link } from "wouter";
+import { useAccount } from "wagmi";
 import { Clock, Scale, TrendingDown } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import VeHemiPrice, { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
-import { discountOf, fmt, timeLeft, unlockDate, weightOf } from "@/lib/vehemi";
+import { discountOf, fmt, formatDate, sameAddress, timeLeft } from "@/lib/vehemi";
 
 export default function VeHemiCard({ listing, onBuy }) {
+  const { address } = useAccount();
+  const own = sameAddress(address, listing.seller);
   const pct = discountOf(listing);
-  const progress = Math.max(0, Math.min(100, (listing.left / listing.total) * 100));
+  const progress = listing.total > 0 ? Math.max(0, Math.min(100, (listing.left / listing.total) * 100)) : 0;
   return (
     <div className="group relative hover:z-10 rounded-2xl border border-border/50 bg-card/50 backdrop-blur-md p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl">
       <Link href={`/vehemi/${listing.id}`} aria-label={`View veHEMI #${listing.id}`} className="absolute inset-0 rounded-2xl" />
@@ -29,7 +32,7 @@ export default function VeHemiCard({ listing, onBuy }) {
       </p>
       <div className="flex w-fit items-center gap-2 mb-7 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/30">
         <Scale className="w-5 h-5 text-primary" />
-        <span className="font-display font-bold tabular-nums text-primary">{fmt(weightOf(listing))}</span>
+        <span className="font-display font-bold tabular-nums text-primary">{fmt(listing.weight)}</span>
         <span className="text-xs text-muted-foreground">veHEMI weight</span>
       </div>
 
@@ -38,7 +41,7 @@ export default function VeHemiCard({ listing, onBuy }) {
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
         <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {timeLeft(listing.left)} left</span>
-        <span>Unlocks {unlockDate(listing.left)}</span>
+        <span>Unlocks {formatDate(listing.end)}</span>
       </div>
 
       <div className="flex items-center justify-between rounded-xl bg-secondary/40 border border-white/5 px-3 py-2.5">
@@ -47,13 +50,22 @@ export default function VeHemiCard({ listing, onBuy }) {
           <VeHemiPrice listing={listing} className="text-sm" />
           <VeHemiUsd amount={listing.price} className="block text-[11px] text-muted-foreground" />
         </div>
-        <button
-          type="button"
-          onClick={() => onBuy(listing)}
-          className="relative z-10 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors"
-        >
-          Buy
-        </button>
+        {own ? (
+          <Link
+            href={`/vehemi/${listing.id}`}
+            className="relative z-10 h-9 px-4 rounded-lg border border-white/10 bg-secondary/60 hover:bg-secondary text-sm font-semibold inline-flex items-center transition-colors"
+          >
+            Manage
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onBuy(listing)}
+            className="relative z-10 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-colors"
+          >
+            Buy
+          </button>
+        )}
       </div>
 
       {/* Tab that slides out from under the card on hover; clipped by its wrapper while hidden.

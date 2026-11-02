@@ -3,6 +3,7 @@ pragma solidity 0.8.38;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
@@ -13,60 +14,53 @@ import {IVeHemi} from "./interfaces/IVeHemi.sol";
 
 /**
  * @title MintoraVeHemi
- * @notice Mintora's marketplace for veHEMI positions. Every listing and offer is priced and paid in HEMI.
+ * @notice Mintora's marketplace for veHEMI positions, priced and paid in HEMI.
+ * @dev Nothing is held between transactions: the buyer pays the seller and fee recipient directly, and the position
+ *      reaches the buyer in the same transaction. Listings fill through a per-token approval (`setApprovalForAll`
+ *      is ignored). Offers are accepted by sending the position here, so they need no approval at all.
  *
- * @dev Non-custodial: the contract never holds HEMI or NFTs. On a sale the buyer pays the seller and the
- *      fee recipient directly and the NFT moves straight from seller to buyer, so there is no balance to drain.
- *      The HEMI token is read from veHEMI itself, so it can't be configured wrong.
+ *      Orders record the position they were made for and stop filling if the lock end moves, the amount drops,
+ *      or (listings only) a top-up takes it past `maxLockAmount`. Changing an order gives it a new id, and both
+ *      sides commit to that id, so terms can't change under a pending trade.
  *
- *      veHEMI positions can change after an order is made, so every order also records the position it was
- *      made for:
- *      - The owner can extend a lock (`increaseUnlockTime`). Orders record the lock end and won't fill if it
- *        moved, so a seller can't turn a 10-day lock into a 4-year one just before a sale lands.
- *      - Anyone can add HEMI to a lock (`increaseAmount`). That only makes the position worth more, so orders
- *        just require at least the amount that was recorded.
- *      - Positions that aren't transferable yet, and expired locks (which the owner can withdraw and burn),
- *        can't be traded.
- *
- *      Buyers and sellers also commit to an order id. Changing a listing or an offer gives it a new id, so
- *      neither side can change the terms while the other side's transaction is pending. `cancelAll` bumps the
- *      caller's nonce and kills every listing and offer they have, without a transaction per order.
- *
- *      Every function that calls another contract is nonReentrant, and storage is updated before any token
- *      moves. The NFT transfer (which calls the buyer's onERC721Received hook) is always the last call.
+ *      A listing stays stored until it expires, is replaced or is cancelled, and fills whenever this contract is
+ *      approved for the position. So list before approving: approving first would revive an older listing.
  */
 contract MintoraVeHemi is
     Initializable,
     Ownable2StepUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    IERC721Receiver
 {
     using SafeERC20 for IERC20;
 
     struct Listing {
         address seller;
         uint64 expiry;
-        uint16 feeBps; // fee when listed; a sale charges the lower of this and the current fee
+        uint16 feeBps; // fee at listing time
         uint256 price; // in HEMI
-        uint128 lockAmount; // HEMI locked when listed
-        uint64 lockEnd; // lock end when listed
+        uint128 lockAmount; // position when listed
+        uint64 lockEnd;
         uint64 id;
-        uint64 nonce; // seller's nonce when listed
+        uint64 nonce;
+        uint128 maxLockAmount; // most HEMI sold at `price`
     }
 
     struct Offer {
         uint256 amount; // in HEMI
-        uint128 minLockAmount; // HEMI locked when the offer was made
-        uint64 maxLockEnd; // lock end when the offer was made
+        uint128 minLockAmount; // position when the offer was made
+        uint64 maxLockEnd;
         uint64 expiry;
-        uint64 nonce; // buyer's nonce when the offer was made
+        uint64 nonce;
         uint64 id;
+        address seller; // holder when the offer was made; only they can accept
     }
 
     uint256 private constant BPS = 10_000;
     uint16 public constant MAX_FEE_BPS = 1_000; // 10%
-    // How long a listing or offer stays open. The client's LISTING_DURATIONS must stay inside this range.
+    // The client's LISTING_DURATIONS must stay within this range
     uint256 public constant MIN_DURATION = 7 days;
     uint256 public constant MAX_DURATION = 90 days;
 
@@ -87,6 +81,7 @@ contract MintoraVeHemi is
         uint256 price,
         uint256 expiry,
         uint256 lockAmount,
+        uint256 maxLockAmount,
         uint256 lockEnd
     );
     event ListingCanceled(uint256 indexed tokenId, uint256 indexed listingId, address indexed seller);
@@ -105,7 +100,8 @@ contract MintoraVeHemi is
         uint256 amount,
         uint256 expiry,
         uint256 minLockAmount,
-        uint256 maxLockEnd
+        uint256 maxLockEnd,
+        address seller
     );
     event OfferCanceled(uint256 indexed tokenId, uint256 indexed offerId, address indexed buyer);
     event OfferAccepted(
@@ -124,6 +120,7 @@ contract MintoraVeHemi is
     error FeeTooHigh();
     error InvalidPrice();
     error InvalidDuration();
+    error InvalidLockCap();
     error NotTokenOwner();
     error NotApproved();
     error NotTransferable();
@@ -140,6 +137,8 @@ contract MintoraVeHemi is
     error OfferChanged();
     error OfferExpired();
     error OfferInvalidated();
+    error HolderChanged();
+    error FeeAboveLimit();
     error InsufficientFunds();
     error TransferFailed();
 
@@ -173,19 +172,24 @@ contract MintoraVeHemi is
 
     // LISTINGS
 
-    /// @notice List a position for HEMI, or replace your listing for it. Approve this contract on veHEMI first.
-    /// @param duration Seconds the listing stays open: 7 to 90 days (MIN_DURATION to MAX_DURATION).
-    function list(uint256 tokenId, uint256 price, uint256 duration) external whenNotPaused nonReentrant returns (uint256 listingId) {
+    /// @notice List a position, or replace your listing for it. Then call `veHEMI.approve(market, tokenId)` so it
+    ///         can fill. List first: approving first would revive any older listing you left for this position.
+    /// @param duration Seconds the listing stays open, MIN_DURATION to MAX_DURATION.
+    /// @param maxLockAmount Most HEMI sold at `price`, at least the amount locked now. Leave a margin: anyone can
+    ///        add HEMI to your lock, and a top-up past this stops the listing.
+    function list(uint256 tokenId, uint256 price, uint256 duration, uint128 maxLockAmount) external whenNotPaused nonReentrant returns (uint256 listingId) {
         if (price == 0) revert InvalidPrice();
         _checkDuration(duration);
         if (veHemi.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
-        if (!_isApproved(msg.sender, tokenId)) revert NotApproved();
         if (!veHemi.isTransferable(tokenId)) revert NotTransferable();
         (uint128 lockAmount, uint64 lockEnd) = _lockOf(tokenId);
         if (lockEnd <= block.timestamp) revert LockExpired();
+        if (maxLockAmount < lockAmount) revert InvalidLockCap();
 
-        // Replaces our own listing, or a stale one left by an earlier owner
+        // Replaces our own listing, or a stale one from an earlier owner
         _clearListing(tokenId);
+        // Our own offer on it, from before we held it
+        _clearOffer(tokenId, msg.sender);
 
         uint64 id = ++_lastId;
         uint64 expiry = uint64(block.timestamp + duration);
@@ -197,15 +201,16 @@ contract MintoraVeHemi is
             lockAmount: lockAmount,
             lockEnd: lockEnd,
             id: id,
-            nonce: nonces[msg.sender]
+            nonce: nonces[msg.sender],
+            maxLockAmount: maxLockAmount
         });
 
-        emit Listed(tokenId, id, msg.sender, price, expiry, lockAmount, lockEnd);
+        emit Listed(tokenId, id, msg.sender, price, expiry, lockAmount, maxLockAmount, lockEnd);
         return id;
     }
 
     /// @notice Buy a listed position. Approve this contract for the price in HEMI first.
-    /// @param listingId The listing you're buying. Reverts if the seller has changed the listing since.
+    /// @param listingId The listing you saw; reverts if the seller has changed it since.
     function buy(uint256 tokenId, uint256 listingId) external whenNotPaused nonReentrant {
         Listing memory l = _listings[tokenId];
         if (l.seller == address(0)) revert NotListed();
@@ -214,19 +219,21 @@ contract MintoraVeHemi is
         if (l.nonce != nonces[l.seller]) revert ListingInvalidated();
         if (msg.sender == l.seller) revert SelfTrade();
         if (veHemi.ownerOf(tokenId) != l.seller) revert SellerNotOwner();
-        _checkPosition(tokenId, l.lockAmount, l.lockEnd);
+        if (!veHemi.isTransferable(tokenId)) revert NotTransferable();
+        if (!_isApproved(tokenId)) revert NotApproved();
+        _checkPosition(tokenId, l.lockAmount, l.maxLockAmount, l.lockEnd);
 
         delete _listings[tokenId];
-        // The buyer's own offer on this position is pointless now, and must not be fillable after they resell it
+        // The buyer's own offer must not be fillable once they resell
         _clearOffer(tokenId, msg.sender);
 
         uint256 fee = (l.price * Math.min(l.feeBps, feeBps)) / BPS;
-        _settle(tokenId, l.seller, msg.sender, l.price, fee);
+        _settle(tokenId, l.seller, l.seller, msg.sender, l.price, fee);
 
         emit Sold(tokenId, listingId, l.seller, msg.sender, l.price, fee);
     }
 
-    /// @notice Cancel a listing. The position's current owner can also clear a listing left by an earlier owner.
+    /// @notice Cancel a listing. The position's current owner can also clear one left by an earlier owner.
     function cancelListing(uint256 tokenId) external nonReentrant {
         address seller = _listings[tokenId].seller;
         if (seller == address(0)) revert NotListed();
@@ -242,15 +249,15 @@ contract MintoraVeHemi is
 
     // OFFERS
 
-    /// @notice Offer HEMI for a position, listed or not. Replaces your offer on it, if you have one.
-    /// @dev Nothing is escrowed: approve this contract for `amount` and the HEMI stays in your wallet until the
-    ///      owner accepts. The offer only fills for this position as it is now (same unlock date, at least as
-    ///      much HEMI).
-    /// @param duration Seconds the offer stays open: 7 to 90 days (MIN_DURATION to MAX_DURATION).
+    /// @notice Offer HEMI for a position, listed or not, replacing your offer on it. Nothing is escrowed: approve
+    ///         this contract for `amount` and the HEMI stays in your wallet until the holder accepts. Only whoever
+    ///         holds the position now can accept, and only while its lock is unchanged.
+    /// @param duration Seconds the offer stays open, MIN_DURATION to MAX_DURATION.
     function makeOffer(uint256 tokenId, uint256 amount, uint256 duration) external whenNotPaused nonReentrant returns (uint256 offerId) {
         if (amount == 0) revert InvalidPrice();
         _checkDuration(duration);
-        if (veHemi.ownerOf(tokenId) == msg.sender) revert SelfTrade();
+        address holder = veHemi.ownerOf(tokenId);
+        if (holder == msg.sender) revert SelfTrade();
         (uint128 lockAmount, uint64 lockEnd) = _lockOf(tokenId);
         if (lockEnd <= block.timestamp) revert LockExpired();
         if (hemi.balanceOf(msg.sender) < amount || hemi.allowance(msg.sender, address(this)) < amount) {
@@ -267,33 +274,50 @@ contract MintoraVeHemi is
             maxLockEnd: lockEnd,
             expiry: expiry,
             nonce: nonces[msg.sender],
-            id: id
+            id: id,
+            seller: holder
         });
 
-        emit OfferMade(tokenId, id, msg.sender, amount, expiry, lockAmount, lockEnd);
+        emit OfferMade(tokenId, id, msg.sender, amount, expiry, lockAmount, lockEnd, holder);
         return id;
     }
 
-    /// @notice Sell your position to an offer. Approve this contract on veHEMI first. Cancels your listing for it.
-    /// @param offerId The offer you're accepting. Reverts if the buyer has changed the offer since.
-    function acceptOffer(uint256 tokenId, address buyer, uint256 offerId) external whenNotPaused nonReentrant {
+    /// @notice Accept an offer by sending your position here, with no approval needed:
+    ///         `veHEMI.safeTransferFrom(you, market, tokenId, abi.encode(buyer, offerId, maxFeeBps))`.
+    ///         The buyer pays you and gets the position in the same transaction, or the transfer reverts.
+    ///         Also cancels your listing for it.
+    /// @dev In `data`: `offerId` is the offer the seller saw (reverts if the buyer has changed it since), and
+    ///      `maxFeeBps` the highest fee they accept (reverts if the fee has been raised above it).
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (bytes4)
+    {
+        if (msg.sender != address(veHemi)) revert NotAuthorized();
+        // The holder itself must send it, not an operator acting for them
+        if (operator != from) revert NotTokenOwner();
+        (address buyer, uint256 offerId, uint16 maxFeeBps) = abi.decode(data, (address, uint256, uint16));
+
         Offer memory o = _offers[tokenId][buyer];
         if (o.id == 0) revert NoOffer();
         if (o.id != offerId) revert OfferChanged();
         if (block.timestamp >= o.expiry) revert OfferExpired();
         if (o.nonce != nonces[buyer]) revert OfferInvalidated();
-        if (buyer == msg.sender) revert SelfTrade();
-        if (veHemi.ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        if (feeBps > maxFeeBps) revert FeeAboveLimit();
+        if (from != o.seller) revert HolderChanged();
         if (!veHemi.isTransferable(tokenId)) revert NotTransferable();
-        _checkPosition(tokenId, o.minLockAmount, o.maxLockEnd);
+        _checkPosition(tokenId, o.minLockAmount, type(uint128).max, o.maxLockEnd);
 
         delete _offers[tokenId][buyer];
+        _clearOffer(tokenId, from);
         _clearListing(tokenId);
 
         uint256 fee = (o.amount * feeBps) / BPS;
-        _settle(tokenId, msg.sender, buyer, o.amount, fee);
+        _settle(tokenId, address(this), from, buyer, o.amount, fee);
 
-        emit OfferAccepted(tokenId, offerId, msg.sender, buyer, o.amount, fee);
+        emit OfferAccepted(tokenId, offerId, from, buyer, o.amount, fee);
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     function cancelOffer(uint256 tokenId) external {
@@ -311,25 +335,25 @@ contract MintoraVeHemi is
         return _offers[tokenId][buyer];
     }
 
-    /// @notice Whether `buy` would succeed right now, apart from the buyer's own balance and allowance.
+    /// @notice Whether `buy` would succeed now, apart from the buyer's own balance and allowance.
     function isListingValid(uint256 tokenId) external view returns (bool) {
         Listing memory l = _listings[tokenId];
         if (l.seller == address(0) || paused() || block.timestamp >= l.expiry) return false;
         if (l.nonce != nonces[l.seller]) return false;
-        if (_ownerOrZero(tokenId) != l.seller || !_isApproved(l.seller, tokenId)) return false;
+        if (_ownerOrZero(tokenId) != l.seller || !_isApproved(tokenId)) return false;
         if (!veHemi.isTransferable(tokenId)) return false;
-        return _positionMatches(tokenId, l.lockAmount, l.lockEnd);
+        return _positionMatches(tokenId, l.lockAmount, l.maxLockAmount, l.lockEnd);
     }
 
-    /// @notice Whether the position's owner could accept this offer right now, including the buyer's HEMI.
+    /// @notice Whether the holder could accept this offer now, including the buyer's balance and allowance.
     function isOfferValid(uint256 tokenId, address buyer) external view returns (bool) {
         Offer memory o = _offers[tokenId][buyer];
         if (o.id == 0 || paused() || block.timestamp >= o.expiry) return false;
         if (o.nonce != nonces[buyer]) return false;
         address holder = _ownerOrZero(tokenId);
-        if (holder == address(0) || holder == buyer || !veHemi.isTransferable(tokenId)) return false;
+        if (holder != o.seller || !veHemi.isTransferable(tokenId)) return false;
         if (hemi.balanceOf(buyer) < o.amount || hemi.allowance(buyer, address(this)) < o.amount) return false;
-        return _positionMatches(tokenId, o.minLockAmount, o.maxLockEnd);
+        return _positionMatches(tokenId, o.minLockAmount, type(uint128).max, o.maxLockEnd);
     }
 
     // OWNER
@@ -355,8 +379,7 @@ contract MintoraVeHemi is
         _unpause();
     }
 
-    /// @notice Recover tokens sent here by mistake. Trades never leave tokens in this contract, so this can't
-    ///         touch user funds.
+    /// @notice Recover tokens sent here by mistake. Trades never leave tokens in this contract.
     function rescueERC20(address token, address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert ZeroAddress();
         IERC20(token).safeTransfer(to, amount);
@@ -364,24 +387,25 @@ contract MintoraVeHemi is
 
     // INTERNAL
 
-    function _settle(uint256 tokenId, address seller, address buyer, uint256 price, uint256 fee) private {
+    /// @dev `holder` is the seller for a listing, or this contract while accepting an offer.
+    function _settle(uint256 tokenId, address holder, address seller, address buyer, uint256 price, uint256 fee) private {
         if (fee > 0) hemi.safeTransferFrom(buyer, feeRecipient, fee);
         hemi.safeTransferFrom(buyer, seller, price - fee);
-        // Last, because it calls the buyer's onERC721Received hook when the buyer is a contract
-        veHemi.safeTransferFrom(seller, buyer, tokenId);
+        // Last, because it calls the buyer's onERC721Received hook
+        veHemi.safeTransferFrom(holder, buyer, tokenId);
         if (veHemi.ownerOf(tokenId) != buyer) revert TransferFailed();
     }
 
-    function _checkPosition(uint256 tokenId, uint128 minAmount, uint64 maxEnd) private view {
+    /// @dev Lock ends only move later, so `end <= maxEnd` means the end hasn't moved since the order was made.
+    function _checkPosition(uint256 tokenId, uint128 minAmount, uint128 maxAmount, uint64 maxEnd) private view {
         (uint128 amount, uint64 end) = _lockOf(tokenId);
         if (end <= block.timestamp) revert LockExpired();
-        // Lock ends only move later and amounts only grow, so these catch any change that hurts the buyer
-        if (end > maxEnd || amount < minAmount) revert PositionChanged();
+        if (end > maxEnd || amount < minAmount || amount > maxAmount) revert PositionChanged();
     }
 
-    function _positionMatches(uint256 tokenId, uint128 minAmount, uint64 maxEnd) private view returns (bool) {
+    function _positionMatches(uint256 tokenId, uint128 minAmount, uint128 maxAmount, uint64 maxEnd) private view returns (bool) {
         (uint128 amount, uint64 end) = _lockOf(tokenId);
-        return end > block.timestamp && end <= maxEnd && amount >= minAmount;
+        return end > block.timestamp && end <= maxEnd && amount >= minAmount && amount <= maxAmount;
     }
 
     function _lockOf(uint256 tokenId) private view returns (uint128 amount, uint64 end) {
@@ -389,8 +413,10 @@ contract MintoraVeHemi is
         return (lock.amount > 0 ? uint128(lock.amount) : 0, lock.end);
     }
 
-    function _isApproved(address holder, uint256 tokenId) private view returns (bool) {
-        return veHemi.getApproved(tokenId) == address(this) || veHemi.isApprovedForAll(holder, address(this));
+    /// @dev Only a per-token approval counts, so this contract can't move a seller's other positions.
+    ///      Callers check ownerOf first, since getApproved reverts for a burned position.
+    function _isApproved(uint256 tokenId) private view returns (bool) {
+        return veHemi.getApproved(tokenId) == address(this);
     }
 
     /// @dev ownerOf reverts for burned (withdrawn) positions; the views report those as invalid instead.

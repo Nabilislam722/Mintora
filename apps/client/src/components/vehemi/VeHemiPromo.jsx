@@ -4,7 +4,7 @@ import hemiLogo from "/hemi.svg";
 import { Button } from "@/components/ui/button";
 import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
 import { useVeHemiListings } from "@/hooks/use-vehemi";
-import { discountOf, fmt, timeLeft, weightOf } from "@/lib/vehemi";
+import { discountOf, fmt, fmtCompact, timeLeft } from "@/lib/vehemi";
 
 function DealCard({ listing }) {
   return (
@@ -24,7 +24,7 @@ function DealCard({ listing }) {
         {fmt(listing.hemi)} <span className="text-xs font-normal text-muted-foreground">HEMI</span>
       </p>
       <p className="mt-1 flex items-center gap-1 text-[11px] text-primary tabular-nums">
-        <Scale className="w-3 h-3" /> {fmt(weightOf(listing))} weight
+        <Scale className="w-3 h-3" /> {fmt(listing.weight)} weight
       </p>
       <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -36,18 +36,18 @@ function DealCard({ listing }) {
   );
 }
 
-// Home page teaser for the veHEMI marketplace: pitch, quick stats and the best current deals
+// Home page teaser for the veHEMI marketplace: pitch, quick stats and the best current deals.
+// The pitch shows even before anything is listed, so the market can be found from the home page.
 export default function VeHemiPromo() {
-  const listings = useVeHemiListings();
-  if (!listings.length) return null;
+  const { listings, loading } = useVeHemiListings();
 
   const deals = [...listings].sort((a, b) => discountOf(b) - discountOf(a)).slice(0, 3);
-  const avgDiscount = Math.round(listings.reduce((s, l) => s + discountOf(l), 0) / listings.length);
+  const avgDiscount = listings.length ? Math.round(listings.reduce((s, l) => s + discountOf(l), 0) / listings.length) : null;
   const totalHemi = listings.reduce((s, l) => s + l.hemi, 0);
   const stats = [
-    ["Listed", listings.length],
-    ["Avg. discount", `${avgDiscount}%`],
-    ["HEMI locked", `${fmt(totalHemi / 1e6, 2)}M`],
+    ["Listed", loading ? "—" : listings.length],
+    ["Avg. discount", avgDiscount == null ? "—" : `${avgDiscount}%`],
+    ["HEMI locked", loading ? "—" : fmtCompact(totalHemi)],
   ];
 
   return (
@@ -101,11 +101,22 @@ export default function VeHemiPromo() {
 
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Best deals right now</p>
-            <div className="flex sm:grid sm:grid-cols-3 gap-3 overflow-x-auto snap-x pb-1 [scrollbar-width:none]">
-              {deals.map((l) => (
-                <DealCard key={l.id} listing={l} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="grid sm:grid-cols-3 gap-3">
+                {[0, 1, 2].map((i) => <div key={i} className="h-36 rounded-2xl bg-background/60 animate-pulse" />)}
+              </div>
+            ) : deals.length ? (
+              <div className="flex sm:grid sm:grid-cols-3 gap-3 overflow-x-auto snap-x pb-1 [scrollbar-width:none]">
+                {deals.map((l) => (
+                  <DealCard key={l.id} listing={l} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border/60 bg-background/40 p-6 text-center">
+                <p className="font-medium">Nothing listed yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">List your veHEMI first, or make an offer on any position.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

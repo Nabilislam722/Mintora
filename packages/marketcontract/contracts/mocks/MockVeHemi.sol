@@ -5,7 +5,8 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 /// @dev Test-only stand-in for veHEMI. It records the HEMI address but doesn't actually lock tokens, and keeps
 ///      the rules the marketplace depends on: anyone can add HEMI to a lock, only the owner can extend it, locks
-///      never shrink, transfers are blocked until `transferableAfter`, and withdrawing an expired lock burns the NFT.
+///      never shrink, transfers are blocked until `transferableAfter`, withdrawing an expired lock burns the NFT,
+///      and `transferFrom` is nonReentrant (released before safeTransferFrom calls the receiver hook).
 contract MockVeHemi is ERC721 {
     struct LockedBalance {
         int128 amount;
@@ -18,7 +19,9 @@ contract MockVeHemi is ERC721 {
     mapping(uint256 => LockedBalance) private _locked;
     mapping(uint256 => uint256) public transferableAfter;
     uint256 public nextTokenId = 1;
+    bool private transient _entered;
 
+    error Reentrant();
     error NotTransferable();
     error NotOwner();
     error LockExpired();
@@ -76,7 +79,10 @@ contract MockVeHemi is ERC721 {
     }
 
     function transferFrom(address from, address to, uint256 tokenId) public override {
+        if (_entered) revert Reentrant();
+        _entered = true;
         if (!isTransferable(tokenId)) revert NotTransferable();
         super.transferFrom(from, to, tokenId);
+        _entered = false;
     }
 }

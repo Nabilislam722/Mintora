@@ -1,87 +1,104 @@
 import { useState } from "react";
+import { formatUnits } from "viem";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { motion } from "framer-motion";
-import { X, CheckCircle2, Loader2, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
-import { discountOf, fmt, unlockDate, weightOf } from "@/lib/vehemi";
+import VeHemiDialog, { DialogDone, DialogRows, StepButton, StepNote } from "@/components/vehemi/VeHemiDialog";
+import { useHemiFunds, useVeHemiMarket } from "@/hooks/use-vehemi";
+import { useTxStep, useVeHemiActions } from "@/hooks/use-vehemi-actions";
+import { discountOf, fmt, formatDate, sameAddress } from "@/lib/vehemi";
 
+const toHemi = (wei) => Number(formatUnits(wei, 18));
+
+// Approve HEMI if needed, then buy(tokenId, listingId)
 export default function VeHemiBuyDialog({ listing, onClose }) {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const [step, setStep] = useState("approve"); // approve -> buy -> done
-  const [busy, setBusy] = useState(false);
+  const { paused } = useVeHemiMarket();
+  const actions = useVeHemiActions();
+  const { busy, run } = useTxStep();
+  const { data: funds, refetch } = useHemiFunds(address, listing.tokenId);
+  const [approvedHere, setApprovedHere] = useState(false);
+  const [done, setDone] = useState(false);
 
-  // TODO: wire to wagmi — approve HEMI for the marketplace (the listing price), then buy(tokenId, listingId)
-  const run = (next) => {
-    setBusy(true);
-    setTimeout(() => { setBusy(false); setStep(next); }, 1400);
-  };
-  const onAction = () => {
+  // The approval covers this price on top of what the buyer's open offers rely on
+  const needed = funds ? funds.reserved + listing.priceWei : null;
+  const approved = !!funds && funds.allowance >= needed;
+  const short = !!funds && funds.balance < listing.priceWei;
+  const own = sameAddress(address, listing.seller);
+
+  const onAction = async () => {
     if (!isConnected) return openConnectModal?.();
-    step === "approve" ? run("buy") : run("done");
+    if (!approved) {
+      if (await run(() => actions.approveHemi(funds.token, needed), "Approval failed")) {
+        setApprovedHere(true);
+        await refetch();
+      }
+      return;
+    }
+    if (await run(() => actions.buy(listing), "Purchase failed")) {
+      setDone(true);
+      actions.refresh();
+    }
   };
 
+  const label = !isConnected
+    ? "Connect Wallet"
+    : own
+      ? "This is your listing"
+      : paused
+        ? "Trading is paused"
+        : !funds
+          ? "Checking your HEMI…"
+          : short
+            ? "Not enough HEMI"
+            : !approved
+              ? `Approve ${fmt(toHemi(needed))} HEMI`
+              : "Buy now";
+  const note = !isConnected
+    ? "Connect a wallet to continue"
+    : funds && !approved
+      ? funds.reserved > 0n
+        ? `Step 1 of 2 · includes ${fmt(toHemi(funds.reserved))} HEMI kept approved for your open offers`
+        : "Step 1 of 2 · let the marketplace take the price in HEMI"
+      : approvedHere
+        ? "Step 2 of 2 · paid in HEMI"
+        : "Paid in HEMI";
+
+  // A top-up within the listing's limit only adds HEMI, so the buyer gets at least what was listed
+  const grown = listing.lockAmountWei > listing.listedLockAmountWei;
   const rows = [
     ["Locked", `${fmt(listing.hemi)} HEMI`],
-    ["Voting weight", `${fmt(weightOf(listing))} veHEMI`],
-    ["Unlocks", unlockDate(listing.left)],
+    ...(grown ? [["Locked when listed", `${fmt(listing.listedHemi)} HEMI`]] : []),
+    ["Voting weight", `${fmt(listing.weight)} veHEMI`],
+    ["Unlocks", formatDate(listing.end)],
     ["Discount to locked value", `${discountOf(listing)}%`],
   ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12 }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-border bg-card p-5"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-bold">Buy veHEMI #{listing.id}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {step === "done" ? (
-          <div className="text-center py-6">
-            <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
-            <p className="font-bold mb-1">Purchase complete</p>
-            <p className="text-xs text-muted-foreground mb-5">veHEMI #{listing.id} is now in your wallet.</p>
-            <button type="button" onClick={onClose} className="h-10 px-6 rounded-lg bg-secondary text-sm font-medium hover:bg-secondary/70">Done</button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-xl bg-secondary/40 border border-white/5 divide-y divide-white/5 text-sm">
-              {rows.map(([k, v]) => (
-                <div key={k} className="flex justify-between px-3 py-2">
-                  <span className="text-muted-foreground">{k}</span><span className="font-medium">{v}</span>
-                </div>
-              ))}
-              <div className="flex justify-between items-baseline px-3 py-3">
-                <span className="text-muted-foreground">Total</span>
-                <VeHemiPrice listing={listing} className="text-lg" />
-              </div>
+    <VeHemiDialog title={`Buy veHEMI #${listing.id}`} onClose={onClose} busy={busy}>
+      {done ? (
+        <DialogDone title="Purchase complete" onClose={onClose}>veHEMI #{listing.id} is now in your wallet.</DialogDone>
+      ) : (
+        <div className="space-y-4">
+          <DialogRows rows={rows}>
+            <div className="flex justify-between items-baseline px-3 py-3">
+              <span className="text-muted-foreground">Total</span>
+              <VeHemiPrice listing={listing} className="text-lg" />
             </div>
-            <button
-              type="button"
-              onClick={onAction}
-              disabled={busy}
-              className="w-full h-10 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 transition-colors"
-            >
-              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : !isConnected ? <Wallet className="w-3.5 h-3.5" /> : null}
-              {!isConnected ? "Connect Wallet" : busy ? "Confirm in wallet…" : step === "approve" ? "Approve HEMI" : "Buy now"}
-            </button>
-            <p className="text-[11px] text-muted-foreground text-center">
-              {isConnected ? `Step ${step === "approve" ? 1 : 2} of 2 · paid in HEMI` : "Connect a wallet to continue"}
-            </p>
-          </div>
-        )}
-      </motion.div>
-    </motion.div>
+          </DialogRows>
+          <StepButton
+            busy={busy}
+            disabled={isConnected && (own || paused || !funds || short)}
+            onClick={onAction}
+            icon={!isConnected ? <Wallet className="w-3.5 h-3.5" /> : null}
+          >
+            {label}
+          </StepButton>
+          <StepNote>{note}</StepNote>
+        </div>
+      )}
+    </VeHemiDialog>
   );
 }

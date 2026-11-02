@@ -2,27 +2,7 @@ import { useReadContract, useReadContracts } from "wagmi";
 import { formatUnits } from "viem";
 import { hemi } from "@/lib/hemi";
 import { VE_HEMI_CONTRACT } from "@/lib/vehemi";
-
-// Subset of hemilabs/veHEMI VeHemi.sol (ERC721Enumerable)
-const VE_HEMI_ABI = [
-  { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
-  {
-    name: "tokenOfOwnerByIndex",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "owner", type: "address" }, { name: "index", type: "uint256" }],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    name: "getLockedBalance",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ type: "tuple", components: [{ name: "amount", type: "int128" }, { name: "end", type: "uint64" }] }],
-  },
-  { name: "balanceOfNFT", type: "function", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ type: "uint256" }] },
-  { name: "isTransferable", type: "function", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ type: "bool" }] },
-];
+import { VE_HEMI_ABI } from "@/lib/vehemi-abi";
 
 const MAX_POSITIONS = 48;
 const base = { address: VE_HEMI_CONTRACT, abi: VE_HEMI_ABI, chainId: hemi.id };
