@@ -1,11 +1,13 @@
 import { NFT } from "./models/NFT.js";
 import { Collection } from "./models/Collection.js"
-import { User } from "./models/User.js";
+import { User, MAX_BIO, usernameProblem, usernameTaken } from "./models/User.js";
 import { Featured } from "./models/Featured.js";
 import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 import { getPrices, PRICE_TTL } from "./prices.js";
 import { withLiveFloors } from "./lib/floor.js";
+import { requireAuth } from "./lib/auth.js";
+import { isUserImageUrl } from "./lib/r2.js";
 
 export async function registerRoutes(app) {
 
@@ -46,34 +48,62 @@ export async function registerRoutes(app) {
       res.status(500).json({ message: err.message });
     }
   });
-  app.patch("/api/users/:address", async (req, res) => {
+  // Only the signed-in wallet can edit its own profile. Fields left out of the body stay as they are.
+  app.patch("/api/users/:address", requireAuth, async (req, res) => {
+    const address = req.params.address.toLowerCase();
+    if (address !== req.wallet) return res.status(403).json({ message: "You can only edit your own profile." });
+
+    const { username, bio, profileImageUrl, bannerImageUrl } = req.body ?? {};
+    const update = {};
+
+    if (username !== undefined) {
+      const name = String(username).trim();
+      const problem = usernameProblem(name);
+      if (problem) return res.status(400).json({ message: problem });
+      update.username = name;
+    }
+    if (bio !== undefined) {
+      const text = String(bio).trim();
+      if (text.length > MAX_BIO) return res.status(400).json({ message: `Bios are up to ${MAX_BIO} characters.` });
+      update.bio = text;
+    }
+    // Images must be the wallet's own uploads ("" removes one)
+    for (const [field, value] of Object.entries({ profileImageUrl, bannerImageUrl })) {
+      if (value === undefined) continue;
+      if (value !== "" && !isUserImageUrl(value, address))
+        return res.status(400).json({ message: "Upload images through Mintora." });
+      update[field] = value;
+    }
+
     try {
-      const { username, bio, url, profileImageUrl, bannerImageUrl } = req.body;
+      if (update.username && await usernameTaken(update.username, address))
+        return res.status(409).json({ message: "That username is taken." });
 
       const user = await User.findOneAndUpdate(
-        { walletAddress: req.params.address.toLowerCase() },
-        { $set: { username, bio, profileImageUrl, bannerImageUrl } },
+        { walletAddress: address },
+        { $set: update },
         { upsert: true, returnDocument: "after" }
       );
       res.json(user);
     } catch (err) {
-      res.status(400).json({ message: err.message });
+      // Two wallets saving the same new name at once: the unique index lets only one through
+      if (err.code === 11000 && err.keyPattern?.username) return res.status(409).json({ message: "That username is taken." });
+      console.error("Profile save error:", err);
+      res.status(500).json({ message: "Could not save the profile." });
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  // Whether a username can be used, so the settings page can say so before anything is signed or uploaded.
+  // `for` is the wallet asking, whose own current name counts as available.
+  app.get("/api/usernames/:name", async (req, res) => {
+    const name = req.params.name.trim();
+    const problem = usernameProblem(name);
+    if (problem || !name) return res.json({ available: false, message: problem ?? "Enter a username." });
     try {
-      const { walletAddress, username, profileImageUrl, bannerImageUrl, bio } = req.body;
-      if (!walletAddress) return res.status(400).json({ message: "Address required" });
-
-      const user = await User.findOneAndUpdate(
-        { walletAddress: walletAddress.toLowerCase() },
-        { $set: { username, profileImageUrl, bannerImageUrl, bio } },
-        { upsert: true, new: true }
-      );
-      res.json(user);
+      const taken = await usernameTaken(name, String(req.query.for ?? "").toLowerCase());
+      res.json(taken ? { available: false, message: "That username is taken." } : { available: true });
     } catch (err) {
-      res.status(400).json({ message: err.message });
+      res.status(500).json({ message: "Could not check the username." });
     }
   });
 

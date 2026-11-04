@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { S3Client } from "@aws-sdk/client-s3";
 
 export const r2 = new S3Client({
@@ -11,3 +12,16 @@ export const r2 = new S3Client({
 
 export const R2_BUCKET       = "mintora";
 export const R2_PUBLIC_URL   = process.env.R2_PUBLIC_URL;
+
+// Profile images: users/<wallet>/<uuid>.<ext>
+export const IMAGE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp" };
+export const userImageKey = (wallet, ext) => `users/${wallet}/${crypto.randomUUID()}.${ext}`;
+
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Whether `url` is a profile image that `wallet` uploaded through Mintora
+export function isUserImageUrl(url, wallet) {
+  if (!R2_PUBLIC_URL || typeof url !== "string") return false;
+  const exts = Object.values(IMAGE_TYPES).join("|");
+  return new RegExp(`^${escapeRegExp(R2_PUBLIC_URL)}/users/${wallet}/[0-9a-f-]{36}\\.(${exts})$`).test(url);
+}
