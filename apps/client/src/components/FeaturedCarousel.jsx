@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function FeaturedCarousel() {
+// `onImage` is told the image of the slide on show (or null), so the page can tint its background with it
+export default function FeaturedCarousel({ onImage }) {
   const [slides, setSlides] = useState([]);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,12 @@ export default function FeaturedCarousel() {
     return () => clearInterval(timer);
   }, [slides.length]);
 
+  const slide = slides[current];
+  const bgImage = slide ? (isDark ? slide.bgImage : (slide.wbgImage || slide.bgImage)) : null;
+  useEffect(() => {
+    onImage?.(bgImage || null);
+  }, [bgImage, onImage]);
+
   // Adjusted loading skeleton height to match the new container scaling
   if (loading) {
     return (
@@ -58,9 +65,6 @@ export default function FeaturedCarousel() {
     );
   }
   if (slides.length === 0) return null;
-
-  const slide = slides[current];
-  const bgImage = isDark ? slide.bgImage : (slide.wbgImage || slide.bgImage); 
 
   return (
     /* Changed height rules to hit 500px at max-width and centered container */

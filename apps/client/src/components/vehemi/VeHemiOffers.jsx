@@ -134,7 +134,7 @@ function VeHemiAcceptDialog({ position: p, offer, onClose }) {
     <VeHemiDialog title={`Accept offer · veHEMI #${p.id}`} onClose={onClose} busy={busy}>
       {done ? (
         <DialogDone title="Offer accepted" onClose={onClose}>
-          veHEMI #{p.id} has gone to the buyer, and {fmt(offer.amount - fee)} HEMI to you.
+          You received {fmt(offer.amount - fee)} HEMI.
         </DialogDone>
       ) : (
         <div className="space-y-4">

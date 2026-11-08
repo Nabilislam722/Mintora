@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Link, useParams } from "wouter";
 import { AnimatePresence } from "framer-motion";
 import { useAccount } from "wagmi";
-import { ArrowLeft, ExternalLink, HandCoins, Info, Loader2, Lock, ShoppingCart, Tag, TrendingDown } from "lucide-react";
+import { ArrowLeft, ExternalLink, HandCoins, Info, Loader2, Lock, ShoppingCart, Tag } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import VeHemiBackdrop from "@/components/vehemi/VeHemiBackdrop";
 import VeHemiPrice, { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
+import VeHemiDiscount from "@/components/vehemi/VeHemiDiscount";
 import VeHemiWeightChart from "@/components/vehemi/VeHemiWeightChart";
 import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import VeHemiListDialog from "@/components/vehemi/VeHemiListDialog";
@@ -145,11 +146,7 @@ export default function VeHemiDetails() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-display font-bold leading-tight">veHEMI #{p.id}</h1>
-              {pct > 0 && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <TrendingDown className="w-3 h-3" /> {pct}% off
-                </span>
-              )}
+              {pct !== 0 && <VeHemiDiscount pct={pct} suffix={pct > 0 ? " off" : ""} size="md" />}
             </div>
             <p className="text-sm text-muted-foreground">
               Locked HEMI position · {ended ? "unlocked" : "unlocks"} {formatDate(p.end)}
@@ -218,7 +215,7 @@ export default function VeHemiDetails() {
                 {breakdown.map(([label, value]) => (
                   <DetailRow key={label} label={label}><span className="tabular-nums">{value}</span></DetailRow>
                 ))}
-                <DetailRow label="Discount"><span className="text-emerald-400">{pct}%</span></DetailRow>
+                <DetailRow label="Discount"><VeHemiDiscount pct={pct} /></DetailRow>
                 <DetailRow label="Listing ends">{formatDate(listing.expiry)}</DetailRow>
               </div>
             )}

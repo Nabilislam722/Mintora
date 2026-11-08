@@ -5,9 +5,8 @@ import {
   ChevronDown, 
   Wallet, 
   Coins, 
-  ShieldCheck, 
-  Palette, 
-  Layers, 
+  ShieldCheck,
+  Layers,
   MessageSquare,
   Sparkles,
   ExternalLink
@@ -22,7 +21,6 @@ const CATEGORIES = [
   { id: "all", label: "All Questions", Icon: HelpCircle },
   { id: "getting-started", label: "Getting Started", Icon: Sparkles },
   { id: "trading", label: "Buying & Selling", Icon: Coins },
-  { id: "creators", label: "Minting & Royalties", Icon: Palette },
   { id: "wallets", label: "Wallets & Fees", Icon: Wallet },
   { id: "security", label: "Security & Safety", Icon: ShieldCheck },
 ];
@@ -33,13 +31,13 @@ const FAQ_DATA = [
     id: "what-is-mintora",
     category: "getting-started",
     question: "What is Mintora?",
-    answer: "Mintora is a next-generation decentralized NFT marketplace that allows creators and collectors to mint, discover, buy, and sell digital collectibles across multiple EVM-compatible networks with ultra-low friction."
+    answer: "Mintora is a decentralized NFT marketplace on the Hemi network. Collectors can discover, buy, and sell NFTs, and trade veHEMI (locked HEMI positions)."
   },
   {
     id: "how-to-get-started",
     category: "getting-started",
     question: "How do I get started on Mintora?",
-    answer: "Getting started is easy! Click the 'Connect Wallet' button in the top right corner using RainbowKit or any supported Web3 wallet (MetaMask, WalletConnect, Coinbase Wallet, etc.). Once connected, you can set up your profile in Settings and immediately start exploring or minting NFTs."
+    answer: "Getting started is easy! Click the 'Connect Wallet' button in the top right corner using RainbowKit or any supported Web3 wallet (MetaMask, WalletConnect, Coinbase Wallet, etc.). Once connected, you can set up your profile in Settings and immediately start exploring."
   },
   {
     id: "supported-networks",
@@ -51,31 +49,19 @@ const FAQ_DATA = [
     id: "buy-nft",
     category: "trading",
     question: "How do I purchase an NFT?",
-    answer: "Navigate to any listed NFT detail page. If it is listed at a fixed price, click 'Buy Now' to complete the transaction immediately. If it is set as an auction, you can enter a bid that meets or exceeds the minimum increment."
+    answer: "Navigate to any listed NFT detail page and click 'Buy now' to buy it at the listed price in a single transaction."
   },
   {
     id: "marketplace-fees",
     category: "trading",
     question: "What are Mintora's platform fees?",
-    answer: "Mintora charges a competitive 5% fee on successful secondary sales. Creators can also configure creator royalties up to 25%, which are automatically enforced and paid out at the time of sale."
+    answer: "Mintora charges a 5% fee on each sale, including veHEMI trades, taken from the seller's proceeds. If an NFT's collection pays creator royalties (set in its smart contract through the ERC-2981 standard), they're paid to the creator automatically at the time of sale, capped at 30% of the price."
   },
   {
     id: "offers-bids",
     category: "trading",
     question: "How do offers and bids work?",
-    answer: "You can make an offer on any NFT—even if it is not currently listed for sale—using wrapped tokens (like WETH). Offers remain active until canceled by you or accepted by the item's current owner."
-  },
-  {
-    id: "how-to-mint",
-    category: "creators",
-    question: "How do I mint my artwork on Mintora?",
-    answer: "Navigate to the 'Create' page, upload your asset (JPG, PNG, WEBP, GIF, MP4, or GLTF up to 100MB), add a title, description, and custom attributes, then hit 'Mint'. Mintora handles metadata pinning to IPFS automatically."
-  },
-  {
-    id: "creator-royalties",
-    category: "creators",
-    question: "How do creator royalties work on Mintora?",
-    answer: "When minting a collection or single item, you can specify a royalty percentage (0% to 10%). Every time your NFT resells on Mintora, the royalty fee is instantly disbursed directly to your creator wallet address."
+    answer: "Offers are available on veHEMI positions: you can offer HEMI on any position, listed or not, for 7 to 90 days. The HEMI stays in your wallet, approved for the marketplace, until the holder accepts. You can cancel an offer at any time, and take back approval that ended offers no longer need from the veHEMI page. Offers and auctions on other NFTs aren't available yet."
   },
   {
     id: "supported-wallets",
@@ -87,13 +73,13 @@ const FAQ_DATA = [
     id: "gas-fees",
     category: "wallets",
     question: "Why do I need to pay gas fees?",
-    answer: "Gas fees are network transaction fees required by the blockchain to process operations like minting, transferring, or approving token spending. Mintora does not receive or control gas fees."
+    answer: "Gas fees are network transaction fees required by the blockchain to process operations like buying, listing, transferring, or approving token spending. Mintora does not receive or control gas fees."
   },
   {
     id: "account-verification",
     category: "security",
     question: "How do I get my profile or collection verified?",
-    answer: "You can apply for verification under 'Settings > Verification'. Requirements include a completed profile (avatar, banner, bio), linked social media accounts, and proof of original work or active creator presence."
+    answer: "Collections with a blue check have been verified by the Mintora team. Applying for verification from 'Settings > Verification' is coming soon."
   },
   {
     id: "phishing-safety",
@@ -196,7 +182,7 @@ export default function Faq() {
         <div className="mb-6">
           <p className="s-page-title mb-1">Frequently Asked Questions</p>
           <p className="text-sm text-muted-foreground">
-            Everything you need to know about trading, minting, and navigating Mintora.
+            Everything you need to know about trading and navigating Mintora.
           </p>
         </div>
 

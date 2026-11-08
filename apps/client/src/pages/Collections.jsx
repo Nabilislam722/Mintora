@@ -200,7 +200,7 @@ export default function Collections() {
 
             <div className="inline-flex p-0.5 rounded-lg bg-secondary/50 border border-white/10">
               {[
-                { id: "default", label: "Default" },
+                { id: "default", label: "Best selling" },
                 { id: "az", label: "A–Z" },
               ].map((o) => (
                 <button

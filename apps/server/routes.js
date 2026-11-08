@@ -6,6 +6,7 @@ import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 import { getPrices, PRICE_TTL } from "./prices.js";
 import { withLiveFloors } from "./lib/floor.js";
+import { sortBySales, salesByCollection, SALES_PERIODS } from "./lib/trending.js";
 import { requireAuth } from "./lib/auth.js";
 import { isUserImageUrl } from "./lib/r2.js";
 
@@ -108,10 +109,11 @@ export async function registerRoutes(app) {
   });
 
   // --- COLLECTIONS ---
+  // Most sales in the last 7 days first, then by all-time volume (lib/trending.js)
   app.get("/api/collections", async (req, res) => {
     try {
       const collections = await Collection.find();
-      res.json(await withLiveFloors(collections));
+      res.json(await sortBySales(await withLiveFloors(collections)));
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
@@ -203,29 +205,35 @@ export async function registerRoutes(app) {
     }
   });
 
+  // Top NFTs: hand-picked listings (priority > 0), one per collection. Ordered by priority, then the
+  // collection's sales in ?period (24h, 7d or 30d), then price, then id: every tie is broken, so the row
+  // doesn't reshuffle between refreshes.
   app.get("/api/featurednft", async (req, res) => {
     try {
-      const featuredNfts = await NFT.aggregate([
-        { $match: { isListed: true, priority: { $gt: 0 } } },
-        { $sort: { priority: -1, lastSyncedAt: -1 } },
-        {
-          $group: {
-            _id: "$collectionId",
-            doc: { $first: "$$ROOT" }
-          }
-        },
-        { $replaceRoot: { newRoot: "$doc" } },
-        { $sort: { priority: -1 } },
-        { $limit: 8 }
+      const period = SALES_PERIODS[req.query.period] ? req.query.period : "24h";
+      const [picks, sales] = await Promise.all([
+        NFT.aggregate([
+          { $match: { isListed: true, priority: { $gt: 0 } } },
+          // Which of a collection's picks it shows
+          { $sort: { priority: -1, lastSyncedAt: -1, _id: 1 } },
+          { $group: { _id: "$collectionId", doc: { $first: "$$ROOT" } } },
+          { $replaceRoot: { newRoot: "$doc" } },
+        ]),
+        salesByCollection(period),
       ]);
 
-      await NFT.populate(featuredNfts, { path: "collectionId" });
+      const wei = (nft) => { try { return BigInt(nft.price || 0); } catch { return 0n; } };
+      const sold = (nft) => sales.get(nft.contractAddress) ?? 0;
+      const top = picks
+        .sort((a, b) =>
+          b.priority - a.priority ||
+          sold(b) - sold(a) ||
+          (wei(b) > wei(a) ? 1 : wei(b) < wei(a) ? -1 : 0) ||
+          String(a._id).localeCompare(String(b._id)))
+        .slice(0, 8);
 
-      if (!featuredNfts.length) {
-        return res.status(404).json({ message: "No featured items found" });
-      }
-
-      res.json(featuredNfts);
+      await NFT.populate(top, { path: "collectionId" });
+      res.json(top);
     } catch (err) {
       res.status(500).json({ message: "Featured NFT API Error" });
     }

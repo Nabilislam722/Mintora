@@ -14,7 +14,23 @@ const badgeCls = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text
 const cardCls =
   "group text-left snap-start shrink-0 w-64 sm:w-auto rounded-2xl border border-border/50 bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl";
 
-function PositionCard({ position: p, listing, inactiveListing, bestOffer, isOwnProfile }) {
+// Red count on a button's corner, like an app's notification badge; "9+" past nine
+function CountBadge({ count, label }) {
+  if (!count) return null;
+  return (
+    <>
+      <span
+        aria-hidden
+        className="absolute -top-2 -right-2 min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-[11px] font-bold leading-5 text-center tabular-nums ring-2 ring-card shadow-md"
+      >
+        {count > 9 ? "9+" : count}
+      </span>
+      <span className="sr-only">, {count} {label}{count === 1 ? "" : "s"}</span>
+    </>
+  );
+}
+
+function PositionCard({ position: p, listing, inactiveListing, bestOffer, offerCount, isOwnProfile }) {
   const daysLeft = Math.max(0, Math.ceil((p.end - Date.now()) / 864e5));
   const unlocked = daysLeft === 0;
   const listable = p.transferable && !unlocked;
@@ -74,8 +90,16 @@ function PositionCard({ position: p, listing, inactiveListing, bestOffer, isOwnP
           )}
         </div>
         {action && (
-          <span className="h-9 px-4 rounded-lg bg-primary group-hover:bg-primary/90 text-white text-sm font-semibold inline-flex items-center transition-colors">
+          <span
+            className={`relative h-9 px-4 rounded-lg text-sm font-semibold inline-flex items-center transition-colors ${
+              action === "View"
+                ? "bg-yellow-400 group-hover:bg-yellow-300 text-neutral-950"
+                : "bg-primary group-hover:bg-primary/90 text-white"
+            }`}
+          >
             {action}
+            {/* Offers its holder can accept now */}
+            <CountBadge count={offerCount} label="offer" />
           </span>
         )}
       </div>
@@ -90,11 +114,17 @@ export default function ProfileVeHemi({ address, isOwnProfile }) {
   const { listings } = useVeHemiListings();
   const { offers } = useVeHemiOffers(positions?.map((p) => p.id) ?? []);
   const listingById = useMemo(() => new Map(listings.map((l) => [l.id, l])), [listings]);
-  // Offers come best first, so the first acceptable one per position is its best
-  const bestOfferById = useMemo(() => {
+  // Offers come best first, so the first acceptable one per position is its best; the count is of
+  // acceptable offers only, the same ones the holder could take
+  const { bestOfferById, offerCountById } = useMemo(() => {
     const best = new Map();
-    for (const o of offers) if (o.valid && !best.has(o.id)) best.set(o.id, o);
-    return best;
+    const counts = new Map();
+    for (const o of offers) {
+      if (!o.valid) continue;
+      if (!best.has(o.id)) best.set(o.id, o);
+      counts.set(o.id, (counts.get(o.id) ?? 0) + 1);
+    }
+    return { bestOfferById: best, offerCountById: counts };
   }, [offers]);
   // The owner's stored listings, so ones that stopped filling show up here to be relisted or cancelled
   const { data: stored } = useReadContracts({
@@ -168,6 +198,7 @@ export default function ProfileVeHemi({ address, isOwnProfile }) {
                   listing={listingById.get(p.id)}
                   inactiveListing={inactiveIds.has(p.id)}
                   bestOffer={bestOfferById.get(p.id)}
+                  offerCount={offerCountById.get(p.id) ?? 0}
                   isOwnProfile={isOwnProfile}
                 />
               ))}

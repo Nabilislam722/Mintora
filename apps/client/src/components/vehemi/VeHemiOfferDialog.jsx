@@ -104,7 +104,7 @@ export default function VeHemiOfferDialog({ position: p, myOffer, onClose }) {
               <>
                 <span>{funds ? `In your wallet: ${fmt(toHemi(funds.balance))} HEMI` : " "}</span>
                 {discount != null && (
-                  <span className={discount >= 0 ? "text-emerald-400" : "text-amber-400"}>
+                  <span className={discount >= 0 ? "text-emerald-400" : "text-red-400"}>
                     {discount >= 0 ? `${discount}% below` : `${-discount}% above`} locked value
                   </span>
                 )}

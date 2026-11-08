@@ -57,7 +57,7 @@ export default function NetworkSelector() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-2 z-50 w-56 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl animate-in fade-in-0 zoom-in-95 origin-top-right"
+          className="absolute right-0 top-full mt-2 z-50 w-56 rounded-xl border border-border bg-background p-1.5 text-popover-foreground shadow-xl animate-in fade-in-0 zoom-in-95 origin-top-right"
         >
           <p className="px-2 py-1.5 text-xs text-muted-foreground">Select network</p>
           {chains.map((chain) => (

@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { BsCollection, BsFillCollectionFill } from "react-icons/bs";
 import { IoSettingsOutline, IoSettingsSharp } from "react-icons/io5";
 import { BiSolidHome, BiUser } from "react-icons/bi";
-import { PiRocketDuotone, PiRocketFill, PiCoinsDuotone } from "react-icons/pi";
+import { PiRocketDuotone, PiRocketFill, PiCoinsDuotone, PiCoinsFill } from "react-icons/pi";
 import { RiSparkling2Line, RiSparklingFill } from "react-icons/ri";
 
 const VeHemiIcon = ({ className = "" }) =>
@@ -20,5 +20,5 @@ export const navItems = [
   { href: "/profile", icon: BiUser, iconFilled: null, label: "Profile" },
   { href: "/settings", icon: IoSettingsOutline, iconFilled: IoSettingsSharp, label: "Settings" },
   { href: "/genesis", icon: RiSparkling2Line, iconFilled: RiSparklingFill, label: "Genesis", highlight: true },
-  { href: "/rewards", icon: PiCoinsDuotone, label: "Point Program" },
+  { href: "/rewards", icon: PiCoinsDuotone, iconFilled: PiCoinsFill, label: "Point Program" },
 ];

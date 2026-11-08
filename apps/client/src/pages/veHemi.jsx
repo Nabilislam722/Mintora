@@ -12,6 +12,8 @@ import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import VeHemiBackdrop from "@/components/vehemi/VeHemiBackdrop";
 import { useVeHemiListings, useVeHemiMarket } from "@/hooks/use-vehemi";
 import { LOCK_FILTERS, discountOf, fmtCompact, inputCls } from "@/lib/vehemi";
+import { discountTextCls } from "@/components/vehemi/VeHemiDiscount";
+import VeHemiApprovals from "@/components/vehemi/VeHemiApprovals";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 
@@ -29,7 +31,7 @@ export default function VeHemi() {
   useSeo(pageSeo("/vehemi"));
   const { listings: all, loading, error, refetch } = useVeHemiListings();
   const { paused } = useVeHemiMarket();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
@@ -55,7 +57,7 @@ export default function VeHemi() {
     ["Floor price", floorListing ? <VeHemiPrice key="f" listing={floorListing} className="text-lg" /> : value("—")],
     ["Listed", value(loading ? "—" : all.length)],
     ["HEMI locked", value(loading ? "—" : fmtCompact(all.reduce((s, l) => s + l.hemi, 0)))],
-    ["Avg. discount", value(avgDiscount == null ? "—" : `${avgDiscount}%`, avgDiscount > 0 ? "text-emerald-400" : "")],
+    ["Avg. discount", value(avgDiscount == null ? "—" : `${avgDiscount}%`, discountTextCls(avgDiscount ?? 0))],
   ];
 
   const reset = () => { setSearch(""); setMinHemi(""); setLock(null); };
@@ -98,6 +100,9 @@ export default function VeHemi() {
             </div>
           ))}
         </div>
+
+        {/* The connected wallet's HEMI approval for its offers, with what can be revoked */}
+        {address && <VeHemiApprovals address={address} />}
 
         {/* Filters */}
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-12">
