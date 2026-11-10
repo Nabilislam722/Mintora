@@ -30,19 +30,32 @@ function Logo() {
   );
 }
 
-function MobileNavIcons() {
+// The phone menu's timing. Written as [property:value] because the tailwindcss-animate plugin also defines the
+// duration and ease utilities: Tailwind skips their bracketed forms as ambiguous, and the browser falls back
+// to 150ms. The curve is an ease-out: it moves as soon as you tap and settles gently.
+const MENU_EASE = "[transition-timing-function:cubic-bezier(0.33,1,0.68,1)]";
+const OPEN_TIME = "[transition-duration:380ms]";
+const CLOSE_TIME = "[transition-duration:260ms]";
+
+// The page icons on phones, shown in the menu that the ☰ button opens. Opening, they rise in one after
+// another while the menu grows; closing, they all fade quickly together so the menu shuts promptly.
+function MobileNavIcons({ open, onNavigate }) {
   const [location] = useLocation();
   return (
-    <div className="flex md:hidden flex-wrap items-center justify-center gap-1 px-3 py-2 border-t border-border/50">
-      {navItems.map((item) => {
+    <div className="grid grid-cols-4 gap-1">
+      {navItems.map((item, i) => {
         const isActive = item.href === "/" ? location === "/" : location.startsWith(item.href);
         const Icon = isActive && item.iconFilled ? item.iconFilled : item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl px-3 py-1.5 min-w-[64px] transition-colors ${isActive ? "bg-secondary text-primary" : "text-muted-foreground"
-              }`}
+            onClick={onNavigate}
+            style={{ transitionDelay: open ? `${30 + i * 20}ms` : "0ms" }}
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-2
+              transition-[opacity,transform,background-color,color] ${open ? "[transition-duration:320ms]" : "[transition-duration:160ms]"} ${MENU_EASE} motion-reduce:transition-none
+              ${open ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1.5"}
+              ${isActive ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-secondary/60"}`}
             data-testid={`link-mobilenav-${item.label.toLowerCase()}`}
           >
             <Icon className="w-5 h-5" />
@@ -54,6 +67,18 @@ function MobileNavIcons() {
   );
 }
 
+// Three lines that turn into an ✕: the outer two meet in the middle and rotate, the middle one fades out
+function MenuIcon({ open }) {
+  const line = `absolute left-0 block h-[2px] w-5 rounded-full bg-current transition-all ${OPEN_TIME} ${MENU_EASE} motion-reduce:transition-none`;
+  return (
+    <span aria-hidden className="relative block w-5 h-5">
+      <span className={`${line} ${open ? "top-[9px] rotate-45" : "top-[4px] rotate-0"}`} />
+      <span className={`${line} top-[9px] ${open ? "opacity-0 scale-x-0" : "opacity-100 scale-x-100"}`} />
+      <span className={`${line} ${open ? "top-[9px] -rotate-45" : "top-[14px] rotate-0"}`} />
+    </span>
+  );
+}
+
 export default function Navbar() {
   const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState("");
@@ -61,10 +86,13 @@ export default function Navbar() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef(null);
   const mobileInputRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuButtonRef = useRef(null);
   const debouncedQuery = useDebounce(query, 300);
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const { logoPosition } = useLayoutPreferences();
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -88,6 +116,26 @@ export default function Navbar() {
   useEffect(() => {
     if (mobileSearchOpen) mobileInputRef.current?.focus();
   }, [mobileSearchOpen]);
+
+  // The phone menu closes on a new page, a tap outside it, or Escape. The ☰ button counts as inside, so
+  // tapping it toggles the menu instead of closing and reopening it.
+  useEffect(() => setMenuOpen(false), [location]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const inside = (target) => menuRef.current?.contains(target) || menuButtonRef.current?.contains(target);
+    const onPointerDown = (e) => !inside(e.target) && setMenuOpen(false);
+    const onKeyDown = (e) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
+
+  // One overlay at a time under the bar
+  const toggleMenu = () => { setMenuOpen(v => !v); setMobileSearchOpen(false); };
+  const toggleMobileSearch = () => { setMobileSearchOpen(v => !v); setMenuOpen(false); };
 
   const clear = () => { setQuery(""); setResults(null); setOpen(false); };
   const closeMobileSearch = () => { clear(); setMobileSearchOpen(false); };
@@ -165,9 +213,22 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/70 dark:bg-background/50 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
 
+        {/* Phone menu button: opens the page icons (the hover sidebar covers this on larger screens) */}
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className={`md:hidden p-2 -ml-2 rounded-full hover:bg-secondary/60 transition-colors duration-300 ${menuOpen ? "text-foreground" : "text-muted-foreground"}`}
+          onClick={toggleMenu}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-nav"
+          data-testid="button-mobile-menu"
+        >
+          <MenuIcon open={menuOpen} />
+        </button>
+
         {logoPosition === "left" && <Logo />}
 
-        {/* Desktop search — hidden on mobile */}
         <div ref={wrapRef} className="hidden md:block flex-1 max-w-xl relative">
           <div
             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 bg-secondary/60
@@ -194,12 +255,11 @@ export default function Navbar() {
         {/* Mobile spacer so right-side items sit at the edge when search is hidden */}
         <div className="flex-1 md:hidden" />
 
-        {/* Right side */}
         <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
           <button
             type="button"
             className="md:hidden p-2 -mr-1 rounded-full hover:bg-secondary/60 transition-colors"
-            onClick={() => setMobileSearchOpen(v => !v)}
+            onClick={toggleMobileSearch}
             aria-label="Toggle search"
           >
             <Search className="w-5 h-5 text-muted-foreground" />
@@ -215,7 +275,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile search overlay */}
       {mobileSearchOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 px-4 pb-3 pt-2 bg-background/95 backdrop-blur-md border-b border-border/50">
           <div className="relative">
@@ -239,8 +298,25 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Mobile icon row — replaces the hover sidebar on small screens */}
-      <MobileNavIcons />
+      {/* Phone menu, opened by the ☰ button; it covers the page instead of pushing it down. It stays in the
+          page so it can animate shut: a clip wipes it open from the top (the bottom inset goes past the edge
+          when open, so the shadow shows) while the content slides down a little, and `inert` keeps the hidden
+          links from being tapped or tabbed to. */}
+      <div
+        ref={menuRef}
+        id="mobile-nav"
+        inert={menuOpen ? undefined : ""}
+        aria-hidden={!menuOpen}
+        style={{ clipPath: menuOpen ? "inset(0 0 -48px 0)" : "inset(0 0 100% 0)" }}
+        className={`md:hidden absolute top-full left-0 right-0 bg-background border-b border-border shadow-2xl
+          transition-[clip-path] ${menuOpen ? OPEN_TIME : `${CLOSE_TIME} pointer-events-none`} ${MENU_EASE} motion-reduce:transition-none`}
+      >
+        <div
+          className={`px-3 pt-2 pb-3 transition-transform ${menuOpen ? `${OPEN_TIME} translate-y-0` : `${CLOSE_TIME} -translate-y-3`} ${MENU_EASE} motion-reduce:transition-none`}
+        >
+          <MobileNavIcons open={menuOpen} onNavigate={() => setMenuOpen(false)} />
+        </div>
+      </div>
     </nav>
   );
 }

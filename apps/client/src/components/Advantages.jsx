@@ -4,7 +4,7 @@ import './Advantages.css';
 
 const EXP = [0.16, 1, 0.3, 1];
 
-/* ── Figma design canvas ─────────────────────────────────── */
+// Positions and sizes below are in the Figma design's 1280×720 canvas
 const DW = 1280;
 const DH = 720;
 
@@ -14,7 +14,6 @@ const DC      = { x: DIAMOND.x + DIAMOND.w / 2, y: DIAMOND.y + DIAMOND.h / 2 };
 const CARD_W           = 211;
 const CARD_H_COLLAPSED = 72;
 
-/* ── Hardcoded card data ─────────────────────────────────── */
 const CARD_CHEAP = {
   id: 'cheap', side: 'left',
   rect: { x: 200, y: 150, w: CARD_W, h: CARD_H_COLLAPSED },
@@ -65,7 +64,6 @@ const CARD_OPEN = {
 
 const ALL_CARDS = [CARD_CHEAP, CARD_SECURE, CARD_HEMI, CARD_OPEN];
 
-/* ── Connector path — EXACTLY from your original code ───── */
 function bentPath(x1, y1, x2, y2, side) {
   const breakoutDistance = 90;
   const elbowX = side === 'left' ? x1 + breakoutDistance : x1 - breakoutDistance;
@@ -73,7 +71,6 @@ function bentPath(x1, y1, x2, y2, side) {
   return `M ${x1} ${y1} L ${elbowX} ${elbowY} L ${x2} ${y2}`;
 }
 
-/* ── Connectors ─────────────────────────────────────────── */
 function Connectors({ active, hoveredId }) {
   const lines = ALL_CARDS.map((c) => {
     const x1   = c.side === 'left' ? c.rect.x + c.rect.w : c.rect.x;
@@ -156,7 +153,6 @@ function Connectors({ active, hoveredId }) {
   );
 }
 
-/* ── Single expandable card — hover to expand ────────────── */
 function AdvCard({ card, active, onHover }) {
   const [hovered, setHovered] = useState(false);
   const { rect, accent, icon, label, title, stat, statLabel, body, bullets } = card;
@@ -178,7 +174,6 @@ function AdvCard({ card, active, onHover }) {
       onHoverStart={() => { setHovered(true);  onHover(card.id); }}
       onHoverEnd  ={() => { setHovered(false); onHover(null);    }}
     >
-      {/* ── Always-visible header ── */}
       <div className="adv-card-top">
         <span className="adv-card-label">{label}</span>
         <span className="adv-card-icon">{icon}</span>
@@ -191,7 +186,6 @@ function AdvCard({ card, active, onHover }) {
         {statLabel && <span className="adv-card-stat-label">{statLabel}</span>}
       </div>
 
-      {/* ── Detail — slides in on hover ── */}
       <AnimatePresence initial={false}>
         {hovered && (
           <motion.div
@@ -213,7 +207,6 @@ function AdvCard({ card, active, onHover }) {
         )}
       </AnimatePresence>
 
-      {/* ── Bottom accent bar ── */}
       <motion.div
         className="adv-card-bar"
         initial={{ scaleX: 0 }}
@@ -224,7 +217,6 @@ function AdvCard({ card, active, onHover }) {
   );
 }
 
-/* ── Main export ─────────────────────────────────────────── */
 export default function Advantages({ active }) {
   const wrapRef             = useRef(null);
   const [scale, setScale]   = useState(1);
@@ -250,7 +242,6 @@ export default function Advantages({ active }) {
       className="adv-root"
       style={{ '--scale': scale }}
     >
-      {/* ── Eyebrow — centred via .adv-header wrapper ── */}
       <motion.div
         className="adv-header"
         initial={{ opacity: 0, y: 10 }}
@@ -260,10 +251,8 @@ export default function Advantages({ active }) {
         <span className="adv-eyebrow">Why Mintora?</span>
       </motion.div>
 
-      {/* ── Connectors (unchanged from your original) ── */}
       <Connectors active={active} hoveredId={hoveredId} />
 
-      {/* ── Diamond ── */}
       <div
         className="adv-diamond-wrap"
         style={{
@@ -284,13 +273,11 @@ export default function Advantages({ active }) {
         </motion.div>
       </div>
 
-      {/* ── Cards (hardcoded, no map) ── */}
       <AdvCard card={CARD_CHEAP}  active={active} onHover={setHoveredId} />
       <AdvCard card={CARD_SECURE} active={active} onHover={setHoveredId} />
       <AdvCard card={CARD_HEMI}   active={active} onHover={setHoveredId} />
       <AdvCard card={CARD_OPEN}   active={active} onHover={setHoveredId} />
 
-      {/* ── Powered-by ── */}
       <motion.div
         className="adv-powered"
         style={{ bottom: `${(54 / DH) * 100}%` }}
@@ -304,7 +291,6 @@ export default function Advantages({ active }) {
         </span>
       </motion.div>
 
-      {/* ── Footer ── */}
       <footer className="footer-stripe" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
         <span className="footer-brand">Mintora</span>
         <div>

@@ -12,6 +12,8 @@ import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import VeHemiBackdrop from "@/components/vehemi/VeHemiBackdrop";
 import { useVeHemiListings, useVeHemiMarket } from "@/hooks/use-vehemi";
 import { LOCK_FILTERS, discountOf, fmtCompact, inputCls } from "@/lib/vehemi";
+import { discountTextCls } from "@/components/vehemi/VeHemiDiscount";
+import VeHemiApprovals from "@/components/vehemi/VeHemiApprovals";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 
@@ -29,7 +31,7 @@ export default function VeHemi() {
   useSeo(pageSeo("/vehemi"));
   const { listings: all, loading, error, refetch } = useVeHemiListings();
   const { paused } = useVeHemiMarket();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
@@ -55,7 +57,7 @@ export default function VeHemi() {
     ["Floor price", floorListing ? <VeHemiPrice key="f" listing={floorListing} className="text-lg" /> : value("—")],
     ["Listed", value(loading ? "—" : all.length)],
     ["HEMI locked", value(loading ? "—" : fmtCompact(all.reduce((s, l) => s + l.hemi, 0)))],
-    ["Avg. discount", value(avgDiscount == null ? "—" : `${avgDiscount}%`, avgDiscount > 0 ? "text-emerald-400" : "")],
+    ["Avg. discount", value(avgDiscount == null ? "—" : `${avgDiscount}%`, discountTextCls(avgDiscount ?? 0))],
   ];
 
   const reset = () => { setSearch(""); setMinHemi(""); setLock(null); };
@@ -65,7 +67,6 @@ export default function VeHemi() {
       <VeHemiBackdrop />
       <div className="container relative z-10 mx-auto px-4 py-6 flex flex-col gap-6">
 
-        {/* Header */}
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
@@ -89,7 +90,6 @@ export default function VeHemi() {
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {stats.map(([label, stat]) => (
             <div key={label} className="rounded-3xl border border-border/50 bg-card px-6 py-3">
@@ -99,7 +99,9 @@ export default function VeHemi() {
           ))}
         </div>
 
-        {/* Filters */}
+        {/* The connected wallet's HEMI approval for its offers, with what can be revoked */}
+        {address && <VeHemiApprovals address={address} />}
+
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-12">
           <div className="relative w-full lg:w-56">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50 pointer-events-none" />
@@ -111,7 +113,6 @@ export default function VeHemi() {
           </select>
         </div>
 
-        {/* Listings */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-4 sm:gap-x-5 gap-y-10">
             {Array.from({ length: 6 }, (_, i) => <div key={i} className="h-80 rounded-2xl bg-secondary/40 animate-pulse" />)}

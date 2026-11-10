@@ -8,6 +8,7 @@ import { FaEthereum } from "react-icons/fa";
 import { useDismiss } from "@/hooks/use-dismiss";
 import { useWalletBalances } from "@/hooks/use-wallet-balances";
 import { shortAddress } from "@/lib/nft";
+import { signOut } from "@/lib/auth";
 
 const itemCls = "w-full flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-secondary transition-colors";
 
@@ -131,7 +132,7 @@ function ProfileMenu({ account }) {
           <button
             type="button"
             role="menuitem"
-            onClick={() => { setOpen(false); disconnect(); }}
+            onClick={() => { setOpen(false); signOut(account.address); disconnect(); }}
             className={`${itemCls} text-destructive hover:bg-destructive/10`}
           >
             <LogOut className="w-5 h-5" /> Disconnect

@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type InsertNft } from "@shared/routes";
 import { useToast } from "@/hooks/use-toast";
 
-// Fetch all NFTs with optional filters
 export function useNfts(filters?: { collectionId?: number; owner?: string; search?: string; limit?: number }) {
   const queryKey = [api.nfts.list.path, filters];
   return useQuery({
@@ -24,7 +23,6 @@ export function useNfts(filters?: { collectionId?: number; owner?: string; searc
   });
 }
 
-// Fetch single NFT
 export function useNft(id: number) {
   return useQuery({
     queryKey: [api.nfts.get.path, id],
@@ -37,7 +35,6 @@ export function useNft(id: number) {
   });
 }
 
-// Create (Mint) NFT
 export function useCreateNft() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -74,7 +71,6 @@ export function useCreateNft() {
   });
 }
 
-// Purchase NFT
 export function usePurchaseNft() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

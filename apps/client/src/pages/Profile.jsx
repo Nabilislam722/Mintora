@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProfileHero from "@/components/profile/ProfileHero";
 import ProfileVeHemi from "@/components/profile/ProfileVeHemi";
+import VeHemiApprovals from "@/components/vehemi/VeHemiApprovals";
 import ActivityFeed from "@/components/ActivityFeed";
 import { EmptyState, NftResults, SearchInput, Segmented, ViewToggle, controlCls, tabCls } from "@/components/NftBrowse";
 import { NFT_SORTS, isListed, shortAddress } from "@/lib/nft";
@@ -183,6 +184,13 @@ function ProfileView({ address, isOwnProfile, ownRoute }) {
       </div>
 
       <ProfileVeHemi address={address} isOwnProfile={isOwnProfile} />
+      {/* Your HEMI approval for veHEMI offers, with what can be revoked (shows only if there's any) */}
+      {isOwnProfile && (
+        <div className="container mx-auto px-4 sm:pr-12 mt-6">
+          <VeHemiApprovals address={address} />
+        </div>
+      )}
     </div>
   );
+
 }

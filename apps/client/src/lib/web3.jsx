@@ -41,10 +41,6 @@ export function Web3Provider({ children }) {
       args: [MARKETPLACE_CONTRACT, BigInt(tokenId)],
     });
   }
-  /**
-   * 1. LIST ITEM
-   * @param priceInEther - e.g., "0.1"
-   */
   async function listItem(nftAddress, tokenId, priceInEther) {
     return executeTx({
       address: MARKETPLACE_CONTRACT,
@@ -54,10 +50,6 @@ export function Web3Provider({ children }) {
     });
   }
 
-  /**
-   * 2. BUY ITEM
-   * @param priceInEther - The current listing price to send as Msg.Value
-   */
   async function buyItem(nftAddress, tokenId, price, isWei = false) {
     return executeTx({
       address: MARKETPLACE_CONTRACT,

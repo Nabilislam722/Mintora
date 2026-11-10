@@ -95,7 +95,7 @@ export default function VeHemiListDialog({ position: p, onClose }) {
               <>
                 <span>Locked value {fmt(p.hemi, 2)} HEMI</span>
                 {discount != null && (
-                  <span className={discount >= 0 ? "text-emerald-400" : "text-amber-400"}>
+                  <span className={discount >= 0 ? "text-emerald-400" : "text-red-400"}>
                     {discount >= 0 ? `${discount}% below` : `${-discount}% above`} locked value
                   </span>
                 )}

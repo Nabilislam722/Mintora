@@ -145,7 +145,6 @@ export default function Collections() {
     <div className="sm:pr-12">
       <div className="container mx-auto px-4 py-6 flex flex-col gap-8">
 
-        {/* Header */}
         <header className="flex flex-col gap-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -187,7 +186,6 @@ export default function Collections() {
             </div>
           </div>
 
-          {/* Filters + sort */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Pill active={filter === "all"} onClick={() => setFilter("all")} count={collections.length}>
@@ -200,7 +198,7 @@ export default function Collections() {
 
             <div className="inline-flex p-0.5 rounded-lg bg-secondary/50 border border-white/10">
               {[
-                { id: "default", label: "Default" },
+                { id: "default", label: "Best selling" },
                 { id: "az", label: "A–Z" },
               ].map((o) => (
                 <button

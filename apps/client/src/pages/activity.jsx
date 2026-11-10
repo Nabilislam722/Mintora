@@ -86,7 +86,6 @@ function Activity() {
         Activity
       </h2>
 
-      {/* ── DESKTOP TABLE ── */}
       {!isMobile && (
         <div style={{
           display: 'grid',
@@ -120,7 +119,6 @@ function Activity() {
         </div>
       )}
 
-      {/* ── MOBILE CARDS ── */}
       {isMobile && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {items.map((item, i) => {
@@ -135,7 +133,6 @@ function Activity() {
                 flexDirection: 'column',
                 gap: 10,
               }}>
-                {/* Top row: action badge + collection + token */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <ActionBadge action={action} />
@@ -144,13 +141,11 @@ function Activity() {
                   <TokenBadge tokenId={item.tokenId} />
                 </div>
 
-                {/* Tx hash */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', minWidth: 28 }}>Tx</span>
                   <TxSpan item={item} i={i} copied={copied} onCopy={handleCopy} />
                 </div>
 
-                {/* From / To */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <div>
                     <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>From</div>
@@ -169,8 +164,6 @@ function Activity() {
     </div>
   )
 }
-
-/* ── Shared sub-components ── */
 
 function ActionBadge({ action }) {
   return (

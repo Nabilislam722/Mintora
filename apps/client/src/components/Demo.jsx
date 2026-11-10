@@ -31,7 +31,6 @@ export default function Demo({ active }) {
             <div className="demo-grid-bg" />
             <div className="demo-glow" />
 
-            {/* Header - Tightened spacing */}
             <motion.div className="demo-hd"
                 initial={{ opacity: 0, y: 20 }}
                 animate={active ? { opacity: 1, y: 0 } : {}}
@@ -45,14 +44,12 @@ export default function Demo({ active }) {
                 </p>
             </motion.div>
 
-            {/* Player Wrapper - Added subtle shadow & depth */}
             <motion.div className="demo-wrap"
                 initial={{ opacity: 0, scale: 0.95, y: 30 }}
                 animate={active ? { opacity: 1, scale: 1, y: 0 } : {}}
                 transition={{ duration: 0.9, ease: EXP, delay: 0.2 }}>
 
                 <div className="demo-player" style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
-                    {/* Browser chrome */}
                     <div className="demo-chrome">
                         <div className="demo-dots">
                             <span style={{ background: '#FF5F57' }} />
@@ -63,7 +60,6 @@ export default function Demo({ active }) {
                         <div style={{ width: 48 }} />
                     </div>
 
-                    {/* Video area */}
                     <div className="demo-vid-area" onClick={toggle} style={{ cursor: 'pointer', position: 'relative' }}>
                         <video
                             ref={videoRef}
@@ -78,7 +74,6 @@ export default function Demo({ active }) {
                             }}
                         />
 
-                        {/* Animated UI placeholder - Now fades out when playing */}
                         <motion.div
                             className="demo-placeholder"
                             initial={{ opacity: 1 }}
@@ -130,7 +125,6 @@ export default function Demo({ active }) {
                         </AnimatePresence>
                     </div>
 
-                    {/* Progress bar */}
                     <div className="demo-prog-track" style={{ background: 'rgba(255,255,255,0.1)' }}>
                         <motion.div className="demo-prog-fill"
                             style={{ originX: 0, height: '100%', background: '#6FCF97' }}
@@ -139,7 +133,7 @@ export default function Demo({ active }) {
                     </div>
                 </div>
 
-                {/* Floating stat bubbles - Styled for Instrument Sans */}
+                {/* Floating stat bubbles */}
                 {[
                     { label: '', val: 'High speed', style: { left: '-15%', top: '15%' }, accent: '#6FCF97', dx: -20 },
                     { label: 'Platform Fee', val: '~5%', style: { right: '-15%', top: '15%' }, accent: '#A78BFA', dx: 20 },

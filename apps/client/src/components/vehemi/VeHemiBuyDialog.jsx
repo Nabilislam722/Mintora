@@ -4,6 +4,7 @@ import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Wallet } from "lucide-react";
 import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
+import VeHemiDiscount from "@/components/vehemi/VeHemiDiscount";
 import VeHemiDialog, { DialogDone, DialogRows, StepButton, StepNote } from "@/components/vehemi/VeHemiDialog";
 import { useHemiFunds, useVeHemiMarket } from "@/hooks/use-vehemi";
 import { useTxStep, useVeHemiActions } from "@/hooks/use-vehemi-actions";
@@ -73,7 +74,7 @@ export default function VeHemiBuyDialog({ listing, onClose }) {
     ...(grown ? [["Locked when listed", `${fmt(listing.listedHemi)} HEMI`]] : []),
     ["Voting weight", `${fmt(listing.weight)} veHEMI`],
     ["Unlocks", formatDate(listing.end)],
-    ["Discount to locked value", `${discountOf(listing)}%`],
+    ["Discount to locked value", <VeHemiDiscount pct={discountOf(listing)} />],
   ];
 
   return (

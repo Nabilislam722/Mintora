@@ -27,10 +27,8 @@ export function Toaster() {
 
         return (
           <Toast key={id} variant={variant} {...props}>
-            {/* Colored icon matching the accent bar */}
             <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${color}`} />
 
-            {/* Text */}
             <div className="flex-1 min-w-0">
               {title       && <ToastTitle>{title}</ToastTitle>}
               {description && <ToastDescription>{description}</ToastDescription>}

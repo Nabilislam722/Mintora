@@ -1,30 +1,92 @@
 import { useQuery } from "@tanstack/react-query";
 import FeaturedCarousel from "../components/FeaturedCarousel";
+import HeroBackdrop from "../components/HeroBackdrop";
 import CollectionCard from "../components/CollectionCard";
 import TopNftsSection from "../components/TopNftsSection";
 import LatestListingsSection from "../components/LatestListingsSection";
 import VeHemiPromo from "../components/vehemi/VeHemiPromo";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { useRef, useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import "../components/home.css";
 import { BsFillCollectionFill } from "react-icons/bs";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
+import { useGridColumns, columnWidth } from "@/hooks/use-grid-columns";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// Glowing frame around the featured collections. It spans `span` grid columns and shows that many cards;
+// any more scroll sideways inside it.
+function FeaturedFrame({ collections, span }) {
+  const width = columnWidth(span);
+  return (
+    <div
+      className="relative flex p-4 rounded-xl bg-neutral-950 min-w-0"
+      style={{ isolation: "isolate", gridColumn: `span ${span} / span ${span}` }}
+    >
+      <div
+        className="absolute -inset-[3px] rounded-xl -z-20 blur-xl"
+        style={{
+          background:
+            "linear-gradient(135deg, rgb(13 160 74) 0%, rgb(41 58 230) 40%, rgb(239 81 35) 90%)",
+          animation: "ambient-breathe 5s ease-in-out infinite",
+        }}
+      />
+      {/* A light sweeping around the border */}
+      <div className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden">
+        <div
+          className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden"
+          style={{
+            WebkitMaskImage: "radial-gradient(circle at center, transparent 35%, black 67%)",
+            maskImage: "radial-gradient(circle at center, transparent 35%, black 67%)",
+          }}
+        >
+          <div
+            className="absolute inset-[-150%] pointer-events-none"
+            style={{
+              animation: "shimmer-sweep 4s linear infinite",
+              background: `conic-gradient(from 0deg, transparent 65%, rgba(255, 255, 255, 1) 75%, transparent 85%)`,
+            }}
+          />
+        </div>
+      </div>
+      <div className="absolute inset-[1px] rounded-[11px] bg-card/70 backdrop:blur-2xl -z-[5]" />
+      <span className="absolute -top-3 left-6 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] bg-neutral-900 text-gray-400 border border-gray-800 rounded-full z-20">
+        <img
+          src="https://pub-6fd72b146dbb4330a7ad961c7c584367.r2.dev/featured_assets/hemi.png"
+          alt=""
+          className="w-4"
+        />
+      </span>
+      <div className="flex gap-4 overflow-x-auto w-full" style={{ scrollbarWidth: "none" }}>
+        {collections.map((collection) => (
+          <div key={collection._id} className="shrink-0" style={{ width }}>
+            <CollectionCard collection={collection} size="large" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   useSeo(pageSeo("/"));
+  // The hero banner on show, which tints the top of the page (HeroBackdrop)
+  const [heroImage, setHeroImage] = useState(null);
   const { data: collections = [], isLoading: loadingCols } = useQuery({
     queryKey: [`${BASE_URL}/api/collections`],
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   });
 
+  // Top NFTs are the best listings for this period (the 24h / 7d / 30d buttons); see server lib/top-nfts.js
+  const [topPeriod, setTopPeriod] = useState("24h");
   const { data: topNfts = [], isLoading: loadingTopNfts } = useQuery({
-    queryKey: [`${BASE_URL}/api/featurednft?limit=8`],
+    queryKey: [`${BASE_URL}/api/featurednft?period=${topPeriod}`],
+    // Keep showing the current cards while another period loads, instead of the page spinner
+    placeholderData: (previous) => previous,
     refetchInterval: 20_000,
     refetchIntervalInBackground: true,
   });
@@ -35,34 +97,15 @@ export default function Home() {
     refetchIntervalInBackground: true,
   });
 
-  const displayCollections = collections.slice(0, 10);
-  const featuredCollections = displayCollections.filter(c => c.isFeatured);
-  const regularCollections = displayCollections.filter(c => !c.isFeatured);
-  const scrollRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 0);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-  };
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    checkScroll();
-    el.addEventListener("scroll", checkScroll);
-    window.addEventListener("resize", checkScroll);
-    return () => {
-      el.removeEventListener("scroll", checkScroll);
-      window.removeEventListener("resize", checkScroll);
-    };
-  }, [regularCollections]);
-
-  const scroll = (dir) =>
-    scrollRef.current?.scrollBy({ left: dir === "left" ? -280 : 280, behavior: "smooth" });
+  // Collections fill two rows of the grid: the featured frame first, then the rest. The API sends them with
+  // the most sales this week first, so the best sellers get the places.
+  const columns = useGridColumns();
+  const featuredCollections = useMemo(() => collections.filter(c => c.isFeatured), [collections]);
+  const featuredSpan = Math.min(featuredCollections.length, columns);
+  const regularCollections = useMemo(
+    () => collections.filter(c => !c.isFeatured).slice(0, 2 * columns - featuredSpan),
+    [collections, columns, featuredSpan]
+  );
 
   if (loadingCols || loadingTopNfts || loadingLatest) {
     return (
@@ -73,16 +116,17 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col gap-10 sm:pr-12">
-      <FeaturedCarousel />
+    // `isolate` keeps the backdrop behind the page's content without going behind the page itself
+    <div className="relative isolate flex flex-col gap-10 sm:pr-12">
+      <HeroBackdrop image={heroImage} />
+      <FeaturedCarousel onImage={setHeroImage} />
 
       <VeHemiPromo />
-
-      {/* Collections */}
+      
       <section className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            <BsFillCollectionFill className="w-5 h-5 text-primary" />
+            <BsFillCollectionFill className="w-5 h-5 text-foreground opacity-80" />
             <h2 className="text-lg font-display font-bold text-foreground opacity-80">Collections</h2>
           </div>
           <Link href="/collections">
@@ -97,113 +141,20 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
-          {featuredCollections.length > 0 && (
-            <div
-              className="relative flex shrink-0 gap-4 p-4 rounded-xl bg-neutral-950 w-full lg:w-auto"
-              style={{ isolation: "isolate" }}
-            >
-              <div
-                className="absolute -inset-[3px] rounded-xl -z-20 blur-xl"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgb(13 160 74) 0%, rgb(41 58 230) 40%, rgb(239 81 35) 90%)",
-                  animation: "ambient-breathe 5s ease-in-out infinite",
-                }}
-              />
-              {/*Spinny sweeper*/}
-              <div className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden">
-                <div
-                  className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden"
-                  style={{
-                    WebkitMaskImage: "radial-gradient(circle at center, transparent 35%, black 67%)",
-                    maskImage: "radial-gradient(circle at center, transparent 35%, black 67%)",
-                  }}
-                >
-                  <div
-                    className="absolute inset-[-150%] pointer-events-none"
-                    style={{
-                      animation: "shimmer-sweep 4s linear infinite",
-                      background: `conic-gradient(from 0deg, transparent 65%, rgba(255, 255, 255, 1) 75%, transparent 85%)`,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="absolute inset-[1px] rounded-[11px] bg-card/70 backdrop:blur-2xl -z-[5]" />
-              <span className="absolute -top-3 left-6 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] bg-neutral-900 text-gray-400 border border-gray-800 rounded-full z-20">
-                <img
-                  src="https://pub-6fd72b146dbb4330a7ad961c7c584367.r2.dev/featured_assets/hemi.png"
-                  alt=""
-                  className="w-4"
-                />
-              </span>
-              <div className="flex gap-4 overflow-x-auto w-full" style={{ scrollbarWidth: "none" }}>
-                {featuredCollections.map((collection) => (
-                  <div key={collection._id} className="w-56 sm:w-64 shrink-0">
-                    <CollectionCard collection={collection} size="large" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Regular collections */}
-          {regularCollections.length > 0 && (
-            <div className="relative w-full lg:flex-1 min-w-0">
-
-              {/* Left arrow */}
-              {canScrollLeft && (
-                <button
-                  onClick={() => scroll("left")}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10
-               w-8 h-8 rounded-full bg-border border border-white/10
-               flex items-center justify-center shadow-lg
-               hover:bg-border/40 transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Right arrow */}
-              {canScrollRight && (
-                <button
-                  onClick={() => scroll("right")}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10
-               w-8 h-8 rounded-full bg-border border border-white/10
-               flex items-center justify-center shadow-lg
-               hover:bg-border/40 transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Fade edges */}
-              {canScrollLeft && <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-[5] pointer-events-none" />}
-              {canScrollRight && <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-[5] pointer-events-none" />}
-
-              {/* Scrollable row */}
-              <div
-                ref={scrollRef}
-                className="flex gap-4 overflow-x-auto scroll-smooth pb-1"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              >
-                {regularCollections.map((collection) => (
-                  <div key={collection._id} className="w-44 sm:w-56 shrink-0">
-                    <CollectionCard collection={collection} size="large" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="grid gap-4 items-center" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {featuredSpan > 0 && <FeaturedFrame collections={featuredCollections} span={featuredSpan} />}
+          {regularCollections.map((collection) => (
+            <CollectionCard key={collection._id} collection={collection} size="large" />
+          ))}
         </div>
       </section>
 
-      <TopNftsSection nfts={topNfts} />
+      <TopNftsSection nfts={topNfts} timeFilter={topPeriod} setTimeFilter={setTopPeriod} />
+
+
       <LatestListingsSection nfts={latestNfts} />
 
-      {/*Launchpad banner*/}
-      <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-16 sm:mt-40 lg:mt-80 mb-10 sm:mb-20 lg:mb-28">
-        {/* Left content */}
+      <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-6 mb-10">
         <div className="flex items-center justify-between px-5 sm:px-12 py-8 sm:py-10">
           <div className="flex flex-col gap-3 z-10">
             <p className="text-xs text-blue-200 uppercase tracking-widest flex items-center gap-1">

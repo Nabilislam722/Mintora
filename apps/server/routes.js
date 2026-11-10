@@ -1,11 +1,15 @@
 import { NFT } from "./models/NFT.js";
 import { Collection } from "./models/Collection.js"
-import { User } from "./models/User.js";
+import { User, MAX_BIO, usernameProblem, usernameTaken } from "./models/User.js";
 import { Featured } from "./models/Featured.js";
 import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 import { getPrices, PRICE_TTL } from "./prices.js";
 import { withLiveFloors } from "./lib/floor.js";
+import { sortBySales, SALES_PERIODS } from "./lib/trending.js";
+import { topNfts } from "./lib/top-nfts.js";
+import { requireAuth } from "./lib/auth.js";
+import { isUserImageUrl } from "./lib/r2.js";
 
 export async function registerRoutes(app) {
 
@@ -29,7 +33,6 @@ export async function registerRoutes(app) {
     res.json({ nfts, collections: await withLiveFloors(collections), users });
   });
 
-  //Users
   app.get("/api/users/:address", async (req, res) => {
     try {
       const user = await User.findOne({ walletAddress: req.params.address.toLowerCase() });
@@ -46,42 +49,70 @@ export async function registerRoutes(app) {
       res.status(500).json({ message: err.message });
     }
   });
-  app.patch("/api/users/:address", async (req, res) => {
+  // Only the signed-in wallet can edit its own profile. Fields left out of the body stay as they are.
+  app.patch("/api/users/:address", requireAuth, async (req, res) => {
+    const address = req.params.address.toLowerCase();
+    if (address !== req.wallet) return res.status(403).json({ message: "You can only edit your own profile." });
+
+    const { username, bio, profileImageUrl, bannerImageUrl } = req.body ?? {};
+    const update = {};
+
+    if (username !== undefined) {
+      const name = String(username).trim();
+      const problem = usernameProblem(name);
+      if (problem) return res.status(400).json({ message: problem });
+      update.username = name;
+    }
+    if (bio !== undefined) {
+      const text = String(bio).trim();
+      if (text.length > MAX_BIO) return res.status(400).json({ message: `Bios are up to ${MAX_BIO} characters.` });
+      update.bio = text;
+    }
+    // Images must be the wallet's own uploads ("" removes one)
+    for (const [field, value] of Object.entries({ profileImageUrl, bannerImageUrl })) {
+      if (value === undefined) continue;
+      if (value !== "" && !isUserImageUrl(value, address))
+        return res.status(400).json({ message: "Upload images through Mintora." });
+      update[field] = value;
+    }
+
     try {
-      const { username, bio, url, profileImageUrl, bannerImageUrl } = req.body;
+      if (update.username && await usernameTaken(update.username, address))
+        return res.status(409).json({ message: "That username is taken." });
 
       const user = await User.findOneAndUpdate(
-        { walletAddress: req.params.address.toLowerCase() },
-        { $set: { username, bio, profileImageUrl, bannerImageUrl } },
+        { walletAddress: address },
+        { $set: update },
         { upsert: true, returnDocument: "after" }
       );
       res.json(user);
     } catch (err) {
-      res.status(400).json({ message: err.message });
+      // Two wallets saving the same new name at once: the unique index lets only one through
+      if (err.code === 11000 && err.keyPattern?.username) return res.status(409).json({ message: "That username is taken." });
+      console.error("Profile save error:", err);
+      res.status(500).json({ message: "Could not save the profile." });
     }
   });
 
-  app.post("/api/users", async (req, res) => {
+  // Whether a username can be used, so the settings page can say so before anything is signed or uploaded.
+  // `for` is the wallet asking, whose own current name counts as available.
+  app.get("/api/usernames/:name", async (req, res) => {
+    const name = req.params.name.trim();
+    const problem = usernameProblem(name);
+    if (problem || !name) return res.json({ available: false, message: problem ?? "Enter a username." });
     try {
-      const { walletAddress, username, profileImageUrl, bannerImageUrl, bio } = req.body;
-      if (!walletAddress) return res.status(400).json({ message: "Address required" });
-
-      const user = await User.findOneAndUpdate(
-        { walletAddress: walletAddress.toLowerCase() },
-        { $set: { username, profileImageUrl, bannerImageUrl, bio } },
-        { upsert: true, new: true }
-      );
-      res.json(user);
+      const taken = await usernameTaken(name, String(req.query.for ?? "").toLowerCase());
+      res.json(taken ? { available: false, message: "That username is taken." } : { available: true });
     } catch (err) {
-      res.status(400).json({ message: err.message });
+      res.status(500).json({ message: "Could not check the username." });
     }
   });
 
-  // --- COLLECTIONS ---
+  // Most sales in the last 7 days first, then by all-time volume (lib/trending.js)
   app.get("/api/collections", async (req, res) => {
     try {
       const collections = await Collection.find();
-      res.json(await withLiveFloors(collections));
+      res.json(await sortBySales(await withLiveFloors(collections)));
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
@@ -98,7 +129,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- NFTs ---
   // What the list views (cards, rows, collection and wallet stats) use. Descriptions and attributes are only
   // shown on an NFT's own page, which has its own endpoint, and would make a whole collection several times
   // bigger to send.
@@ -139,7 +169,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- NFT DETAILS ---
   app.get("/api/nfts/:collectionId/:tokenId", async (req, res) => {
     try {
       const { collectionId, tokenId } = req.params;
@@ -160,7 +189,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- FEATURED ---
   app.get("/api/featured", async (req, res) => {
     try {
       const featuredItems = await Featured.find();
@@ -173,35 +201,18 @@ export async function registerRoutes(app) {
     }
   });
 
+  // Top NFTs: the best 5 listings for ?period (24h, 7d or 30d), scored on their collection's sales, their own
+  // trading, freshness, price against recent sales, and hand-picked priority (lib/top-nfts.js)
   app.get("/api/featurednft", async (req, res) => {
     try {
-      const featuredNfts = await NFT.aggregate([
-        { $match: { isListed: true, priority: { $gt: 0 } } },
-        { $sort: { priority: -1, lastSyncedAt: -1 } },
-        {
-          $group: {
-            _id: "$collectionId",
-            doc: { $first: "$$ROOT" }
-          }
-        },
-        { $replaceRoot: { newRoot: "$doc" } },
-        { $sort: { priority: -1 } },
-        { $limit: 8 }
-      ]);
-
-      await NFT.populate(featuredNfts, { path: "collectionId" });
-
-      if (!featuredNfts.length) {
-        return res.status(404).json({ message: "No featured items found" });
-      }
-
-      res.json(featuredNfts);
+      const period = SALES_PERIODS[req.query.period] ? req.query.period : "24h";
+      res.json(await topNfts(period));
     } catch (err) {
+      console.error("Top NFTs error:", err);
       res.status(500).json({ message: "Featured NFT API Error" });
     }
   });
 
-  // --- TOKEN PRICES (USD, cached server-side for 4 hours) ---
   app.get("/api/prices", async (req, res) => {
     try {
       const { prices, updatedAt } = await getPrices();
@@ -213,7 +224,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  //activity logs
   app.get('/api/activity', async (req, res) => {
     try {
       const { limit = 20, page = 1, collection, address } = req.query;
@@ -227,11 +237,9 @@ export async function registerRoutes(app) {
         Activity.countDocuments(filter),
       ]);
 
-      // Collect all unique addresses and collection addresses
       const addresses = [...new Set(items.flatMap(i => [i.from, i.to].filter(Boolean)))]
       const collectionAddresses = [...new Set(items.map(i => i.collection).filter(Boolean))]
 
-      // Fetch users and collections in parallel
       const [users, collections] = await Promise.all([
         User.find({ walletAddress: { $in: addresses } }).select('walletAddress username profileImageUrl').lean(),
         Collection.find({ contractAddress: { $in: collectionAddresses } }).select('contractAddress name imageUrl').lean(),
@@ -240,7 +248,6 @@ export async function registerRoutes(app) {
       const userMap = Object.fromEntries(users.map(u => [u.walletAddress, u]))
       const collectionMap = Object.fromEntries(collections.map(c => [c.contractAddress, c]))
 
-      // Enrich each item
       const enriched = items.map(item => ({
         ...item,
         fromUser: userMap[item.from] ?? null,

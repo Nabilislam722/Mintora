@@ -18,5 +18,7 @@ activitySchema.index({ tx: 1, logIndex: 1 }, { unique: true });
 activitySchema.index({ collection: 1, createdAt: -1 });
 activitySchema.index({ from: 1, createdAt: -1 });
 activitySchema.index({ to: 1, createdAt: -1 });
+// The site-wide activity feed, and the week of sales that collection order reads (lib/trending.js)
+activitySchema.index({ createdAt: -1 });
 
 export const Activity = mongoose.model('Activity', activitySchema);

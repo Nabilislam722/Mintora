@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function FeaturedCarousel() {
+// `onImage` is told the image of the slide on show (or null), so the page can tint its background with it
+export default function FeaturedCarousel({ onImage }) {
   const [slides, setSlides] = useState([]);
   const [current, setCurrent] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -49,7 +50,12 @@ export default function FeaturedCarousel() {
     return () => clearInterval(timer);
   }, [slides.length]);
 
-  // Adjusted loading skeleton height to match the new container scaling
+  const slide = slides[current];
+  const bgImage = slide ? (isDark ? slide.bgImage : (slide.wbgImage || slide.bgImage)) : null;
+  useEffect(() => {
+    onImage?.(bgImage || null);
+  }, [bgImage, onImage]);
+
   if (loading) {
     return (
       <div className="h-[250px] sm:h-[350px] md:h-[450px] xl:h-[500px] max-w-[2000px] mx-auto bg-muted animate-pulse rounded-2xl flex items-center justify-center">
@@ -59,23 +65,17 @@ export default function FeaturedCarousel() {
   }
   if (slides.length === 0) return null;
 
-  const slide = slides[current];
-  const bgImage = isDark ? slide.bgImage : (slide.wbgImage || slide.bgImage); 
-
   return (
-    /* Changed height rules to hit 500px at max-width and centered container */
     <div className="relative bottom-5 h-[250px] sm:h-[350px] md:h-[450px] xl:h-[500px] w-full max-w-[2000px] mx-auto overflow-hidden sm:rounded-2xl">
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-700"
         style={{ backgroundImage: `url(${bgImage})` }} 
       />
       
-      {/* LIGHTENED OVERLAYS: Reduced opacities for a brighter background image */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/5 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-background/10 via-transparent to-transparent" />
 
       <div className="relative h-full container mx-auto px-4 flex items-center">
-        {/* Kept text container dark/blurred for high contrast readability */}
         <div className="bg-black/50 dark:bg-black/70 backdrop-blur-md rounded-2xl p-6 max-w-md border border-white/10 shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             {slide.logoLeft && (
@@ -100,7 +100,6 @@ export default function FeaturedCarousel() {
         </div>
       </div>
 
-      {/* Slide Indicators */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
         {slides.map((_, idx) => (
           <button
@@ -112,7 +111,6 @@ export default function FeaturedCarousel() {
         ))}
       </div>
 
-      {/* Navigation Arrows */}
       <button
         onClick={() => setCurrent((prev) => (prev - 1 + slides.length) % slides.length)}
         className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition-colors text-white"

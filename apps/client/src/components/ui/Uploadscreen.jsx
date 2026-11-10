@@ -210,7 +210,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
   const avatarRef = useRef(null);
   const bannerRef = useRef(null);
 
-  /* Upload helper */
   async function uploadFile(file, uploadType, onProgress) {
     const pRes = await fetch("/api/upload/presign", {
       method: "POST",
@@ -273,7 +272,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
 
       <div className="settings-layout">
 
-        {/* ── Sidebar ── */}
         <nav className="settings-nav">
           <p className="settings-nav-title">Settings</p>
           {NAV_ITEMS.map(({ id, label, Icon }) => (
@@ -288,12 +286,10 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
           ))}
         </nav>
 
-        {/* ── Main content ── */}
         <main className="settings-main">
 
           {activeNav === "profile" && (
             <>
-              {/* Banner */}
               <div
                 className="banner-wrap"
                 onClick={() => bannerRef.current?.click()}
@@ -309,7 +305,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
                   onChange={e => e.target.files[0] && banner.pick(e.target.files[0])} />
               </div>
 
-              {/* Avatar row */}
               <div className="flex items-end mb-6">
                 <div
                   className="avatar-wrap"
@@ -329,7 +324,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
                 </div>
               </div>
 
-              {/* Image errors */}
               {(avatar.err || banner.err) && (
                 <div className="flex items-center gap-2 bg-rose-500/08 border border-rose-500/15 rounded-lg px-3 py-2 mb-5">
                   <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
@@ -339,7 +333,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
 
               <p className="settings-section-title">Edit Profile</p>
 
-              {/* Username */}
               <div className="field-group">
                 <label className="field-label">Username</label>
                 <input
@@ -356,7 +349,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
                 </div>
               </div>
 
-              {/* Bio */}
               <div className="field-group">
                 <label className="field-label">Bio</label>
                 <textarea
@@ -373,7 +365,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
                 </div>
               </div>
 
-              {/* URL */}
               <div className="field-group">
                 <label className="field-label">URL</label>
                 <input
@@ -387,7 +378,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
 
               <hr className="settings-divider" />
 
-              {/* Save error */}
               {saveErr && (
                 <div className="flex items-center gap-2 bg-rose-500/08 border border-rose-500/15 rounded-lg px-3 py-2 mb-4">
                   <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
@@ -395,7 +385,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
                 </div>
               )}
 
-              {/* Progress */}
               {status === "uploading" && (
                 <div className="mb-4">
                   <div className="flex justify-between text-xs mb-1" style={{ color: "rgba(255,255,255,.25)" }}>
@@ -405,7 +394,6 @@ export default function UploadScreen({ address, dbUser, onSuccess, onClose }) {
                 </div>
               )}
 
-              {/* Save button — bottom right like the screenshot */}
               <div className="flex justify-end">
                 <Button
                   className="bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl px-8 h-11 disabled:opacity-35"

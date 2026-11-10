@@ -1,89 +1,37 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { r2, R2_BUCKET, R2_PUBLIC_URL } from "../lib/r2.js";
-import { User } from "../models/User.js";
-import crypto from "crypto";
+import { r2, R2_BUCKET, R2_PUBLIC_URL, IMAGE_TYPES, userImageKey } from "../lib/r2.js";
+import { requireAuth } from "../lib/auth.js";
 
-const ALLOWED_TYPES = [
-    "image/jpeg", "image/png", "image/gif", "image/webp",
-    "model/gltf-binary", "model/gltf+json", "application/octet-stream",
-];
-
+const UPLOAD_TYPES = new Set(["avatar", "banner"]);
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 
 export function registerUploadRoutes(app) {
 
-    app.post("/api/upload/presign", async (req, res) => {
-        const { fileName, fileType, fileSize, uploadType, address } = req.body;
+    // A one-time URL for the signed-in wallet to upload one profile image to R2. The image is only used once the
+    // profile is saved with its URL (PATCH /api/users/:address).
+    app.post("/api/upload/presign", requireAuth, async (req, res) => {
+        const { fileType, fileSize, uploadType } = req.body ?? {};
 
-        console.log("R2_ACCESS_KEY_ID:", process.env.R2_ACCESS_KEY_ID ? "set" : " MISSING");
-        console.log("R2_SECRET_ACCESS_KEY:", process.env.R2_SECRET_ACCESS_KEY ? "set" : " MISSING");
-        console.log("R2_PUBLIC_URL:", process.env.R2_PUBLIC_URL ?? "MISSING");
-        console.log("Body received:", req.body);
-        if (!fileName || !fileType || !address)
-            return res.status(400).json({ message: "fileName, fileType, and address are required." });
+        if (!UPLOAD_TYPES.has(uploadType))
+            return res.status(400).json({ message: 'uploadType must be "avatar" or "banner".' });
 
-        if (!ALLOWED_TYPES.includes(fileType))
-            return res.status(400).json({ message: `File type "${fileType}" is not allowed.` });
+        const ext = IMAGE_TYPES[fileType];
+        if (!ext) return res.status(400).json({ message: "Use a JPG, PNG, WEBP or GIF image." });
 
-        if (fileSize && fileSize > 50 * 1024 * 1024)
-            return res.status(400).json({ message: "File exceeds 5 MB limit." });
+        if (!Number.isInteger(fileSize) || fileSize <= 0 || fileSize > MAX_SIZE)
+            return res.status(400).json({ message: "Images can be up to 5 MB." });
 
-        const ext = fileName.split(".").pop().toLowerCase();
-        const uid = crypto.randomUUID();
-        const safeType = (uploadType || "general").replace(/[^a-z0-9-]/gi, "");
-        const folderMap = {
-            avatar: "users",
-            banner: "users",
-        };
-
-        const folder = folderMap[uploadType] || "uploads/general";
-        const key = `${folder}/${address.toLowerCase()}/${uid}.${ext}`;
-
+        const key = userImageKey(req.wallet, ext);
         try {
-            const command = new PutObjectCommand({
-                Bucket: R2_BUCKET,
-                Key: key,
-                ContentType: fileType,
-                ...(fileSize ? { ContentLength: fileSize } : {}),
-            });
-
-            const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300 });
-
+            const command = new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: fileType, ContentLength: fileSize });
+            // Size and type are both signed, so R2 refuses an upload of any other size, or one labelled as
+            // something else (an HTML page served from the image domain, for example)
+            const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300, signableHeaders: new Set(["content-type"]) });
             res.json({ presignedUrl, key, publicUrl: `${R2_PUBLIC_URL}/${key}` });
         } catch (err) {
             console.error("R2 presign error:", err);
             res.status(500).json({ message: "Could not generate upload URL." });
-        }
-    });
-
-    app.post("/api/upload/confirm", async (req, res) => {
-        const { publicUrl, uploadType, address } = req.body;
-
-        if (!publicUrl || !address)
-            return res.status(400).json({ message: "publicUrl and address are required." });
-
-        // Map uploadType → your exact schema field names
-        const fieldMap = {
-            avatar: "profileImageUrl",
-            banner: "bannerImageUrl",
-        };
-
-        const field = fieldMap[uploadType];
-        if (!field)
-            return res.status(400).json({ message: `Unknown uploadType "${uploadType}". Use "avatar" or "banner".` });
-
-        try {
-            const user = await User.findOneAndUpdate(
-                { walletAddress: address.toLowerCase() },
-                { $set: { [field]: publicUrl } },
-                { upsert: true, new: true }
-            );
-
-            res.json({ success: true, [field]: publicUrl, user });
-        } catch (err) {
-            console.error("Upload confirm error:", err);
-            res.status(500).json({ message: "Could not save upload record." });
         }
     });
 }

@@ -176,3 +176,40 @@ export async function openOffersTotal(client, buyer, excludeTokenId) {
     0n
   );
 }
+
+// Every offer `buyer` still has stored on the market (accepted, cancelled and replaced ones are deleted there),
+// for the approvals panel. `cancelled` means "cancel all" was used since; `acceptable` is whether the holder
+// could accept it right now, and `moved` whether the position has changed hands since it was made, the usual
+// reason it can't be. Expiry (ms) is left to the caller, so an offer can be shown ending as the clock passes it.
+export async function fetchBuyerOffers(client, buyer) {
+  const ids = unique((await marketLogs(client, OFFER_MADE_EVENT, { buyer })).map((log) => log.args.tokenId));
+  if (!ids.length) return [];
+  const [nonce, ...rest] = await client.multicall({
+    contracts: [
+      { ...market, functionName: "nonces", args: [buyer] },
+      ...ids.flatMap((id) => [
+        { ...market, functionName: "getOffer", args: [id, buyer] },
+        { ...market, functionName: "isOfferValid", args: [id, buyer] },
+        { ...ve, functionName: "ownerOf", args: [id] },
+      ]),
+    ],
+  });
+  return ids
+    .map((id, i) => {
+      const [offer, valid, holder] = rest.slice(i * 3, i * 3 + 3).map((r) => r.result);
+      if (!offer || offer.id === 0n) return null;
+      return {
+        id: Number(id),
+        tokenId: id,
+        amountWei: offer.amount,
+        amount: toHemi(offer.amount),
+        expiry: Number(offer.expiry) * 1000,
+        cancelled: offer.nonce !== nonce.result,
+        acceptable: valid === true,
+        // A burned position (withdrawn after unlocking) has no holder: it can't come back either
+        moved: !holder || !sameAddress(holder, offer.seller),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.expiry - b.expiry);
+}

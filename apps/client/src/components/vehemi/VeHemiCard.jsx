@@ -1,8 +1,9 @@
 import { Link } from "wouter";
 import { useAccount } from "wagmi";
-import { Clock, Scale, TrendingDown } from "lucide-react";
+import { Clock, Scale } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import VeHemiPrice, { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
+import VeHemiDiscount from "@/components/vehemi/VeHemiDiscount";
 import { discountOf, fmt, formatDate, sameAddress, timeLeft } from "@/lib/vehemi";
 
 export default function VeHemiCard({ listing, onBuy }) {
@@ -20,11 +21,7 @@ export default function VeHemiCard({ listing, onBuy }) {
           </div>
           <span className="font-display font-bold text-sm">veHEMI #{listing.id}</span>
         </div>
-        {pct > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <TrendingDown className="w-3 h-3" /> {pct}% off
-          </span>
-        )}
+        {pct !== 0 && <VeHemiDiscount pct={pct} suffix={pct > 0 ? " off" : ""} />}
       </div>
 
       <p className="text-3xl font-display font-bold tabular-nums mb-3">

@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useAccount } from "wagmi";
+import { useAccount, useSignMessage } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import "../components/settings.css";
 import { uploadToR2 } from "../lib/uploadToR2";
+import { authFetch, hasSession, signIn } from "../lib/auth";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
@@ -18,6 +19,15 @@ const ACCEPT_STR = ACCEPT.join(",");
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const MAX_USERNAME = 32;
 const MAX_BIO = 160;
+
+// Same rule as the API (apps/server/models/User.js)
+function usernameProblem(name) {
+  if (name === "") return null;
+  if (name.length < 2 || name.length > MAX_USERNAME) return `Usernames are 2 to ${MAX_USERNAME} characters.`;
+  if (!/^[A-Za-z0-9_.-]+$/.test(name)) return 'Usernames can use letters, numbers, "_", "." and "-".';
+  if (/^0x[0-9a-f]{4,}$/i.test(name)) return "Usernames can't look like a wallet address.";
+  return null;
+}
 
 const NAV = [
   { id: "profile",       label: "Profile",            Icon: User        },
@@ -81,6 +91,7 @@ function isValidImage(file) {
 }
 
 function ProfileTab({ address, dbUser, onSaved }) {
+  const { signMessageAsync } = useSignMessage();
   const avatar = useImagePicker(dbUser?.profileImageUrl || null);
   const banner = useImagePicker(dbUser?.bannerImageUrl  || null);
 
@@ -104,8 +115,10 @@ function ProfileTab({ address, dbUser, onSaved }) {
   const handleSave = async () => {
     setSaveErr("");
 
-    if (username.trim().length > MAX_USERNAME) {
-      setSaveErr(`Username must be ${MAX_USERNAME} characters or fewer.`);
+    const usernameChanged = username.trim() !== (dbUser?.username || "");
+    const nameProblem = usernameChanged && usernameProblem(username.trim());
+    if (nameProblem) {
+      setSaveErr(nameProblem);
       setStatus("error");
       return;
     }
@@ -127,48 +140,68 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
     setStatus("saving"); setProgress(0);
     try {
+      // Usernames belong to one account each; check before asking for a signature or uploading anything
+      if (usernameChanged && username.trim()) {
+        const r = await fetch(`${BASE_URL}/api/usernames/${encodeURIComponent(username.trim())}?for=${address}`);
+        const check = await r.json().catch(() => ({}));
+        if (r.ok && !check.available) throw new Error(check.message || "That username is taken.");
+      }
+
+      // One signature proves this wallet is yours; the session then lasts 7 days
+      if (!hasSession(address)) {
+        setStatus("signing");
+        await signIn(address, signMessageAsync);
+        setStatus("saving");
+      }
+      const send = (input, init) => authFetch(address, signMessageAsync, input, init);
+
       const patch = {};
 
       if (avatar.file) {
         patch.profileImageUrl = await uploadToR2(
-          avatar.file, "avatar", address,
+          avatar.file, "avatar", send,
           (p) => setProgress(Math.round(p * 0.45))
         );
       }
       if (banner.file) {
         patch.bannerImageUrl = await uploadToR2(
-          banner.file, "banner", address,
+          banner.file, "banner", send,
           (p) => setProgress(45 + Math.round(p * 0.45))
         );
       }
 
       setProgress(92);
 
-      if (username.trim() !== (dbUser?.username || "")) patch.username = username.trim();
+      if (usernameChanged)                              patch.username = username.trim();
       if (bio.trim()      !== (dbUser?.bio      || "")) patch.bio      = bio.trim();
       if (url.trim()      !== (dbUser?.url      || "")) patch.url      = url.trim();
 
       if (Object.keys(patch).length > 0) {
-        const r = await fetch(`${BASE_URL}/api/users/${address}`, {
+        const r = await send(`${BASE_URL}/api/users/${address}`, {
           method:  "PATCH",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify(patch),
         });
-        if (!r.ok) throw new Error("Failed to save profile");
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to save profile");
+        }
       }
 
       setProgress(100);
       setStatus("success");
       setTimeout(() => { onSaved(patch); setStatus("idle"); }, 1200);
     } catch (e) {
-      setSaveErr(e.message || "Something went wrong.");
+      // wagmi's errors carry a one-line shortMessage ("User rejected the request.")
+      setSaveErr(e.shortMessage || e.message || "Something went wrong.");
       setStatus("error");
     }
   };
 
+  const busy = status === "signing" || status === "saving";
+
   return (
     <>
-      {/* Banner */}
       <div className="s-banner max-md:!h-32" onClick={() => bannerRef.current?.click()}>
         {banner.preview && <img src={banner.preview} alt="banner" />}
         <div className="s-banner-overlay">
@@ -178,7 +211,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
           onChange={e => e.target.files[0] && banner.pick(e.target.files[0])} />
       </div>
 
-      {/* Avatar */}
       <div className="flex items-end mb-7">
         <div className="s-avatar max-md:!w-16 max-md:!h-16" onClick={() => avatarRef.current?.click()}>
           {avatar.preview
@@ -201,18 +233,16 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
       <p className="s-page-title">Edit Profile</p>
 
-      {/* Username */}
       <div className="s-field">
         <label className="s-label">Username</label>
         <input type="text" className="s-input" placeholder="Enter a username"
           value={username} maxLength={MAX_USERNAME} onChange={e => setUsername(e.target.value.slice(0, MAX_USERNAME))} />
         <div className="flex items-center justify-between">
-          <p className="s-hint">This is your public username.</p>
+          <p className="s-hint">Your public username. Letters, numbers, "_", "." and "-"; no one else can use it.</p>
           <span className={`s-charcount ${username.length > 28 ? "warn" : ""}`}>{username.length}/{MAX_USERNAME}</span>
         </div>
       </div>
 
-      {/* Bio */}
       <div className="s-field">
         <label className="s-label">Bio</label>
         <textarea className="s-input" placeholder="Tell the world about yourself…"
@@ -222,7 +252,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
         </div>
       </div>
 
-      {/* URL */}
       <div className="s-field">
         <label className="s-label">URL</label>
         <input type="text" className="s-input" placeholder="https://"
@@ -238,9 +267,11 @@ function ProfileTab({ address, dbUser, onSaved }) {
         <Button
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-8 h-11 disabled:opacity-40 max-md:!w-full max-md:!px-4"
           onClick={handleSave}
-          disabled={!hasChanges || status === "saving" || status === "success"}
+          disabled={!hasChanges || busy || status === "success"}
         >
-          {status === "saving"
+          {status === "signing"
+            ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirm in wallet</>
+            : status === "saving"
             ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving</>
             : status === "success"
             ? <><CheckCircle className="w-4 h-4 mr-2" />Saved!</>
@@ -385,7 +416,6 @@ export default function Settings() {
         ))}
       </nav>
 
-      {/* Main Content Area */}
       <main className="s-main ml-60 max-md:!static max-md:!w-full max-md:!ml-0 max-md:!p-0">
         {activeNav === "profile" && (
           <ProfileTab address={address} dbUser={dbUser} onSaved={handleSaved} />

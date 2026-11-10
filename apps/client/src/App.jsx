@@ -56,7 +56,7 @@ function AppShell() {
       {!hideLayout && <Navbar />}
       {!hideLayout && <HoverSidebar />}
        <main
-        className={!hideLayout ? `pt-32 md:pt-16 ${sidebarPosition === "left" ? "md:pl-16" : "md:pr-16"}` : ""}
+        className={!hideLayout ? `pt-16 ${sidebarPosition === "left" ? "md:pl-16" : "md:pr-16"}` : ""}
       >
         <Router />
       </main>

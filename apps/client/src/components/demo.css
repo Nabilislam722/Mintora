@@ -13,7 +13,6 @@
   background-color: #0b1610;
 }
 
-/* Ensure the scroll track is crisp */
 .scroll-track {
   will-change: transform;
 }

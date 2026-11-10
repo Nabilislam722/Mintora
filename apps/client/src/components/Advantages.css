@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap');
 
-/* ── Root ── */
 .adv-root {
   position: relative;
   width: 100%;
@@ -10,7 +9,6 @@
   font-family: 'Instrument Sans', sans-serif;
 }
 
-/* ── Connector SVG ── */
 .adv-connectors {
   position: absolute;
   inset: 0;
@@ -20,7 +18,6 @@
   z-index: 5;
 }
 
-/* ── Eyebrow wrapper — perfectly centred ── */
 .adv-header {
   position: absolute;
   width: 100vw;
@@ -33,7 +30,6 @@
   align-items: center;
 }
 
-/* ── Eyebrow text pill ── */
 .adv-eyebrow {
   display: inline-block;
   font-weight: 700;
@@ -49,14 +45,12 @@
   text-align: center;
 }
 
-/* ── Diamond wrapper ── */
 .adv-diamond-wrap {
   position: absolute;
   transform: translate(-50%, -50%);
   z-index: 10;
 }
 
-/* ── Diamond inner ── */
 .adv-diamond {
   background: #0BA14B;
   border-radius: calc(1px * var(--scale));
@@ -80,7 +74,6 @@
   white-space: nowrap;
 }
 
-/* ── Card base ── */
 .adv-card {
   position: absolute;
   box-sizing: border-box;
@@ -89,7 +82,6 @@
   border-radius: calc(8px * var(--scale));
   padding: calc(10px * var(--scale)) calc(14px * var(--scale));
 
-  /* collapsed glass */
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -104,7 +96,6 @@
   z-index: 6;
 }
 
-/* ── Card hover = glassy expand ── */
 .adv-card:hover {
   background: rgba(255, 255, 255, 0.10);
   backdrop-filter: blur(20px) saturate(160%);
@@ -117,7 +108,6 @@
   z-index: 15;
 }
 
-/* ── Card top row ── */
 .adv-card-top {
   display: flex;
   justify-content: space-between;
@@ -140,7 +130,6 @@
   line-height: 1;
 }
 
-/* ── Card title ── */
 .adv-card-title {
   font-size: calc(11px * var(--scale));
   font-weight: 700;
@@ -149,7 +138,6 @@
   margin-bottom: calc(4px * var(--scale));
 }
 
-/* ── Stat row ── */
 .adv-card-stat {
   display: flex;
   align-items: baseline;
@@ -223,7 +211,6 @@
   box-shadow: 0 0 calc(5px * var(--scale)) var(--accent);
 }
 
-/* ── Bottom accent bar ── */
 .adv-card-bar {
   position: absolute;
   bottom: 0;
@@ -235,7 +222,6 @@
   opacity: 0.75;
 }
 
-/* ── Powered-by row ── */
 .adv-powered {
   position: absolute;
   left: 50%;

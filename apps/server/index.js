@@ -4,15 +4,19 @@ import mongoose from "mongoose";
 import cors from "cors";
 import { registerRoutes } from "./routes.js";
 import { registerUploadRoutes } from "./routes/upload.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 
 const app = express();
 
+// Sites that may call the API, and the only ones a wallet sign-in message can be written for
+const ORIGINS = [
+  "https://mintora.app",
+  "http://127.0.0.1:5173",
+  "http://localhost:5173",
+];
+
 const corsOptions = {
-  origin: [
-    "https://mintora.app",
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-  ],
+  origin: ORIGINS,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
@@ -21,6 +25,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
+registerAuthRoutes(app, ORIGINS);
 registerRoutes(app);
 registerUploadRoutes(app);
 

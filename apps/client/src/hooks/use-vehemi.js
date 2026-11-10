@@ -3,7 +3,7 @@ import { erc20Abi } from "viem";
 import { usePublicClient, useReadContracts } from "wagmi";
 import { hemi } from "@/lib/hemi";
 import { MARKET_ABI } from "@/lib/vehemi-abi";
-import { fetchListings, fetchOffers, fetchPosition, openOffersTotal } from "@/lib/vehemi-chain";
+import { fetchBuyerOffers, fetchListings, fetchOffers, fetchPosition, openOffersTotal } from "@/lib/vehemi-chain";
 import { LISTING_FEE_BPS, VE_HEMI_MARKET } from "@/lib/vehemi";
 
 // Market state changes with every trade, unlike the app's default never-stale queries
@@ -81,5 +81,24 @@ export function useHemiFunds(owner, tokenId) {
     },
     enabled: !!owner,
     staleTime: 0,
+  });
+}
+
+// `owner`'s HEMI approval for the market and every offer of theirs still stored there, for the approvals panel.
+// `token` is the market's payment token, read from the market like useHemiFunds does.
+export function useOfferApprovals(owner) {
+  const client = usePublicClient({ chainId: hemi.id });
+  return useQuery({
+    queryKey: ["vehemi", "approvals", owner],
+    queryFn: async () => {
+      const token = await client.readContract({ address: VE_HEMI_MARKET, abi: MARKET_ABI, functionName: "hemi" });
+      const [allowance, offers] = await Promise.all([
+        client.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, VE_HEMI_MARKET] }),
+        fetchBuyerOffers(client, owner),
+      ]);
+      return { token, allowance, offers };
+    },
+    enabled: !!owner,
+    ...LIVE,
   });
 }

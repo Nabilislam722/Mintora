@@ -1,8 +1,9 @@
 import { Link } from "wouter";
-import { ArrowRight, ChevronRight, Clock, Scale, Sparkles, TrendingDown } from "lucide-react";
+import { ArrowRight, ChevronRight, Clock, Scale, Sparkles } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import { Button } from "@/components/ui/button";
 import VeHemiPrice from "@/components/vehemi/VeHemiPrice";
+import VeHemiDiscount, { discountTextCls } from "@/components/vehemi/VeHemiDiscount";
 import { useVeHemiListings } from "@/hooks/use-vehemi";
 import { discountOf, fmt, fmtCompact, timeLeft } from "@/lib/vehemi";
 
@@ -16,9 +17,7 @@ function DealCard({ listing }) {
         <span className="flex items-center gap-1.5 text-xs font-semibold">
           <img src={hemiLogo} alt="" className="w-5 h-5" /> veHEMI #{listing.id}
         </span>
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          <TrendingDown className="w-3 h-3" /> {discountOf(listing)}%
-        </span>
+        <VeHemiDiscount pct={discountOf(listing)} size="xs" />
       </div>
       <p className="text-xl font-display font-bold tabular-nums">
         {fmt(listing.hemi)} <span className="text-xs font-normal text-muted-foreground">HEMI</span>
@@ -46,7 +45,7 @@ export default function VeHemiPromo() {
   const totalHemi = listings.reduce((s, l) => s + l.hemi, 0);
   const stats = [
     ["Listed", loading ? "—" : listings.length],
-    ["Avg. discount", avgDiscount == null ? "—" : `${avgDiscount}%`],
+    ["Avg. discount", avgDiscount == null ? "—" : <span className={discountTextCls(avgDiscount)}>{avgDiscount}%</span>],
     ["HEMI locked", loading ? "—" : fmtCompact(totalHemi)],
   ];
 
