@@ -10,7 +10,6 @@ async function main() {
 
   console.log("Upgrading the proxy at:", proxyAddress);
 
- // Inside your upgrade.cjs
 const upgraded = await upgrades.upgradeProxy(proxyAddress, Mintora, { 
     redeployImplementation: 'always'
 });

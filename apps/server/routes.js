@@ -6,7 +6,8 @@ import { Activity } from "./models/Activity.js";
 import mongoose from 'mongoose';
 import { getPrices, PRICE_TTL } from "./prices.js";
 import { withLiveFloors } from "./lib/floor.js";
-import { sortBySales, salesByCollection, SALES_PERIODS } from "./lib/trending.js";
+import { sortBySales, SALES_PERIODS } from "./lib/trending.js";
+import { topNfts } from "./lib/top-nfts.js";
 import { requireAuth } from "./lib/auth.js";
 import { isUserImageUrl } from "./lib/r2.js";
 
@@ -32,7 +33,6 @@ export async function registerRoutes(app) {
     res.json({ nfts, collections: await withLiveFloors(collections), users });
   });
 
-  //Users
   app.get("/api/users/:address", async (req, res) => {
     try {
       const user = await User.findOne({ walletAddress: req.params.address.toLowerCase() });
@@ -108,7 +108,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- COLLECTIONS ---
   // Most sales in the last 7 days first, then by all-time volume (lib/trending.js)
   app.get("/api/collections", async (req, res) => {
     try {
@@ -130,7 +129,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- NFTs ---
   // What the list views (cards, rows, collection and wallet stats) use. Descriptions and attributes are only
   // shown on an NFT's own page, which has its own endpoint, and would make a whole collection several times
   // bigger to send.
@@ -171,7 +169,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- NFT DETAILS ---
   app.get("/api/nfts/:collectionId/:tokenId", async (req, res) => {
     try {
       const { collectionId, tokenId } = req.params;
@@ -192,7 +189,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  // --- FEATURED ---
   app.get("/api/featured", async (req, res) => {
     try {
       const featuredItems = await Featured.find();
@@ -205,41 +201,18 @@ export async function registerRoutes(app) {
     }
   });
 
-  // Top NFTs: hand-picked listings (priority > 0), one per collection. Ordered by priority, then the
-  // collection's sales in ?period (24h, 7d or 30d), then price, then id: every tie is broken, so the row
-  // doesn't reshuffle between refreshes.
+  // Top NFTs: the best 5 listings for ?period (24h, 7d or 30d), scored on their collection's sales, their own
+  // trading, freshness, price against recent sales, and hand-picked priority (lib/top-nfts.js)
   app.get("/api/featurednft", async (req, res) => {
     try {
       const period = SALES_PERIODS[req.query.period] ? req.query.period : "24h";
-      const [picks, sales] = await Promise.all([
-        NFT.aggregate([
-          { $match: { isListed: true, priority: { $gt: 0 } } },
-          // Which of a collection's picks it shows
-          { $sort: { priority: -1, lastSyncedAt: -1, _id: 1 } },
-          { $group: { _id: "$collectionId", doc: { $first: "$$ROOT" } } },
-          { $replaceRoot: { newRoot: "$doc" } },
-        ]),
-        salesByCollection(period),
-      ]);
-
-      const wei = (nft) => { try { return BigInt(nft.price || 0); } catch { return 0n; } };
-      const sold = (nft) => sales.get(nft.contractAddress) ?? 0;
-      const top = picks
-        .sort((a, b) =>
-          b.priority - a.priority ||
-          sold(b) - sold(a) ||
-          (wei(b) > wei(a) ? 1 : wei(b) < wei(a) ? -1 : 0) ||
-          String(a._id).localeCompare(String(b._id)))
-        .slice(0, 8);
-
-      await NFT.populate(top, { path: "collectionId" });
-      res.json(top);
+      res.json(await topNfts(period));
     } catch (err) {
+      console.error("Top NFTs error:", err);
       res.status(500).json({ message: "Featured NFT API Error" });
     }
   });
 
-  // --- TOKEN PRICES (USD, cached server-side for 4 hours) ---
   app.get("/api/prices", async (req, res) => {
     try {
       const { prices, updatedAt } = await getPrices();
@@ -251,7 +224,6 @@ export async function registerRoutes(app) {
     }
   });
 
-  //activity logs
   app.get('/api/activity', async (req, res) => {
     try {
       const { limit = 20, page = 1, collection, address } = req.query;
@@ -265,11 +237,9 @@ export async function registerRoutes(app) {
         Activity.countDocuments(filter),
       ]);
 
-      // Collect all unique addresses and collection addresses
       const addresses = [...new Set(items.flatMap(i => [i.from, i.to].filter(Boolean)))]
       const collectionAddresses = [...new Set(items.map(i => i.collection).filter(Boolean))]
 
-      // Fetch users and collections in parallel
       const [users, collections] = await Promise.all([
         User.find({ walletAddress: { $in: addresses } }).select('walletAddress username profileImageUrl').lean(),
         Collection.find({ contractAddress: { $in: collectionAddresses } }).select('contractAddress name imageUrl').lean(),
@@ -278,7 +248,6 @@ export async function registerRoutes(app) {
       const userMap = Object.fromEntries(users.map(u => [u.walletAddress, u]))
       const collectionMap = Object.fromEntries(collections.map(c => [c.contractAddress, c]))
 
-      // Enrich each item
       const enriched = items.map(item => ({
         ...item,
         fromUser: userMap[item.from] ?? null,

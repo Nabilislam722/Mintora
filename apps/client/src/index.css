@@ -8,7 +8,6 @@ html {
   zoom: 0.85; 
 }
 
-/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;

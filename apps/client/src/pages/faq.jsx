@@ -16,7 +16,6 @@ import "../components/settings.css";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 
-// FAQ Categories with Lucide icons
 const CATEGORIES = [
   { id: "all", label: "All Questions", Icon: HelpCircle },
   { id: "getting-started", label: "Getting Started", Icon: Sparkles },
@@ -25,7 +24,6 @@ const CATEGORIES = [
   { id: "security", label: "Security & Safety", Icon: ShieldCheck },
 ];
 
-// FAQ Data structured for Mintora Marketplace
 const FAQ_DATA = [
   {
     id: "what-is-mintora",
@@ -141,7 +139,6 @@ export default function Faq() {
 
   return (
     <div className="s-layout w-full">
-      {/* Sidebar Navigation */}
       <nav className="s-sidebar ml-40">
         <p className="s-sidebar-heading">Help Center</p>
         {CATEGORIES.map(({ id, label, Icon }) => (
@@ -158,7 +155,6 @@ export default function Faq() {
           </button>
         ))}
 
-        {/* Sidebar Support Box */}
         <div className="mt-8 p-4 rounded-2xl bg-primary/5 border border-primary/10">
           <MessageSquare className="w-5 h-5 text-primary mb-2" />
           <p className="text-xs font-semibold text-foreground mb-1">Need more help?</p>
@@ -176,9 +172,7 @@ export default function Faq() {
         </div>
       </nav>
 
-      {/* Main Content Area */}
       <main className="s-main ml-60 max-w-3xl">
-        {/* Header Title */}
         <div className="mb-6">
           <p className="s-page-title mb-1">Frequently Asked Questions</p>
           <p className="text-sm text-muted-foreground">
@@ -186,7 +180,6 @@ export default function Faq() {
           </p>
         </div>
 
-        {/* Search Bar */}
         <div className="relative mb-6">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -206,7 +199,6 @@ export default function Faq() {
           )}
         </div>
 
-        {/* FAQ Accordion List */}
         {filteredFaqs.length > 0 ? (
           <div>
             {filteredFaqs.map((faq) => (

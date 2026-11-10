@@ -129,7 +129,6 @@ async function resolveVerifiedGatewayUrl(uri) {
     if (!uri || typeof uri !== 'string') return null;
     uri = uri.trim();
 
-    // Already a plain HTTP(S) URL that is NOT a known IPFS gateway → use as-is
     if (uri.startsWith('http') && !isGatewayWrappedUrl(uri)) {
         return uri;
     }
@@ -158,7 +157,6 @@ function buildPathCandidates(uri, tokenId) {
 
     if (uri.startsWith('data:')) return { kind: 'data', candidates: [] };
 
-    //   Plain HTTP(S) non-gateway URL → NOT an IPFS multi-gateway case   
     if (uri.startsWith('http') && !isGatewayWrappedUrl(uri)) {
         const base = uri.endsWith('/') ? uri : `${uri}/`;
         const noSlash = uri.endsWith('/') ? uri.slice(0, -1) : uri;
@@ -178,7 +176,6 @@ function buildPathCandidates(uri, tokenId) {
         };
     }
 
-    // IPFS / gateway-wrapped URL
     const cidPath = extractCidPath(uri);
     if (!cidPath) return { kind: 'none', candidates: [] };
 
@@ -304,7 +301,6 @@ async function resolveMetadata(uri, tokenId) {
     if (!uri || typeof uri !== 'string') return null;
     uri = uri.trim();
 
-    //  Inline base64 JSON  
     if (uri.startsWith('data:application/json;base64,')) {
         try {
             const b64 = uri.split(',')[1];
@@ -314,7 +310,6 @@ async function resolveMetadata(uri, tokenId) {
         }
     }
 
-    // Inline plain JSON   
     if (uri.startsWith('data:application/json,')) {
         try {
             return JSON.parse(decodeURIComponent(uri.split(',').slice(1).join(',')));
@@ -361,13 +356,10 @@ async function resolveImageUrl(raw) {
 
     raw = raw.trim();
 
-    // data: URI (SVG / base64 image) – keep as-is
     if (raw.startsWith('data:')) return raw;
 
     return (await resolveVerifiedGatewayUrl(raw)) || raw;
 }
-
-// Main sync function  
 
 async function syncExistingCollection(contractAddress) {
     if (!contractAddress) {
@@ -380,7 +372,6 @@ async function syncExistingCollection(contractAddress) {
     const nftContract = new ethers.Contract(contractAddress, ERC721_ABI, provider);
     const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, MARKETPLACE_ABI, provider);
 
-    // Ensure collection record exists 
     let collection = await Collection.findOne({ contractAddress: contractAddress.toLowerCase() });
 
     if (!collection) {
@@ -506,6 +497,5 @@ async function syncExistingCollection(contractAddress) {
     process.exit(0);
 }
 
-// Entry point
 const targetAddress = process.argv[2];
 syncExistingCollection(targetAddress);

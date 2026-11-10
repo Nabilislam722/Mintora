@@ -8,7 +8,6 @@ html:has(.hero) body {
   background: transparent !important;
 }
 
-/* Hero */
 .hero {
   position: relative;
   height: 100vh;
@@ -20,7 +19,6 @@ html:has(.hero) body {
   justify-content: center;
 }
 
-/* Lights wrapper */
 .lights-wrapper {
   position: absolute;
   inset: 0;
@@ -29,7 +27,6 @@ html:has(.hero) body {
   overflow: hidden;
 }
 
-/* Conic lights */
 .light {
   position: absolute;
   width: 50%;
@@ -50,7 +47,6 @@ html:has(.hero) body {
   transform: scaleX(-1);
 }
 
-/* Eyebrow badge */
 .eyebrow {
   position: relative;
   z-index: 10;
@@ -78,7 +74,6 @@ html:has(.hero) body {
   box-shadow: 0 0 6px #6FCF97;
 }
 
-/* Title */
 .title {
   position: relative;
   z-index: 10;
@@ -103,7 +98,6 @@ html:has(.hero) body {
   font-size: clamp(56px, 9vw, 110px);
 }
 
-/* Subtitle */
 .subtitle {
   position: relative;
   z-index: 10;
@@ -118,7 +112,6 @@ html:has(.hero) body {
   letter-spacing: 0.01em;
 }
 
-/* CTA row */
 .cta-row {
   position: relative;
   z-index: 10;
@@ -171,7 +164,6 @@ html:has(.hero) body {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* Scroll indicator */
 .scroll-indicator {
   position: absolute;
   bottom: 36px;
@@ -212,7 +204,6 @@ html:has(.hero) body {
   color: rgba(255, 255, 255, 0.3);
 }
 
-/* Particles */
 .particle {
   position: absolute;
   border-radius: 50%;
@@ -221,7 +212,6 @@ html:has(.hero) body {
   will-change: transform, opacity;
 }
 
-/* Below-fold sections */
 .section-dark {
   background: #091E12;
   padding: 100px 5vw;
@@ -308,7 +298,6 @@ html:has(.hero) body {
   line-height: 1.7;
 }
 
-/* Stats row */
 .stats-row {
   display: flex;
   gap: 60px;
@@ -337,7 +326,6 @@ html:has(.hero) body {
   font-weight: 400;
 }
 
-/* Footer stripe */
 .footer-stripe {
   background: #060F0A;
   padding: 20px 4vw;
@@ -365,8 +353,6 @@ html:has(.hero) body {
   color: rgba(255, 255, 255, 0.2);
 }
 
-/* Scroll system */
-
 .scroll-root {
   position: fixed;
   inset: 0;
@@ -393,7 +379,6 @@ html:has(.hero) body {
   height: 100vh;
 }
 
-/* Nav dots */
 .nav-dots {
   position: fixed;
   right: 24px;

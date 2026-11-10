@@ -61,7 +61,7 @@ contract Mintora is
     uint256 public constant AUCTION_GRACE_PERIOD = 7 days;
     uint256 public constant MIN_RESERVE_FLOOR = 0.01 ether;
     uint256 public constant OWNER_OF_GAS_STIPEND = 100_000;
-    uint256 public constant GRIEF_SLASH_BPS = 1_000; // 10% penelty for Grief
+    uint256 public constant GRIEF_SLASH_BPS = 1_000; // 10%
     bool public offersEnabled;
     bool public auctionsEnabled;
     uint256 public s_totalPendingWithdrawals;
@@ -185,8 +185,6 @@ contract Mintora is
         address newImplementation
     ) internal override onlyOwner {}
 
-    // LISTING
-
     function listItem(
         address nft,
         uint256 tokenId,
@@ -293,8 +291,6 @@ contract Mintora is
         return s_listings[nft][tokenId];
     }
 
-    // OFFERS & AUCTIONS
-
     modifier offersActive() {
         require(offersEnabled, "Offers disabled");
         _;
@@ -396,7 +392,7 @@ contract Mintora is
                 add(transferData, 0x20),
                 mload(transferData),
                 0,
-                0 // retSize = 0
+                0
             )
         }
 
@@ -408,16 +404,13 @@ contract Mintora is
             s_pendingWithdrawals[buyer] += amount;
             s_totalPendingWithdrawals += amount;
             emit FinalizationFailed(nft, tokenId, buyer, "LyingNFT");
-            return; // Offer is permanently gone — trap is one-shot, not indefinite
+            return;
         }
 
-        // Transfer succeeded — verify ownership moved and pay out
         require(_getOwnerSafely(nft, tokenId) == buyer, "Transfer failed");
         _handlePayout(nft, tokenId, amount, msg.sender, false);
         emit OfferAccepted(msg.sender, buyer, nft, tokenId, amount);
     }
-
-    // AUCTIONS
 
     function createAuction(
         address nft,
@@ -476,7 +469,6 @@ contract Mintora is
         uint256 tokenId
     ) external payable nonReentrant auctionsActive whenNotPaused {
         Auction storage auction = s_auctions[nft][tokenId];
-        // minimum 2% increment
         require(auction.active, "Auction not found");
         require(block.timestamp < auction.endTime, "Ended");
         require(msg.sender != auction.seller, "Seller cannot bid");
@@ -491,6 +483,7 @@ contract Mintora is
             "Approval revoked"
         );
 
+        // Each bid must beat the highest by at least 2%
         uint256 percentageIncrement = (s_auctions[nft][tokenId].highestBid *
             200) / 10000;
         uint256 minIncrement = percentageIncrement > 0
@@ -528,10 +521,8 @@ contract Mintora is
         address nft,
         uint256 tokenId
     ) external nonReentrant whenNotPaused {
-        //Load into memory
         Auction memory auction = s_auctions[nft][tokenId];
 
-        //Validation
         require(auction.active, "Not active");
         require(block.timestamp >= auction.endTime, "Auction not ended");
 
@@ -543,10 +534,8 @@ contract Mintora is
             );
         }
 
-        // State Updates (Strict CEI pattern restored)
         delete s_auctions[nft][tokenId];
 
-        // Cache escrow values and update global accounting
         uint256 finalBid = auction.highestBid;
         if (finalBid > 0) {
             s_totalEscrowedFunds -= finalBid;
@@ -558,7 +547,6 @@ contract Mintora is
             _isApprovedSafely(nft, tokenId, auction.seller);
         bool finalizedWithTransfer = false;
 
-        // Execution
         if (finalBid > 0 && sellerStillOwns && approvalIntact) {
             delete s_listings[nft][tokenId];
 
@@ -587,7 +575,6 @@ contract Mintora is
                 try
                     IERC721(nft).ownerOf{gas: OWNER_OF_GAS_STIPEND}(tokenId)
                 returns (address actual) {
-                    // Check if the asset left the seller's wallet
                     sellerDivested = (actual != auction.seller);
                     if (!sellerDivested) {
                         emit FinalizationFailed(
@@ -598,8 +585,9 @@ contract Mintora is
                         );
                     }
                 } catch {
-                    // ownerOf could not be verified (ERC721A / gas-heavy implementation).
-                    // Per V13-M2 remediation, trust successful transferCallOk to preserve liveness.
+                    // ownerOf couldn't be verified (ERC721A / gas-heavy
+                    // implementation): trust the successful transfer so the
+                    // auction can still settle.
                     sellerDivested = true;
                     unchecked {
                         s_ownerOfSkipCount[nft]++;
@@ -651,7 +639,6 @@ contract Mintora is
             finalizedWithTransfer
         );
     }
-    // WITHDRAW FOR OUTBID BIDDERS
 
     function withdrawRefund() external nonReentrant {
         uint256 amount = s_pendingWithdrawals[msg.sender];
@@ -663,8 +650,6 @@ contract Mintora is
 
         _safeTransferETH(msg.sender, amount);
     }
-
-    // INTERNAL
 
     function _handlePayout(
         address nft,
@@ -693,8 +678,7 @@ contract Mintora is
             bool success;
 
             assembly {
-                // staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)
-                // We limit retSize to 64 bytes to prevent memory expansion attacks
+                // retSize is capped at 64 bytes to prevent memory expansion attacks
                 success := staticcall(
                     gas(),
                     nft,
@@ -760,7 +744,7 @@ contract Mintora is
             uint256 amount = auction.highestBid;
             s_pendingWithdrawals[auction.highestBidder] += amount;
             s_totalPendingWithdrawals += amount;
-            s_totalEscrowedFunds -= amount; // Move from Escrow to Pending
+            s_totalEscrowedFunds -= amount;
             auction.highestBid = 0; // Clear it to prevent double-accounting
             auction.highestBidder = address(0);
         }
@@ -781,7 +765,6 @@ contract Mintora is
             tokenId
         );
         assembly {
-            // staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)
             let success := staticcall(
                 gas(),
                 nft,
@@ -806,9 +789,8 @@ contract Mintora is
         uint256 tokenId,
         address seller
     ) internal view returns (bool approved) {
-        address marketplace = address(this); // Pass this in for assembly
+        address marketplace = address(this);
 
-        // Check getApproved
         bytes memory d1 = abi.encodeWithSelector(
             IERC721.getApproved.selector,
             tokenId
@@ -823,7 +805,6 @@ contract Mintora is
                 32
             )
             if and(success, gt(returndatasize(), 31)) {
-                // Compare the returned address to our marketplace address
                 if eq(mload(0), marketplace) {
                     approved := true
                 }
@@ -831,7 +812,6 @@ contract Mintora is
         }
         if (approved) return true;
 
-        // Check isApprovedForAll
         bytes memory d2 = abi.encodeWithSelector(
             IERC721.isApprovedForAll.selector,
             seller,
@@ -851,8 +831,6 @@ contract Mintora is
             }
         }
     }
-
-    // Owner
 
     function setOffersEnabled(bool enabled) external onlyOwner {
         offersEnabled = enabled;
@@ -918,7 +896,6 @@ contract Mintora is
     }
     /**
      * @notice Recovers ETH stranded in the contract's own pending withdrawals slot.
-     * @dev Resolves Q17-NEW-1 from the V11 audit. Protects against self-stranding.
      */
     function sweepStuckPending(address to) external onlyOwner nonReentrant {
         require(to != address(0), "Zero address");

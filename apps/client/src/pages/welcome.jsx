@@ -37,12 +37,9 @@ const fadeUp = (delay = 0) => ({
 
 const EXP = [0.16, 1, 0.3, 1];
 
-/* ─────────────────────────────────────────────────────────────────
-   HERO SECTION (Optimized)
-───────────────────────────────────────────────────────────────── */
 function Hero({ onWatchDemo }) {
   const heroRef = useRef(null);
-  const titleRef = useRef(null); // Ref added for CSS-variable injection
+  const titleRef = useRef(null);
   const sweepProgress = useMotionValue(0);
   const introBlur = useMotionValue(40);
   const floatY = useMotionValue(0);
@@ -78,7 +75,7 @@ function Hero({ onWatchDemo }) {
     return () => { yLoop.stop(); sLoop.stop(); };
   }, [sweepProgress, introBlur, floatY, floatScale]);
 
-  // CSS-Variable optimization trick
+  // Moves the title's gradient with the mouse by setting CSS variables directly, without re-rendering
   useEffect(() => {
     return mouseOffset.on('change', (v) => {
       const el = titleRef.current;
@@ -103,7 +100,6 @@ function Hero({ onWatchDemo }) {
       onMouseMove={onMouseMove}
       onMouseLeave={() => rawMouseX.set(0)}
     >
-      {/* Left Light with Sweep + Focus */}
       <motion.div
         className="light left"
         initial={{ opacity: 0 }}
@@ -117,7 +113,6 @@ function Hero({ onWatchDemo }) {
         }}
       />
 
-      {/* Right Light mirrored */}
       <motion.div
         className="light right"
         initial={{ opacity: 0 }}
@@ -132,7 +127,6 @@ function Hero({ onWatchDemo }) {
         }}
       />
 
-      {/* Particles */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2.5, duration: 2 }}>
         {PARTICLES.map((p, i) => (
           <motion.div
@@ -145,7 +139,6 @@ function Hero({ onWatchDemo }) {
         ))}
       </motion.div>
 
-      {/* Content Section */}
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <motion.div className="eyebrow" {...fadeUp(1.5)}>
           <span className="eyebrow-dot" />
@@ -174,12 +167,10 @@ function Hero({ onWatchDemo }) {
           <Link href="/" className="btn">
             Launch →
           </Link>
-          {/* Hooked up to scroll layout */}
           <button className="btn-ghost" onClick={onWatchDemo}>Watch demo</button>
         </motion.div>
       </div>
 
-      {/* Scroll indicator */}
       <motion.div
         className="scroll-indicator"
         initial={{ opacity: 0 }}
@@ -213,7 +204,6 @@ export default function Welcome() {
     setTimeout(() => setLocked(false), 950);
   }, [locked]);
 
-  // Wheel
   useEffect(() => {
     const el = rootRef.current;
     const onW = e => {
@@ -225,7 +215,6 @@ export default function Welcome() {
     return () => el?.removeEventListener('wheel', onW);
   }, [page, goTo]);
 
-  // Touch
   useEffect(() => {
     let sy = 0;
     const ts = e => { sy = e.touches[0].clientY; };
@@ -241,7 +230,6 @@ export default function Welcome() {
     };
   }, [page, goTo]);
 
-  // Keyboard
   useEffect(() => {
     const ok = e => {
       if (e.key === 'ArrowDown' || e.key === 'PageDown') goTo(page + 1);
@@ -253,7 +241,6 @@ export default function Welcome() {
 
   return (
     <>
-      {/* Nav dots */}
       <nav className="nav-dots" aria-label="Page navigation">
         {Array.from({ length: TOTAL }).map((_, i) => (
           <button
@@ -265,21 +252,18 @@ export default function Welcome() {
         ))}
       </nav>
 
-      {/* Fullscreen scroll root */}
       <div className="scroll-root" ref={rootRef}>
         <motion.div
           className="scroll-track"
           animate={{ y: `-${page * 100}vh` }}
           transition={{ duration: 0.88, ease: EXP }}
         >
-          {/* Your exact first section, now optimized */}
           <Hero onWatchDemo={() => goTo(1)} />
           <Demo active={page === 1} />
           <Advantages active={page === 2} />
         </motion.div>
       </div>
 
-      {/* FOOTER */}
       <footer className="footer-stripe">
         <span className="footer-brand">Mintora</span>
         <span className="footer-copy">© 2026 Mintora. All rights reserved.</span>

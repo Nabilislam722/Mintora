@@ -34,7 +34,7 @@ function FeaturedFrame({ collections, span }) {
           animation: "ambient-breathe 5s ease-in-out infinite",
         }}
       />
-      {/*Spinny sweeper*/}
+      {/* A light sweeping around the border */}
       <div className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden">
         <div
           className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden"
@@ -81,10 +81,10 @@ export default function Home() {
     refetchIntervalInBackground: false,
   });
 
-  // Top NFTs are ordered by their collection's sales in this period (the 24h / 7d / 30d buttons)
+  // Top NFTs are the best listings for this period (the 24h / 7d / 30d buttons); see server lib/top-nfts.js
   const [topPeriod, setTopPeriod] = useState("24h");
   const { data: topNfts = [], isLoading: loadingTopNfts } = useQuery({
-    queryKey: [`${BASE_URL}/api/featurednft?limit=8&period=${topPeriod}`],
+    queryKey: [`${BASE_URL}/api/featurednft?period=${topPeriod}`],
     // Keep showing the current cards while another period loads, instead of the page spinner
     placeholderData: (previous) => previous,
     refetchInterval: 20_000,
@@ -121,10 +121,8 @@ export default function Home() {
       <HeroBackdrop image={heroImage} />
       <FeaturedCarousel onImage={setHeroImage} />
 
-      {/*Vehemi section */}
       <VeHemiPromo />
       
-      {/* Collections */}
       <section className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
@@ -156,9 +154,7 @@ export default function Home() {
 
       <LatestListingsSection nfts={latestNfts} />
 
-      {/*Launchpad banner*/}
       <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-6 mb-10">
-        {/* Left content */}
         <div className="flex items-center justify-between px-5 sm:px-12 py-8 sm:py-10">
           <div className="flex flex-col gap-3 z-10">
             <p className="text-xs text-blue-200 uppercase tracking-widest flex items-center gap-1">

@@ -132,7 +132,7 @@ export default function NftDetails() {
   const isOwner = address?.toLowerCase() === nft?.ownerAddress?.toLowerCase();
   const contractAddr = nft?.collectionId?.contractAddress || nft?.collection?.contractAddress;
 
-  // cache instantly, then schedule a background refetch to sync real DB state
+  // Show the change right away, then refetch once the crawler has had time to record it in the database
   const patchAndSync = (patch) => {
     queryClient.setQueryData(queryKey, (old) => ({ ...old, ...patch }));
     setTimeout(() => queryClient.invalidateQueries({ queryKey }), 4000);
@@ -355,7 +355,6 @@ export default function NftDetails() {
           </div>
         </div>
 
-        {/* Info */}
         <div className="flex flex-col gap-6 min-w-0">
           <div>
             {collection && (

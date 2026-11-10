@@ -34,7 +34,6 @@ export default function NftCard({ nft, size = "default" }) {
     large: "aspect-[3/4]",
   };
 
-  // Horizontal / feed layout
   if (size === "horizontal") {
     return (
       <Link href={`/nfts/${nft.collectionId?._id}/${nft.tokenId}`} className="block group">
@@ -53,7 +52,6 @@ export default function NftCard({ nft, size = "default" }) {
           <Card className="relative bg-card/90 backdrop-blur-xl border-none overflow-hidden rounded-2xl h-full z-10">
             <div className="flex items-center gap-4 p-3">
 
-              {/* Thumbnail */}
               <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-secondary/30">
                 <ResilientNftImage
                   src={nft.imageUrl}
@@ -63,7 +61,6 @@ export default function NftCard({ nft, size = "default" }) {
                 />
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate mb-1">
                   {nft.collectionId?.name || "Unknown"}
@@ -74,7 +71,6 @@ export default function NftCard({ nft, size = "default" }) {
                 <span className="text-xs text-muted-foreground font-mono">#{nft.tokenId}</span>
               </div>
 
-              {/* Price + status */}
               <div className="shrink-0 text-right flex flex-col items-end gap-1.5">
                 {nft.isListed ? (
                   <>

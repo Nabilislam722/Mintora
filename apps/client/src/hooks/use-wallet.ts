@@ -89,7 +89,6 @@ export function useWallet() {
 
     checkConnection();
 
-    // Listen for account changes
     if (window.ethereum) {
       window.ethereum.on('accountsChanged', (accounts: string[]) => {
         if (accounts.length > 0) {

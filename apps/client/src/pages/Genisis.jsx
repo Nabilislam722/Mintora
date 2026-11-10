@@ -8,7 +8,6 @@ import { BsStars } from "react-icons/bs";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 
-// Config
 const GENESIS_CONTRACT = "0x0000000000000000000000000000000000000000";
 const HEMI_EXPLORER = "https://explorer.hemi.xyz";
 const COLLECTION_NAME = "Mintora Genesis";
@@ -27,7 +26,6 @@ const GENESIS_ABI = [
   { name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "owner", type: "address" }], outputs: [{ type: "uint256" }] },
 ];
 
-// Countdown
 function useCountdown(targetTimestampSec) {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
@@ -60,12 +58,10 @@ function CountdownUnit({ value, label }) {
   );
 }
 
-// Loading placeholder
 function Skeleton({ className = "" }) {
   return <span className={`block rounded-md bg-secondary animate-pulse ${className}`} />;
 }
 
-// Mint progress bar
 function MintProgress({ minted, max, loading }) {
   const pct = max > 0 ? Math.min(100, (minted / max) * 100) : 0;
   return (
@@ -92,7 +88,6 @@ function MintProgress({ minted, max, loading }) {
   );
 }
 
-// Quantity stepper
 function QuantityStepper({ value, onChange, min = 1, max = 10, disabled = false }) {
   return (
     <div className="flex items-center gap-3">
@@ -119,7 +114,6 @@ function QuantityStepper({ value, onChange, min = 1, max = 10, disabled = false 
   );
 }
 
-// Main page
 export default function Genesis() {
   useSeo(pageSeo("/genesis"));
   const { address, isConnected } = useAccount();
@@ -223,7 +217,6 @@ export default function Genesis() {
   return (
     <div className="container mx-auto px-4 py-6 md:py-10 max-w-2xl">
 
-      {/* Hero */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 mb-3">
           <Sparkles className="w-3 h-3 text-primary" />
@@ -239,14 +232,12 @@ export default function Genesis() {
         </p>
       </div>
 
-      {/* NFT */}
       <div className="relative rounded-2xl overflow-hidden border border-border mb-6 aspect-[4/3] bg-gradient-to-br from-primary/30 via-secondary to-accent/30">
         <div className="absolute inset-0 flex items-center justify-center">
           <BsStars className="w-10 h-10 text-foreground/20" />
         </div>
       </div>
 
-      {/* Countdown */}
       {countdown && !countdown.ended && (
         <div className="flex justify-center gap-2 mb-6">
           <CountdownUnit value={countdown.days} label="Days" />
@@ -256,7 +247,6 @@ export default function Genesis() {
         </div>
       )}
 
-      {/* Mint card */}
       <div className="glass rounded-2xl border border-border p-4 md:p-5">
 
         <MintProgress minted={minted} max={max} loading={isDataLoading} />

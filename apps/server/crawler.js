@@ -38,8 +38,7 @@ const TOPICS = [[...Object.keys(EVENT_TYPES).map((name) => MARKETPLACE.getEvent(
 const provider = createHemiProvider("crawler");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// --- Saved position: the last block whose events are all in the database ---
-
+// The saved position is the last block whose events are all in the database
 async function loadBlock() {
     const doc = await SyncState.findOne({ key: "lastBlock" }).lean();
     return doc?.value ?? 0;
@@ -48,8 +47,6 @@ async function loadBlock() {
 async function saveBlock(block) {
     await SyncState.updateOne({ key: "lastBlock" }, { $set: { value: block } }, { upsert: true });
 }
-
-// --- Reading the chain ---
 
 // One normalised event per log we index, or null for anything else
 function decode(log) {
@@ -97,8 +94,6 @@ async function loadBlockTimes(events) {
     blocks.forEach((b, i) => blockTimes.set(missing[i], new Date(b.timestamp * 1000)));
     while (blockTimes.size > 2_000) blockTimes.delete(blockTimes.keys().next().value);
 }
-
-// --- Writing to the database ---
 
 function nftOp({ type, collection, tokenId, actor, to, price }) {
     const filter = { contractAddress: collection, tokenId };
@@ -170,8 +165,6 @@ async function applyLogs(logs) {
         },
     })));
 }
-
-// --- The loop ---
 
 let stopping = false;
 let span = MAX_SPAN;

@@ -155,7 +155,6 @@ export default function VeHemiDetails() {
         </header>
 
         <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
-          {/* Position */}
           <section className={`${panelCls} lg:col-start-1`}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
               <div className="col-span-2 sm:col-span-1 rounded-xl bg-primary/10 border border-primary/30 px-3 py-2.5">
@@ -181,7 +180,6 @@ export default function VeHemiDetails() {
             </div>
           </section>
 
-          {/* Price and actions */}
           <aside className={`${panelCls} lg:col-start-2 lg:row-start-1 lg:row-span-4 lg:sticky lg:top-24 flex flex-col gap-5`}>
             <div>
               <p className="text-xs text-muted-foreground mb-1">{listing ? "Price" : "Status"}</p>
@@ -283,7 +281,6 @@ export default function VeHemiDetails() {
             )}
           </aside>
 
-          {/* Weight */}
           {!ended && (
             <section className={`${panelCls} lg:col-start-1`}>
               <h2 className="font-display font-bold">Voting weight until unlock</h2>
@@ -296,7 +293,6 @@ export default function VeHemiDetails() {
 
           <VeHemiOffers position={p} offers={offers} loading={offersLoading} className={`${panelCls} lg:col-start-1`} />
 
-          {/* Chain info */}
           <section className={`${panelCls} lg:col-start-1`}>
             <h2 className="font-display font-bold mb-3">Details</h2>
             <div className="rounded-xl bg-secondary/40 border border-white/5 divide-y divide-white/5">

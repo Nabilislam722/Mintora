@@ -202,7 +202,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
   return (
     <>
-      {/* Banner */}
       <div className="s-banner max-md:!h-32" onClick={() => bannerRef.current?.click()}>
         {banner.preview && <img src={banner.preview} alt="banner" />}
         <div className="s-banner-overlay">
@@ -212,7 +211,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
           onChange={e => e.target.files[0] && banner.pick(e.target.files[0])} />
       </div>
 
-      {/* Avatar */}
       <div className="flex items-end mb-7">
         <div className="s-avatar max-md:!w-16 max-md:!h-16" onClick={() => avatarRef.current?.click()}>
           {avatar.preview
@@ -235,7 +233,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
       <p className="s-page-title">Edit Profile</p>
 
-      {/* Username */}
       <div className="s-field">
         <label className="s-label">Username</label>
         <input type="text" className="s-input" placeholder="Enter a username"
@@ -246,7 +243,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
         </div>
       </div>
 
-      {/* Bio */}
       <div className="s-field">
         <label className="s-label">Bio</label>
         <textarea className="s-input" placeholder="Tell the world about yourself…"
@@ -256,7 +252,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
         </div>
       </div>
 
-      {/* URL */}
       <div className="s-field">
         <label className="s-label">URL</label>
         <input type="text" className="s-input" placeholder="https://"
@@ -421,7 +416,6 @@ export default function Settings() {
         ))}
       </nav>
 
-      {/* Main Content Area */}
       <main className="s-main ml-60 max-md:!static max-md:!w-full max-md:!ml-0 max-md:!p-0">
         {activeNav === "profile" && (
           <ProfileTab address={address} dbUser={dbUser} onSaved={handleSaved} />

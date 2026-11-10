@@ -229,7 +229,6 @@ export default function Navbar() {
 
         {logoPosition === "left" && <Logo />}
 
-        {/* Desktop search — hidden on mobile */}
         <div ref={wrapRef} className="hidden md:block flex-1 max-w-xl relative">
           <div
             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 bg-secondary/60
@@ -256,7 +255,6 @@ export default function Navbar() {
         {/* Mobile spacer so right-side items sit at the edge when search is hidden */}
         <div className="flex-1 md:hidden" />
 
-        {/* Right side */}
         <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
           <button
             type="button"
@@ -277,7 +275,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile search overlay */}
       {mobileSearchOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 px-4 pb-3 pt-2 bg-background/95 backdrop-blur-md border-b border-border/50">
           <div className="relative">

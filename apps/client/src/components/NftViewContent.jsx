@@ -75,12 +75,10 @@ function NftListRow({ nft, index }) {
     <Link href={`/nfts/${nft.collectionId?._id}/${nft.tokenId}`}>
       <div className="nft-row" style={{ animationDelay: `${index * 0.04}s` }}>
 
-        {/* Rank */}
         <span className="text-xs font-mono font-bold text-foreground/20 tabular-nums">
           {String(index + 1).padStart(2, "0")}
         </span>
 
-        {/* Thumbnail */}
         <div className="w-10 h-10 rounded-lg overflow-hidden bg-foreground/5 shrink-0">
           <ResilientNftImage
             src={nft.imageUrl}
@@ -90,7 +88,6 @@ function NftListRow({ nft, index }) {
           />
         </div>
 
-        {/* Name + token ID */}
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground/90 truncate leading-tight">
             {nft.name}
@@ -100,12 +97,10 @@ function NftListRow({ nft, index }) {
           </p>
         </div>
 
-        {/* Collection */}
         <p className="text-xs text-foreground/40 truncate font-medium">
           {nft.collectionId?.name || "Unknown"}
         </p>
 
-        {/* Price + % change + arrow */}
         <div className="flex items-center gap-3 justify-end">
           <div className="text-right">
             <p className="text-sm font-bold font-mono text-foreground/90 tabular-nums">
@@ -134,7 +129,6 @@ export function NftViewContent({ nfts, nftView }) {
 
   return (
     <div className="nft-list-enter">
-      {/* Column headers */}
       <div
         className="grid px-4 mb-1"
         style={{ gridTemplateColumns: "2.5rem 3rem 1fr 1fr auto", gap: "1rem" }}
