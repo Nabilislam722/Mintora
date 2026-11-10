@@ -27,9 +27,12 @@ export function Web3Provider({ children }) {
   const config = useConfig();
   const { writeContractAsync } = useWriteContract();
 
+  // Resolves once the transaction is mined; a reverted one throws, so the page never shows a trade that didn't happen
   const executeTx = async (txRequest) => {
     const hash = await writeContractAsync(txRequest);
-    return await waitForTransactionReceipt(config, { hash, confirmations: 1 });
+    const receipt = await waitForTransactionReceipt(config, { hash, confirmations: 1 });
+    if (receipt.status !== "success") throw new Error("The transaction failed on-chain.");
+    return receipt;
   };
 
 
