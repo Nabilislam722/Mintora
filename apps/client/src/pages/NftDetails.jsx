@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import { useAccount, useReadContract } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -8,6 +8,7 @@ import { ExternalLink, Info, Loader2, Pencil, ShoppingCart, Tag, Wallet, X } fro
 import { useWeb3, MARKETPLACE_CONTRACT } from "../lib/web3.jsx";
 import { useToast } from "@/hooks/use-toast";
 import { useEthPrice } from "@/hooks/use-token-prices";
+import { useNftSync } from "@/hooks/use-nft-sync";
 import ResilientNftImage from "@/components/ResilientNftImage";
 import { VerifiedBadge } from "@/components/CollectionCard";
 import { hemi } from "@/lib/hemi";
@@ -113,7 +114,7 @@ export default function NftDetails() {
   const [listPrice, setListPrice] = useState("");
   const [editing, setEditing] = useState(false);
   const [newPrice, setNewPrice] = useState("");
-  const queryClient = useQueryClient();
+  const syncNft = useNftSync();
 
   const queryKey = [`${BASE_URL}/api/nfts/${collectionId}/${tokenId}`];
 
@@ -132,11 +133,8 @@ export default function NftDetails() {
   const isOwner = address?.toLowerCase() === nft?.ownerAddress?.toLowerCase();
   const contractAddr = nft?.collectionId?.contractAddress || nft?.collection?.contractAddress;
 
-  // Show the change right away, then refetch once the crawler has had time to record it in the database
-  const patchAndSync = (patch) => {
-    queryClient.setQueryData(queryKey, (old) => ({ ...old, ...patch }));
-    setTimeout(() => queryClient.invalidateQueries({ queryKey }), 4000);
-  };
+  // Show the trade's result here and on every other page now, then refresh them once the API has recorded it
+  const patchAndSync = (patch) => syncNft(queryKey, nft, patch);
 
   const purchaseMutation = useMutation({
     mutationFn: async () => {
@@ -145,7 +143,7 @@ export default function NftDetails() {
     },
     onSuccess: () => {
       toast({ title: "Purchase Successful!", description: "NFT is now yours." });
-      patchAndSync({ isListed: false, ownerAddress: address.toLowerCase() });
+      patchAndSync({ isListed: false, price: "0", ownerAddress: address.toLowerCase() });
     },
     onError: (err) => {
       toast({ title: "Purchase Failed", description: err.message || "Transaction failed", variant: "destructive" });
@@ -179,7 +177,7 @@ export default function NftDetails() {
     },
     onSuccess: () => {
       toast({ title: "Price Updated", description: "Your listing has the new price." });
-      patchAndSync({ price: parseEther(newPrice).toString() });
+      patchAndSync({ isListed: true, price: parseEther(newPrice).toString() });
       setEditing(false);
       setNewPrice("");
     },
@@ -195,7 +193,7 @@ export default function NftDetails() {
     },
     onSuccess: () => {
       toast({ title: "Listing Canceled", description: "Your NFT is no longer on the market." });
-      patchAndSync({ isListed: false });
+      patchAndSync({ isListed: false, price: "0" });
     },
     onError: (err) => {
       toast({ title: "Cancellation Error", description: err.message || "Failed to cancel the listing.", variant: "destructive" });
