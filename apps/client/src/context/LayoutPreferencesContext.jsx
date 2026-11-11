@@ -1,37 +1,44 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-const STORAGE_KEY = "mintora_layout_prefs";
+// Only what the visitor picks in Settings is saved, so a changed default reaches everyone who never picked
+const STORAGE_KEY = "mintora_layout_choices";
+// The old key saved every pref, defaults included (both were "right" then), so only values that differ were picked
+const OLD_STORAGE_KEY = "mintora_layout_prefs";
+const OLD_DEFAULTS = { sidebarPosition: "right", logoPosition: "right" };
 
 const defaultPrefs = {
-  sidebarPosition: "right",
+  sidebarPosition: "left",
   logoPosition: "right",
 };
 
-function loadPrefs() {
+function loadChoices() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultPrefs;
-    return { ...defaultPrefs, ...JSON.parse(raw) };
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+    const old = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY) || "{}");
+    return Object.fromEntries(Object.entries(old).filter(([key, value]) => key in OLD_DEFAULTS && value !== OLD_DEFAULTS[key]));
   } catch {
-    return defaultPrefs;
+    return {};
   }
 }
 
 const LayoutPreferencesContext = createContext(null);
 
 export function LayoutPreferencesProvider({ children }) {
-  const [prefs, setPrefs] = useState(loadPrefs);
+  const [choices, setChoices] = useState(loadChoices);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(choices));
+      localStorage.removeItem(OLD_STORAGE_KEY);
     } catch {}
-  }, [prefs]);
+  }, [choices]);
 
   const value = {
-    ...prefs,
-    setSidebarPosition: (pos) => setPrefs((p) => ({ ...p, sidebarPosition: pos })),
-    setLogoPosition: (pos) => setPrefs((p) => ({ ...p, logoPosition: pos })),
+    ...defaultPrefs,
+    ...choices,
+    setSidebarPosition: (pos) => setChoices((c) => ({ ...c, sidebarPosition: pos })),
+    setLogoPosition: (pos) => setChoices((c) => ({ ...c, logoPosition: pos })),
   };
 
   return (
