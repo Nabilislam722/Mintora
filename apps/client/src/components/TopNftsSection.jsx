@@ -5,8 +5,7 @@ import NftCard from "./NftCard";
 import ScrollRow from "./ScrollRow";
 import { useGridColumns, columnWidth } from "@/hooks/use-grid-columns";
 
-// Top NFTs as one row that scrolls sideways (or as the ranked list). `timeFilter` (24h, 7d, 30d) belongs to
-// the page, which fetches the NFTs for it.
+// Top NFTs as a sideways row or a ranked list, for the page's `timeFilter`
 export default function TopNftsSection({ nfts, timeFilter, setTimeFilter }) {
   const [nftView, setNftView] = useState("grid");
   const width = columnWidth(useGridColumns());

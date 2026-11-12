@@ -47,7 +47,7 @@ export default function VeHemi() {
     return all.filter((l) => (!q || String(l.id).includes(q)) && l.hemi >= min && test(l.left)).sort(SORTS[sort].fn);
   }, [all, search, minHemi, lock, sort]);
 
-  // Your positions are on your profile: pick one there to list it
+  // Sends you to your profile to pick a position to list (or asks you to connect)
   const onList = () => (isConnected ? navigate("/profile") : openConnectModal?.());
 
   const floorListing = all.length ? all.reduce((min, l) => (l.price < min.price ? l : min)) : null;
@@ -99,7 +99,6 @@ export default function VeHemi() {
           ))}
         </div>
 
-        {/* The connected wallet's HEMI approval for its offers, with what can be revoked */}
         {address && <VeHemiApprovals address={address} />}
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-12">

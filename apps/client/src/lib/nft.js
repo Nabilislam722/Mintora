@@ -2,7 +2,7 @@ import { formatEther } from "viem";
 
 export const isListed = (n) => n.isListed === true || (!!n.price && n.price !== "0");
 
-// Unlisted items always sort after listed ones, then by token ID
+// Sorts by price with unlisted items last, then by token ID
 const byPrice = (dir) => (a, b) => {
   const pa = isListed(a) ? BigInt(a.price) : null;
   const pb = isListed(b) ? BigInt(b.price) : null;

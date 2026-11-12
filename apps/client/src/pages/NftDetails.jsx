@@ -37,7 +37,7 @@ const parsePrice = (value) => {
   }
 };
 
-// Price → marketplace fee → what the seller gets, using the fee read from the marketplace contract
+// Price → marketplace fee → what the seller gets
 function SaleBreakdown({ priceWei, feeBps, ethPrice, priceLabel = "Listing price" }) {
   const feeWei = priceWei != null ? (priceWei * BigInt(feeBps)) / 10000n : null;
   const receiveWei = priceWei != null ? priceWei - feeWei : null;
@@ -124,8 +124,6 @@ export default function NftDetails() {
     enabled: !!collectionId && !!tokenId,
   });
 
-  // While loading, or if the request fails (API down), keep the current tags: on a first visit they're the
-  // Worker's, which already match this NFT, so an outage never marks it noindex
   useSeo(nft ? nftSeo(nft, collectionId) : isNotFoundError(nftError) ? NOT_FOUND_SEO : null);
 
   const { data: feeData } = useReadContract({ address: MARKETPLACE_CONTRACT, abi: FEE_ABI, functionName: "marketplaceFee", chainId: hemi.id });
@@ -134,8 +132,6 @@ export default function NftDetails() {
   const isOwner = address?.toLowerCase() === nft?.ownerAddress?.toLowerCase();
   const contractAddr = nft?.collectionId?.contractAddress || nft?.collection?.contractAddress;
 
-  // An old listing of the owner's that the marketplace still stores for this NFT, although the site shows it as
-  // not listed: it sells at its old price whenever the marketplace is approved for the NFT (lib/web3.jsx)
   const shownListed = !!nft?.isListed && !!nft?.price && nft.price !== "0";
   const { data: listingReads } = useReadContracts({
     contracts: contractAddr && address && nft ? listingStateReads(contractAddr, nft.tokenId, address) : [],
@@ -143,7 +139,7 @@ export default function NftDetails() {
   });
   const oldListing = isOwner && !shownListed ? listingState(listingReads, address) : { oldPrice: 0n, approved: false };
 
-  // Show the trade's result here and on every other page now, then refresh them once the API has recorded it
+  // Shows the trade's result now, then refreshes once the API has recorded it
   const patchAndSync = (patch) => syncNft(queryKey, nft, patch);
 
   const purchaseMutation = useMutation({
@@ -384,7 +380,6 @@ export default function NftDetails() {
   return (
     <div className="container mx-auto px-4 py-8 sm:pr-12">
       <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
-        {/* Media: the frame takes the artwork's own shape instead of forcing a square */}
         <div className="lg:sticky lg:top-24 min-w-0">
           <div className="w-fit max-w-full mx-auto rounded-2xl overflow-hidden border border-border/50 bg-card shadow-2xl">
             <ResilientNftImage

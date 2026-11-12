@@ -1,7 +1,7 @@
 import { useHemiPrice } from "@/hooks/use-token-prices";
 import { fmt, hemiToUsd } from "@/lib/vehemi";
 
-// A listing's price; veHEMI listings are always priced and paid in HEMI
+// A listing's price in HEMI
 export default function VeHemiPrice({ listing, className = "" }) {
   return (
     <span className={`font-semibold tabular-nums ${className}`}>
@@ -10,7 +10,7 @@ export default function VeHemiPrice({ listing, className = "" }) {
   );
 }
 
-// Live USD value of an amount of HEMI; renders nothing until the price loads
+// Live USD value of an amount of HEMI; nothing until the price loads
 export function VeHemiUsd({ amount, className = "" }) {
   const usd = hemiToUsd(amount, useHemiPrice());
   return usd && <span className={`tabular-nums ${className}`}>{usd}</span>;

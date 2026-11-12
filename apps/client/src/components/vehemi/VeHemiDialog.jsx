@@ -4,8 +4,7 @@ import { CheckCircle2, Loader2, X } from "lucide-react";
 import { controlCls } from "@/components/NftBrowse";
 import { LISTING_DURATIONS, MAX_LISTING_DAYS, MIN_LISTING_DAYS } from "@/lib/vehemi";
 
-// Modal frame shared by the veHEMI dialogs. Clicking the backdrop doesn't close it while a wallet step runs.
-// Rendered into <body>: inside a panel with backdrop-blur, `fixed` would be relative to the panel, not the screen.
+// Modal frame for the veHEMI dialogs, rendered into <body>; the backdrop can't close it mid-step
 export default function VeHemiDialog({ title, onClose, busy = false, wide = false, children }) {
   return createPortal(
     <motion.div
@@ -73,7 +72,7 @@ export function HemiInput({ id, label, value, onChange, disabled, hint }) {
   );
 }
 
-// How long a listing or offer stays open, MIN_LISTING_DAYS to MAX_LISTING_DAYS
+// How long a listing or offer stays open (7 to 90 days)
 export function DurationSelect({ id, label, value, onChange, disabled }) {
   return (
     <div className="flex items-center justify-between">

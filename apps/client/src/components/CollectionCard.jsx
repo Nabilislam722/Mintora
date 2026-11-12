@@ -7,7 +7,7 @@ const fmtEth = (v) => {
   return n > 0 ? n.toLocaleString(undefined, { maximumFractionDigits: 4 }) : null;
 };
 
-// Plain CSS tooltip: Radix popups are mispositioned by html { zoom: 0.85 } in index.css
+// Verified checkmark with a CSS tooltip (Radix popups are misplaced by the page's zoom)
 export function VerifiedBadge({ verified }) {
   return (
     <span
@@ -69,7 +69,6 @@ export default function CollectionCard({ collection, size = "default" }) {
             : "rgba(255,255,255,0.1)",
         }}
       >
-        {/* Only the banner clips, so the badge tooltip can extend past the card */}
         <div className="relative rounded-2xl bg-card border border-border transition-all duration-300 group-hover:border-primary/50 group-hover:shadow-lg">
           <div className={`${sizeClasses[size]} relative overflow-hidden rounded-t-2xl`}>
             <img

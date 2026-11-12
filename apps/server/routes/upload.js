@@ -4,12 +4,11 @@ import { r2, R2_BUCKET, R2_PUBLIC_URL, IMAGE_TYPES, userImageKey } from "../lib/
 import { requireAuth } from "../lib/auth.js";
 
 const UPLOAD_TYPES = new Set(["avatar", "banner"]);
-const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_SIZE = 5 * 1024 * 1024;
 
+// Profile image upload routes
 export function registerUploadRoutes(app) {
-
-    // A one-time URL for the signed-in wallet to upload one profile image to R2. The image is only used once the
-    // profile is saved with its URL (PATCH /api/users/:address).
+    // A one-time R2 upload URL for the signed-in wallet's avatar or banner
     app.post("/api/upload/presign", requireAuth, async (req, res) => {
         const { fileType, fileSize, uploadType } = req.body ?? {};
 
@@ -25,8 +24,6 @@ export function registerUploadRoutes(app) {
         const key = userImageKey(req.wallet, ext);
         try {
             const command = new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: fileType, ContentLength: fileSize });
-            // Size and type are both signed, so R2 refuses an upload of any other size, or one labelled as
-            // something else (an HTML page served from the image domain, for example)
             const presignedUrl = await getSignedUrl(r2, command, { expiresIn: 300, signableHeaders: new Set(["content-type"]) });
             res.json({ presignedUrl, key, publicUrl: `${R2_PUBLIC_URL}/${key}` });
         } catch (err) {

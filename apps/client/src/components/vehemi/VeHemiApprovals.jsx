@@ -12,8 +12,7 @@ const toHemi = (wei) => Number(formatUnits(wei, 18));
 const btnCls = "h-9 px-4 rounded-xl text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50";
 const chipCls = "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap";
 
-// The clock, ticking every `ms`, so offers move to "ended" (and their HEMI to "can be revoked") as their time
-// runs out, without waiting for the next read from the chain
+// The current time, ticking every `ms`, so offers show as ended when their time runs out
 function useNow(ms) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -43,10 +42,7 @@ function StatusChip({ offer, open, now }) {
   );
 }
 
-// HEMI the market is approved to take from `address` for their offers, and how much of it no offer needs any
-// more. Offers aren't escrowed, so the approval stays after an offer ends; this lets its owner take it back.
-// An offer keeps its HEMI approved until it expires or is cancelled (it can come back to life if the position
-// returns to the holder it was made to), the same rule the offer dialog uses.
+// The HEMI approval `address` gave the market for offers, and how much of it can be revoked
 export default function VeHemiApprovals({ address }) {
   const { data } = useOfferApprovals(address);
   const actions = useVeHemiActions();
@@ -61,8 +57,6 @@ export default function VeHemiApprovals({ address }) {
   const open = offers.filter(isOpen);
   const neededWei = open.reduce((sum, o) => sum + o.amountWei, 0n);
   const revocableWei = allowance > neededWei ? allowance - neededWei : 0n;
-  // Nothing approved and nothing open: a one-line note, so people can see where revoking lives (and that
-  // nothing of theirs is approved)
   if (allowance === 0n && open.length === 0) {
     return (
       <section className="rounded-3xl border border-border/50 bg-card px-4 py-3 flex items-center gap-3" aria-labelledby="vehemi-approvals-title">
@@ -83,7 +77,7 @@ export default function VeHemiApprovals({ address }) {
   const approved = toHemi(allowance);
   const needed = toHemi(neededWei);
   const revocable = toHemi(revocableWei);
-  const next = open[0]; // offers come soonest-ending first
+  const next = open[0];
   const keptShare = allowance > 0n ? Math.min(100, (Number(neededWei) / Number(allowance)) * 100) : 0;
 
   const step = async (key, action, failTitle) => {
@@ -139,7 +133,6 @@ export default function VeHemiApprovals({ address }) {
         ))}
       </dl>
 
-      {/* How much of the approval is still in use, and how much could be taken back */}
       {allowance > 0n && (
         <div className="mt-3 h-1.5 rounded-full bg-amber-500/50 overflow-hidden" aria-hidden>
           <div className="h-full rounded-full bg-primary" style={{ width: `${keptShare}%` }} />

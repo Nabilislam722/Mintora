@@ -6,3 +6,5 @@ const syncStateSchema = new mongoose.Schema({
 });
 
 export const SyncState = mongoose.model("SyncState", syncStateSchema);
+
+export const CRAWLER_CURSORS = { nft: "lastBlock", vehemi: "veHemiMarketBlock" };

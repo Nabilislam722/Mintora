@@ -8,8 +8,6 @@ import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 import { fmt } from "@/lib/vehemi";
 
-// Each filter's params go straight to /api/activity. Listings and transfers only happen on the NFT market;
-// veHEMI listings and offers are on each position's page.
 const FILTERS = [
   { id: "all", label: "All", params: {}, empty: "No activity yet." },
   { id: "sales", label: "Sales", params: { type: "SOLD" }, empty: "No sales yet." },
@@ -29,7 +27,6 @@ const usd = (n) => `≈ ${n.toLocaleString("en-US", { style: "currency", currenc
 function useSalesSummary() {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   return useQuery({
-    // Starts with "activity", so a confirmed trade refreshes it with the feed (hooks/use-nft-sync.js)
     queryKey: ["activity", "summary"],
     queryFn: async () => {
       const res = await fetch(`${BASE_URL}/api/activity/summary`);

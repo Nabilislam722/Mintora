@@ -9,11 +9,15 @@ import { withLiveFloors } from "./lib/floor.js";
 import { sortBySales, SALES_PERIODS } from "./lib/trending.js";
 import { topNfts } from "./lib/top-nfts.js";
 import { salesSummary } from "./lib/sales-summary.js";
+import { withSellers } from "./lib/sellers.js";
+import { newestListingsFirst } from "./lib/listing-times.js";
+import { DataDump } from "./models/DataDump.js";
 import { requireAuth } from "./lib/auth.js";
 import { isUserImageUrl } from "./lib/r2.js";
 
+// The site's API routes
 export async function registerRoutes(app) {
-
+  // Searches NFTs, collections and users by name, or users by address
   app.get("/api/search", async (req, res) => {
     const { q } = req.query;
     if (!q || q.trim().length < 2) return res.json({ nfts: [], collections: [], users: [] });
@@ -34,6 +38,7 @@ export async function registerRoutes(app) {
     res.json({ nfts, collections: await withLiveFloors(collections), users });
   });
 
+  // A wallet's profile (empty fields if it has none)
   app.get("/api/users/:address", async (req, res) => {
     try {
       const user = await User.findOne({ walletAddress: req.params.address.toLowerCase() });
@@ -50,7 +55,7 @@ export async function registerRoutes(app) {
       res.status(500).json({ message: err.message });
     }
   });
-  // Only the signed-in wallet can edit its own profile. Fields left out of the body stay as they are.
+  // Updates the signed-in wallet's own profile; fields left out stay as they are
   app.patch("/api/users/:address", requireAuth, async (req, res) => {
     const address = req.params.address.toLowerCase();
     if (address !== req.wallet) return res.status(403).json({ message: "You can only edit your own profile." });
@@ -69,7 +74,6 @@ export async function registerRoutes(app) {
       if (text.length > MAX_BIO) return res.status(400).json({ message: `Bios are up to ${MAX_BIO} characters.` });
       update.bio = text;
     }
-    // Images must be the wallet's own uploads ("" removes one)
     for (const [field, value] of Object.entries({ profileImageUrl, bannerImageUrl })) {
       if (value === undefined) continue;
       if (value !== "" && !isUserImageUrl(value, address))
@@ -88,15 +92,13 @@ export async function registerRoutes(app) {
       );
       res.json(user);
     } catch (err) {
-      // Two wallets saving the same new name at once: the unique index lets only one through
       if (err.code === 11000 && err.keyPattern?.username) return res.status(409).json({ message: "That username is taken." });
       console.error("Profile save error:", err);
       res.status(500).json({ message: "Could not save the profile." });
     }
   });
 
-  // Whether a username can be used, so the settings page can say so before anything is signed or uploaded.
-  // `for` is the wallet asking, whose own current name counts as available.
+  // Whether a username is free (`for` is the asking wallet, whose own name counts as free)
   app.get("/api/usernames/:name", async (req, res) => {
     const name = req.params.name.trim();
     const problem = usernameProblem(name);
@@ -109,7 +111,7 @@ export async function registerRoutes(app) {
     }
   });
 
-  // Most sales in the last 7 days first, then by all-time volume (lib/trending.js)
+  // Every collection, most sales this week first
   app.get("/api/collections", async (req, res) => {
     try {
       const collections = await Collection.find();
@@ -119,6 +121,7 @@ export async function registerRoutes(app) {
     }
   });
 
+  // One collection with its live floor
   app.get("/api/collections/:slug", async (req, res) => {
     try {
       const collection = await Collection.findOne({ slug: req.params.slug });
@@ -130,11 +133,9 @@ export async function registerRoutes(app) {
     }
   });
 
-  // What the list views (cards, rows, collection and wallet stats) use. Descriptions and attributes are only
-  // shown on an NFT's own page, which has its own endpoint, and would make a whole collection several times
-  // bigger to send.
   const LIST_FIELDS = "tokenId name imageUrl price priceChange isListed ownerAddress contractAddress collectionId";
 
+  // NFTs of a wallet (?owner) or a collection (?collectionId), or else the newest listings
   app.get("/api/nfts", async (req, res) => {
     const { limit = 500, owner, collectionId } = req.query;
 
@@ -153,23 +154,22 @@ export async function registerRoutes(app) {
         query.isListed = true;
       }
 
-      let nfts = NFT.find(query)
+      const nfts = await NFT.find(query)
         .select(LIST_FIELDS)
         .populate("collectionId", "name")
         .collation({ locale: "en_US", numericOrdering: true })
         .sort(sortConfig)
         .lean();
-      // Collection and wallet pages filter, search, sort and count in the browser, so they need every match:
-      // capping them hid everything past the 500th token (Hemi Bros #6246, AirHemiHatchlings #500+) and made
-      // the item, owner and listed counts wrong. Only the site-wide listed feed is capped.
-      if (!owner && !collectionId) nfts = nfts.limit(Math.min(parseInt(limit) || 500, 1000));
+      if (owner || collectionId) return res.json(nfts);
 
-      res.json(await nfts);
+      const latest = await newestListingsFirst(nfts);
+      res.json(latest.slice(0, Math.min(parseInt(limit) || 500, 1000)));
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
   });
 
+  // One NFT with its collection
   app.get("/api/nfts/:collectionId/:tokenId", async (req, res) => {
     try {
       const { collectionId, tokenId } = req.params;
@@ -190,6 +190,7 @@ export async function registerRoutes(app) {
     }
   });
 
+  // The hand-picked featured items
   app.get("/api/featured", async (req, res) => {
     try {
       const featuredItems = await Featured.find();
@@ -202,8 +203,7 @@ export async function registerRoutes(app) {
     }
   });
 
-  // Top NFTs: the best 5 listings for ?period (24h, 7d or 30d), scored on their collection's sales, their own
-  // trading, freshness, price against recent sales, and hand-picked priority (lib/top-nfts.js)
+  // The top 5 listed NFTs for ?period (24h, 7d or 30d)
   app.get("/api/featurednft", async (req, res) => {
     try {
       const period = SALES_PERIODS[req.query.period] ? req.query.period : "24h";
@@ -214,6 +214,7 @@ export async function registerRoutes(app) {
     }
   });
 
+  // USD prices of ETH, HEMI and USDC
   app.get("/api/prices", async (req, res) => {
     try {
       const { prices, updatedAt } = await getPrices();
@@ -225,13 +226,11 @@ export async function registerRoutes(app) {
     }
   });
 
-  // Kinds of activity a feed can ask for: ?type=SOLD, or several (?type=LIST,UPDATE,CANCEL)
   const ACTIVITY_TYPES = new Set(["LIST", "SOLD", "UPDATE", "CANCEL", "TRANSFER"]);
   const MAX_ACTIVITY_PAGE = 50;
   const queryText = (value) => (typeof value === "string" ? value.trim() : "");
 
-  // Newest first. Filters: ?collection (contract address), ?address (either side of the event), ?type, and
-  // ?market=vehemi for veHEMI sales only.
+  // Activity, newest first, filtered by ?collection, ?address, ?type or ?market=vehemi
   app.get('/api/activity', async (req, res) => {
     try {
       const limit = Math.min(MAX_ACTIVITY_PAGE, Math.max(1, parseInt(req.query.limit) || 20));
@@ -245,26 +244,17 @@ export async function registerRoutes(app) {
       if (address) filter.$or = [{ from: address }, { to: address }];
       if (types.length) filter.type = { $in: types };
       if (req.query.market === "vehemi") filter.market = "vehemi";
+      filter.$nor = [{ market: "vehemi", type: { $ne: "SOLD" } }];
 
       const [items, total] = await Promise.all([
         Activity.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
         Activity.countDocuments(filter),
       ]);
 
-      // NFT sales recorded before the crawler saved sellers have none: their seller is who sent the NFT in the
-      // sale's own Transfer, which is in the same transaction
-      const noSeller = items.filter((i) => i.type === "SOLD" && !i.from && i.market !== "vehemi");
-      const transfers = noSeller.length
-        ? await Activity.find({ tx: { $in: noSeller.map((i) => i.tx) }, type: "TRANSFER" }).select("tx collection tokenId from").lean()
-        : [];
-      const sellers = new Map(transfers.map((t) => [`${t.tx}:${t.collection}:${t.tokenId}`, t.from]));
-      const rows = items.map((i) =>
-        noSeller.includes(i) ? { ...i, from: sellers.get(`${i.tx}:${i.collection}:${i.tokenId}`) ?? null } : i
-      );
+      const rows = await withSellers(items);
 
       const addresses = [...new Set(rows.flatMap((i) => [i.from, i.to].filter(Boolean)))];
       const collectionAddresses = [...new Set(rows.map((i) => i.collection).filter(Boolean))];
-      // veHEMI positions aren't stored as NFTs: the site draws those itself
       const tokens = [...new Map(rows.filter((i) => i.market !== "vehemi" && i.collection && i.tokenId)
         .map((i) => [`${i.collection}:${i.tokenId}`, { contractAddress: i.collection, tokenId: i.tokenId }])).values()];
 
@@ -293,13 +283,23 @@ export async function registerRoutes(app) {
     }
   });
 
-  // Sales and volume over the last 7 days, NFTs (ETH) and veHEMI (HEMI) apart (lib/sales-summary.js)
+  // Sales and volume over the last 7 days, NFTs and veHEMI apart
   app.get("/api/activity/summary", async (req, res) => {
     try {
       res.json(await salesSummary());
     } catch (err) {
       console.error("Activity summary error:", err.message);
       res.status(500).json({ message: "Could not load the sales summary." });
+    }
+  });
+
+  // Every month's stats, newest first
+  app.get("/api/stats/monthly", async (req, res) => {
+    try {
+      res.json(await DataDump.find({}, { _id: 0, __v: 0 }).sort({ month: -1 }).lean());
+    } catch (err) {
+      console.error("Monthly stats error:", err.message);
+      res.status(500).json({ message: "Could not load the monthly stats." });
     }
   });
 }

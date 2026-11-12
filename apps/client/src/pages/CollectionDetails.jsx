@@ -36,8 +36,6 @@ export default function CollectionDetails() {
       .sort(NFT_SORTS[sort].fn);
   }, [nfts, status, search, sort]);
 
-  // While loading, or if the request fails (API down), keep the current tags: on a first visit they're the
-  // Worker's, which already match this collection, so an outage never marks it noindex
   useSeo(collection ? collectionSeo(collection) : isNotFoundError(collectionError) ? NOT_FOUND_SEO : null);
 
   if (loadingCol) {

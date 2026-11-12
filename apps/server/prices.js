@@ -1,17 +1,15 @@
-// Token USD prices from CryptoRank (free plan: 10,000 credits/month, 10 req/min).
-// One request (1 credit) covers every token, and the result is shared by all visitors
-// for PRICE_TTL, so the API is hit at most ~6 times a day (~180 credits/month) no matter how much traffic we get.
+import { recordPriceSample } from "./models/DataDump.js";
 
-// CryptoRank currency ids, from GET /v3/currencies/map
 const CRYPTORANK_IDS = { ETH: 3, HEMI: 192009, USDC: 5487 };
 
 export const PRICE_TTL = 4 * 60 * 60 * 1000;
 const RETRY_DELAY = 5 * 60 * 1000;
 
-let cache = null; // { prices: { ETH, HEMI, USDC }, updatedAt }
+let cache = null;
 let inFlight = null;
 let retryAfter = 0;
 
+// Fetches ETH, HEMI and USDC prices in USD from CryptoRank in one request
 async function fetchPrices() {
   const ids = Object.values(CRYPTORANK_IDS).join(",");
   const res = await fetch(`https://api.cryptorank.io/v3/currencies/list?currencyIds=${ids}`, {
@@ -24,15 +22,18 @@ async function fetchPrices() {
   return { prices, updatedAt: Date.now() };
 }
 
-// Concurrent callers share one request; if CryptoRank fails we keep serving the last
-// prices and wait RETRY_DELAY before trying again, so an outage can't drain credits
+// Cached prices, refetched every 4 hours; on failure keeps the last ones and retries in 5 minutes
 export async function getPrices() {
   const now = Date.now();
   if (cache && (now - cache.updatedAt < PRICE_TTL || now < retryAfter)) return cache;
   if (!cache && now < retryAfter) throw new Error("Prices temporarily unavailable");
 
   inFlight ??= fetchPrices()
-    .then((fresh) => (cache = fresh))
+    .then((fresh) => {
+      cache = fresh;
+      recordPriceSample(fresh.prices).catch((err) => console.error("Price sample not saved:", err.message));
+      return fresh;
+    })
     .catch((err) => {
       retryAfter = Date.now() + RETRY_DELAY;
       throw err;

@@ -36,7 +36,7 @@ function TokenIcon({ symbol }) {
   );
 }
 
-// Rendered only while the menu is open, so balances and prices are fetched on demand
+// Wallet balances, rendered only while the menu is open so they're fetched on demand
 function WalletBalances({ address }) {
   const { rows, total } = useWalletBalances(address);
   return (
@@ -62,7 +62,7 @@ function WalletBalances({ address }) {
   );
 }
 
-// Connected wallet shown as the user's profile (avatar + username) instead of RainbowKit's address pill
+// The connected wallet shown as the user's profile (avatar and username)
 function ProfileMenu({ account }) {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   const { disconnect } = useDisconnect();
@@ -71,7 +71,6 @@ function ProfileMenu({ account }) {
   const ref = useRef(null);
   useDismiss(ref, open, () => setOpen(false));
 
-  // Same key as the Profile and Settings pages, so profile edits show up here too
   const { data: user } = useQuery({
     queryKey: [`${BASE_URL}/api/users/${account.address}`],
     queryFn: async () => {

@@ -20,14 +20,11 @@ ToastViewport.displayName = ToastPrimitives.Viewport.displayName
 
 const toastVariants = cva(
   [
-    // base layout
     "group relative flex items-start gap-3 w-full overflow-hidden",
     "rounded-xl border p-4 pr-9",
     "shadow-lg shadow-black/20",
-    // left accent bar via pseudo-element
     "before:absolute before:left-0 before:top-3 before:bottom-3",
     "before:w-[3px] before:rounded-full before:content-['']",
-    // swipe + animation
     "transition-all duration-300",
     "data-[swipe=cancel]:translate-x-0",
     "data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)]",

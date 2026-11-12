@@ -1,8 +1,3 @@
-// Titles, descriptions and preview images for search engines and link previews.
-// Shared by the React app (hooks/use-seo.js), which updates <head> as you navigate, and the Cloudflare Worker
-// (worker/index.js), which writes the same tags into the HTML before it's sent, for crawlers and link previews
-// that don't run JavaScript. Keep this file free of browser-only imports.
-
 export const SITE_URL = "https://mintora.app";
 export const SITE_NAME = "Mintora";
 export const DEFAULT_IMAGE = `${SITE_URL}/og-image.jpg`;
@@ -10,7 +5,6 @@ const DEFAULT_TITLE = "Mintora | Next-Gen NFT Marketplace on Hemi Network";
 const DEFAULT_DESCRIPTION =
   "Mintora is a gas-optimized NFT marketplace built natively on Hemi Network. Discover, list and trade digital collectibles with low fees.";
 
-// Static routes. noindex keeps a page out of search results: wallet-only pages and ones that aren't live yet.
 const PAGES = {
   "/": { title: DEFAULT_TITLE, absoluteTitle: true },
   "/collections": {
@@ -43,7 +37,6 @@ const PAGES = {
 
 export const NOT_FOUND_SEO = { title: "Page Not Found", noindex: true };
 
-// Static pages that belong in the sitemap
 export const SITEMAP_PATHS = Object.keys(PAGES).filter((path) => !PAGES[path].noindex);
 
 export const pageSeo = (path) => (PAGES[path] ? { ...PAGES[path], path } : null);
@@ -52,7 +45,7 @@ const clean = (text) => String(text ?? "").replace(/\s+/g, " ").trim();
 const truncate = (text, max) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 const shortAddress = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-// Wei string -> "0.0011"
+// Wei string → "0.0011"
 const formatEth = (wei) => {
   try {
     return (Number(BigInt(wei) / 10n ** 12n) / 1e6).toLocaleString("en-US", { maximumFractionDigits: 4 });
@@ -61,7 +54,7 @@ const formatEth = (wei) => {
   }
 };
 
-// Link previews need a public https image; embedded data: images and unknown schemes don't work
+// The image if it's a public https URL (the only kind link previews show)
 const httpsImage = (url) => {
   if (typeof url !== "string") return null;
   if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7).replace(/^ipfs\//, "")}`;
@@ -78,7 +71,7 @@ export function collectionSeo(c) {
   };
 }
 
-// `nft` as returned by /api/nfts/:collectionId/:tokenId, with its collection populated
+// SEO entry for an NFT page (`nft` from /api/nfts/:collectionId/:tokenId)
 export function nftSeo(nft, collectionId) {
   const col = nft.collectionId ?? {};
   const name = clean(nft.name) || `#${nft.tokenId}`;
@@ -94,7 +87,7 @@ export function nftSeo(nft, collectionId) {
   };
 }
 
-// Wallets without a username have nothing to show in search, so they're kept out of the index
+// SEO entry for a profile; wallets without a username are kept out of the index
 export function profileSeo(address, user) {
   const name = clean(user?.username) || shortAddress(address);
   const bio = clean(user?.bio);
@@ -126,7 +119,7 @@ export function buildMeta({ title, description, path = "/", image, noindex = fal
   };
 }
 
-// The <meta> tags to set, as [attribute, key, value]. index.html has one of each for these to update.
+// The <meta> tags to set, as [attribute, key, value]
 export const metaTags = (m) => [
   ["name", "description", m.description],
   ["name", "robots", m.robots],
@@ -139,7 +132,7 @@ export const metaTags = (m) => [
   ["name", "twitter:image", m.image],
 ];
 
-// Structured data for the home page: tells search engines the site's name and logo
+// Structured data for the home page: the site's name and logo
 export const homeJsonLd = () => ({
   "@context": "https://schema.org",
   "@graph": [

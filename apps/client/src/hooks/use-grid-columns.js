@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 
-// Card columns on the home page at the current width: 2 on phones, 3 from md, 4 from lg, 5 from xl
-// (Tailwind's breakpoints). Collections and Top NFTs both use it, so their cards line up.
 const BREAKPOINTS = [
   ["(min-width: 1280px)", 5],
   ["(min-width: 1024px)", 4],
@@ -10,6 +8,7 @@ const BREAKPOINTS = [
 
 const columnsNow = () => BREAKPOINTS.find(([query]) => window.matchMedia(query).matches)?.[1] ?? 2;
 
+// Card columns at the current width: 2 on phones, 3 from md, 4 from lg, 5 from xl
 export function useGridColumns() {
   const [columns, setColumns] = useState(columnsNow);
 
@@ -23,5 +22,5 @@ export function useGridColumns() {
   return columns;
 }
 
-// Width of one card in a row of `columns` cards with gap-4 (1rem) between them
+// Width of one card in a row of `columns` cards with 1rem gaps
 export const columnWidth = (columns) => `calc((100% - ${columns - 1}rem) / ${columns})`;

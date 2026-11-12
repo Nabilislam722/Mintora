@@ -17,8 +17,7 @@ import { useGridColumns, columnWidth } from "@/hooks/use-grid-columns";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-// Glowing frame around the featured collections. It spans `span` grid columns and shows that many cards;
-// any more scroll sideways inside it.
+// Glowing frame around the featured collections, `span` columns wide; more cards scroll inside
 function FeaturedFrame({ collections, span }) {
   const width = columnWidth(span);
   return (
@@ -34,7 +33,6 @@ function FeaturedFrame({ collections, span }) {
           animation: "ambient-breathe 5s ease-in-out infinite",
         }}
       />
-      {/* A light sweeping around the border */}
       <div className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden">
         <div
           className="absolute -inset-[1px] rounded-xl -z-10 overflow-hidden"
@@ -73,7 +71,6 @@ function FeaturedFrame({ collections, span }) {
 
 export default function Home() {
   useSeo(pageSeo("/"));
-  // The hero banner on show, which tints the top of the page (HeroBackdrop)
   const [heroImage, setHeroImage] = useState(null);
   const { data: collections = [], isLoading: loadingCols } = useQuery({
     queryKey: [`${BASE_URL}/api/collections`],
@@ -81,11 +78,10 @@ export default function Home() {
     refetchIntervalInBackground: false,
   });
 
-  // Top NFTs are the best listings for this period (the 24h / 7d / 30d buttons); see server lib/top-nfts.js
   const [topPeriod, setTopPeriod] = useState("24h");
   const { data: topNfts = [], isLoading: loadingTopNfts } = useQuery({
     queryKey: [`${BASE_URL}/api/featurednft?period=${topPeriod}`],
-    // Keep showing the current cards while another period loads, instead of the page spinner
+    // Keeps the current cards while another period loads
     placeholderData: (previous) => previous,
     refetchInterval: 20_000,
     refetchIntervalInBackground: true,
@@ -97,8 +93,6 @@ export default function Home() {
     refetchIntervalInBackground: true,
   });
 
-  // Collections fill two rows of the grid: the featured frame first, then the rest. The API sends them with
-  // the most sales this week first, so the best sellers get the places.
   const columns = useGridColumns();
   const featuredCollections = useMemo(() => collections.filter(c => c.isFeatured), [collections]);
   const featuredSpan = Math.min(featuredCollections.length, columns);
@@ -116,7 +110,6 @@ export default function Home() {
   }
 
   return (
-    // `isolate` keeps the backdrop behind the page's content without going behind the page itself
     <div className="relative isolate flex flex-col gap-10 sm:pr-12">
       <HeroBackdrop image={heroImage} />
       <FeaturedCarousel onImage={setHeroImage} />

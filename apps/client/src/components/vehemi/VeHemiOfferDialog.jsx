@@ -4,16 +4,15 @@ import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { Wallet } from "lucide-react";
 import hemiLogo from "/hemi.svg";
+import VeHemiDiscount from "@/components/vehemi/VeHemiDiscount";
 import VeHemiDialog, { DialogDone, DialogRows, DurationSelect, HemiInput, StepButton, StepNote } from "@/components/vehemi/VeHemiDialog";
 import { useHemiFunds, useVeHemiMarket } from "@/hooks/use-vehemi";
 import { useTxStep, useVeHemiActions } from "@/hooks/use-vehemi-actions";
-import { MIN_LISTING_DAYS, fmt, formatDate, parseHemi } from "@/lib/vehemi";
+import { MIN_LISTING_DAYS, discountOf, fmt, formatDate, parseHemi } from "@/lib/vehemi";
 
 const toHemi = (wei) => Number(formatUnits(wei, 18));
 
-// Offer HEMI for a position, listed or not, or replace your offer on it. Nothing is escrowed: the market
-// needs an approval for the amount, on top of what your other open offers rely on, and takes the HEMI only
-// if the holder accepts.
+// Makes or replaces an offer on a position; nothing is escrowed, the HEMI is only approved
 export default function VeHemiOfferDialog({ position: p, myOffer, onClose }) {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -31,7 +30,7 @@ export default function VeHemiOfferDialog({ position: p, myOffer, onClose }) {
   const needed = funds && amountWei ? funds.reserved + amountWei : null;
   const approved = needed != null && funds.allowance >= needed;
   const short = !!funds && !!amountWei && funds.balance < amountWei;
-  const discount = amountWei && p.hemi > 0 ? Math.round((1 - amount / p.hemi) * 100) : null;
+  const discount = amountWei ? discountOf({ price: amount, hemi: p.hemi }) : 0;
 
   const onAction = async () => {
     if (!isConnected) return openConnectModal?.();
@@ -103,11 +102,7 @@ export default function VeHemiOfferDialog({ position: p, myOffer, onClose }) {
             hint={
               <>
                 <span>{funds ? `In your wallet: ${fmt(toHemi(funds.balance))} HEMI` : " "}</span>
-                {discount != null && (
-                  <span className={discount >= 0 ? "text-emerald-400" : "text-red-400"}>
-                    {discount >= 0 ? `${discount}% below` : `${-discount}% above`} locked value
-                  </span>
-                )}
+                {discount !== 0 && <VeHemiDiscount pct={discount} suffix={discount > 0 ? " off" : ""} size="xs" />}
               </>
             }
           />

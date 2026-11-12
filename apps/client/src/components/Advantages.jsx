@@ -4,7 +4,6 @@ import './Advantages.css';
 
 const EXP = [0.16, 1, 0.3, 1];
 
-// Positions and sizes below are in the Figma design's 1280×720 canvas
 const DW = 1280;
 const DH = 720;
 
@@ -98,7 +97,6 @@ function Connectors({ active, hoveredId }) {
         ))}
       </defs>
 
-      {/* base dim paths */}
       {lines.map((l, i) => (
         <motion.path
           key={`base-${l.id}`}
@@ -113,7 +111,6 @@ function Connectors({ active, hoveredId }) {
         />
       ))}
 
-      {/* accent glow on hover */}
       {lines.map((l) => (
         <motion.path
           key={`glow-${l.id}`}
@@ -130,7 +127,6 @@ function Connectors({ active, hoveredId }) {
         />
       ))}
 
-      {/* travelling dot */}
       {lines.map((l) => {
         const on = hoveredId === l.id;
         return (

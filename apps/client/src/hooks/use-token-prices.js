@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 const PRICE_CACHE_KEY = "token_prices_usd";
-const PRICE_TTL = 4 * 60 * 60 * 1000; // same as the server's CryptoRank cache (apps/server/prices.js)
+const PRICE_TTL = 4 * 60 * 60 * 1000;
 
 function readCachedPrices() {
   try {
@@ -13,8 +13,7 @@ function readCachedPrices() {
   }
 }
 
-// All USD prices ({ ETH, HEMI, USDC }) in one request to our server, which holds the CryptoRank key
-// and its own 4h cache. The response is kept in localStorage, so reloads don't refetch until it's 4 hours old.
+// USD prices of ETH, HEMI and USDC from our API, cached in localStorage for 4 hours
 export function useTokenPrices() {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   const [cached] = useState(readCachedPrices);
@@ -27,7 +26,6 @@ export function useTokenPrices() {
       try {
         localStorage.setItem(PRICE_CACHE_KEY, JSON.stringify(data));
       } catch {
-        // storage full or blocked; the in-memory query cache still works
       }
       return data;
     },

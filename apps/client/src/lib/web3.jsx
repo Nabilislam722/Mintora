@@ -32,17 +32,14 @@ const MARKETPLACE_ABI = [
 
 const sameAddress = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 
-// The marketplace keeps a listing after its NFT leaves the seller's wallet. If the NFT comes back, that listing
-// sells again at its old price as soon as the marketplace is approved for the NFT. These reads find such a
-// listing: what the marketplace has stored for the NFT, and whether it may move it (`owner` is the holder).
+// Reads that find an old listing still stored for an NFT, and whether the marketplace may move it
 export const listingStateReads = (nftAddress, tokenId, owner) => [
   { address: MARKETPLACE_CONTRACT, abi: MARKETPLACE_ABI, functionName: "getListing", args: [nftAddress, BigInt(tokenId)], chainId: hemi.id },
   { address: nftAddress, abi: ERC721_ABI, functionName: "getApproved", args: [BigInt(tokenId)], chainId: hemi.id },
   { address: nftAddress, abi: ERC721_ABI, functionName: "isApprovedForAll", args: [owner, MARKETPLACE_CONTRACT], chainId: hemi.id },
 ];
 
-// From those reads' results: `oldPrice`, the price of a listing `owner` still has stored (0n if none), and
-// `approved`, whether the marketplace may move the NFT (so that listing can sell right now)
+// `oldPrice` of the owner's stored listing (0n if none) and whether the marketplace is approved
 export function listingState(results, owner) {
   const [listing, approvedFor, approvedForAll] = (results ?? []).map((r) => (r?.status === "success" ? r.result : undefined));
   const mine = !!listing && sameAddress(listing.seller, owner) && listing.price > 0n;
@@ -59,7 +56,7 @@ export function Web3Provider({ children }) {
   const config = useConfig();
   const { writeContractAsync } = useWriteContract();
 
-  // Resolves once the transaction is mined; a reverted one throws, so the page never shows a trade that didn't happen
+  // Sends a transaction and resolves once it's mined; a reverted one throws
   const executeTx = async (txRequest) => {
     const hash = await writeContractAsync(txRequest);
     const receipt = await waitForTransactionReceipt(config, { hash, confirmations: 1 });
@@ -77,13 +74,9 @@ export function Web3Provider({ children }) {
     });
   }
 
-  // Lists an NFT so that an old listing of the seller's can never sell at its old price on the way. If one is
-  // still stored and the marketplace is already approved, that listing can sell right now, so it's repriced in
-  // one step. If it isn't approved, the old listing is cancelled before anything is approved. Approval is skipped
-  // when it's already in place. `onStep` gets a label for each wallet confirmation as it comes up.
+  // Lists an NFT without ever letting an old listing sell at its old price on the way
   async function listItem(nftAddress, tokenId, priceInEther, onStep = () => {}) {
     const results = await readContracts(config, { contracts: listingStateReads(nftAddress, tokenId, address), allowFailure: true });
-    // Never approve without knowing what's stored: an unseen old listing would go live with the approval
     if (results[0].status !== "success") throw new Error("Couldn't read the marketplace. Please try again.");
     const { oldPrice, approved } = listingState(results, address);
 

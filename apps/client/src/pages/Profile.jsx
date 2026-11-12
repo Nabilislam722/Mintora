@@ -29,10 +29,8 @@ export default function Profile() {
   const { address: walletAddress } = useAccount();
   const { openConnectModal } = useConnectModal();
   const address = urlAddress || walletAddress;
-  // ProfileView sets the tags when it renders; this covers the early returns below
   useSeo(!address ? pageSeo("/profile") : !isAddress(address) ? NOT_FOUND_SEO : null);
 
-  // Only your own profile (/profile with no address) needs a connected wallet
   if (!address) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
@@ -57,7 +55,6 @@ export default function Profile() {
     );
   }
 
-  // Keyed by address so filters reset when you move between profiles
   return (
     <ProfileView
       key={address.toLowerCase()}
@@ -68,7 +65,7 @@ export default function Profile() {
   );
 }
 
-// ownRoute: opened as /profile (your own, wallet-only) rather than /profile/:address
+// A wallet's profile page; `ownRoute` means it was opened as /profile (your own)
 function ProfileView({ address, isOwnProfile, ownRoute }) {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   const [, navigate] = useLocation();
@@ -88,7 +85,6 @@ function ProfileView({ address, isOwnProfile, ownRoute }) {
     },
   });
 
-  // Until the user loads, keep the current tags (on a first visit the Worker already sent the right ones)
   useSeo(ownRoute ? pageSeo("/profile") : user ? profileSeo(address, user) : null);
 
   const { data: nfts, isLoading } = useQuery({
@@ -184,7 +180,6 @@ function ProfileView({ address, isOwnProfile, ownRoute }) {
       </div>
 
       <ProfileVeHemi address={address} isOwnProfile={isOwnProfile} />
-      {/* Your HEMI approval for veHEMI offers, with what can be revoked (shows only if there's any) */}
       {isOwnProfile && (
         <div className="container mx-auto px-4 sm:pr-12 mt-6">
           <VeHemiApprovals address={address} />

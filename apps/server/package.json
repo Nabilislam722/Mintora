@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node index.js",
     "crawler": "node crawler.js",
-    "sync": "node sync.js"
+    "sync": "node sync.js",
+    "test": "node --test",
+    "backfill:datadump": "node scripts/backfill-datadump.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1009.0",

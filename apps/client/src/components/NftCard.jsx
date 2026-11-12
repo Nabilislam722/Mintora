@@ -1,9 +1,9 @@
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { formatEther } from "viem";
-import { useRef, useState } from "react";
 import ResilientNftImage from "@/components/ResilientNftImage";
 import { useEthPrice } from "@/hooks/use-token-prices";
+import { useHoverGlow } from "@/hooks/use-hover-glow";
 
 
 function formatUsd(ethAmount, ethPrice) {
@@ -14,19 +14,9 @@ function formatUsd(ethAmount, ethPrice) {
 }
 
 export default function NftCard({ nft, size = "default" }) {
-  const cardRef = useRef(null);
-  const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
-  const [isHovered, setIsHovered] = useState(false);
+  const glow = useHoverGlow(size === "horizontal" ? "rgba(255,255,255,0.08)" : "rgba(255, 255, 255, 0.1)");
   const ethPrice = useEthPrice();
   const hasPrice = !!nft.price && nft.price !== "0";
-
-  const handleMouseMove = (e) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 180;
-    const y = ((e.clientY - rect.top) / rect.height) * 180;
-    setMousePos({ x, y });
-  };
 
   const sizeClasses = {
     small: "aspect-[3.5/4]",
@@ -37,18 +27,7 @@ export default function NftCard({ nft, size = "default" }) {
   if (size === "horizontal") {
     return (
       <Link href={`/nfts/${nft.collectionId?._id}/${nft.tokenId}`} className="block group">
-        <div
-          ref={cardRef}
-          onMouseMove={handleMouseMove}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          className="relative p-[1px] rounded-2xl transition-transform duration-300 group-hover:-translate-y-0.5"
-          style={{
-            background: isHovered
-              ? `radial-gradient(circle at ${mousePos.x}% ${mousePos.y}%, rgba(59,130,246,0.5), rgba(13,160,74,1), transparent 70%)`
-              : "rgba(255,255,255,0.08)",
-          }}
-        >
+        <div {...glow} className="relative p-[1px] rounded-2xl transition-transform duration-300 group-hover:-translate-y-0.5">
           <Card className="relative bg-card/90 backdrop-blur-xl border-none overflow-hidden rounded-2xl h-full z-10">
             <div className="flex items-center gap-4 p-3">
 
@@ -100,18 +79,7 @@ export default function NftCard({ nft, size = "default" }) {
 
   return (
     <Link href={`/nfts/${nft.collectionId?._id}/${nft.tokenId}`} className="block group">
-      <div
-        ref={cardRef}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="relative p-[1px] rounded-xl transition-transform duration-600 group-hover:-translate-y-2"
-        style={{
-          background: isHovered
-            ? `radial-gradient(circle at ${mousePos.x}% ${mousePos.y}%, rgba(59, 130, 246, 0.5), rgba(13, 160, 74, 1), transparent 70%)`
-            : "rgba(255, 255, 255, 0.1)",
-        }}
-      >
+      <div {...glow} className="relative p-[1px] rounded-xl transition-transform duration-600 group-hover:-translate-y-2">
         <Card className="relative bg-card/90 backdrop-blur-xl border-none overflow-hidden rounded-xl h-full z-10">
           <div className={`${sizeClasses[size]} overflow-hidden bg-secondary/30 relative`}>
             <ResilientNftImage

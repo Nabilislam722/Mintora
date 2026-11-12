@@ -9,9 +9,9 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        lg: ".5625rem",
+        md: ".375rem",
+        sm: ".1875rem",
       },
       colors: {
         background: "hsl(var(--background) / <alpha-value>)",
@@ -100,12 +100,10 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        // Pair with a 200%-wide gradient whose first and last colors match, so the loop is seamless
         "gradient-flow": {
           from: { backgroundPosition: "0% 50%" },
           to: { backgroundPosition: "200% 50%" },
         },
-        // Streak sweeps across, then rests for the last 40% of each cycle
         shine: {
           "0%": { transform: "translateX(-100%) skewX(-20deg)" },
           "60%, 100%": { transform: "translateX(500%) skewX(-20deg)" },

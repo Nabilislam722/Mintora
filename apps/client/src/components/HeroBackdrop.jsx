@@ -1,5 +1,4 @@
-// The home page's background: a heavily blurred copy of the hero banner on show, behind the navbar and the
-// top of the page, fading into the page's own background further down. Each new banner fades in over the last.
+// The home page's blurred background of the hero banner on show, fading into the page
 export default function HeroBackdrop({ image }) {
   if (!image) return null;
   return (
@@ -9,7 +8,6 @@ export default function HeroBackdrop({ image }) {
         className="absolute -inset-[10%] bg-cover bg-center blur-[90px] saturate-150 opacity-60 dark:opacity-70 animate-in fade-in duration-1000 motion-reduce:animate-none"
         style={{ backgroundImage: `url("${image}")` }}
       />
-      {/* Darkens it a touch so text stays readable, then fades it out into the page */}
       <div className="absolute inset-0 bg-background/30" />
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/70 via-60% to-background" />
     </div>

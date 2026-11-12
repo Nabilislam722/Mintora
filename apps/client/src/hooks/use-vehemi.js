@@ -6,7 +6,6 @@ import { MARKET_ABI } from "@/lib/vehemi-abi";
 import { fetchBuyerOffers, fetchListings, fetchOffers, fetchPosition, openOffersTotal } from "@/lib/vehemi-chain";
 import { LISTING_FEE_BPS, VE_HEMI_MARKET } from "@/lib/vehemi";
 
-// Market state changes with every trade, unlike the app's default never-stale queries
 const LIVE = { staleTime: 30_000, refetchInterval: 60_000, refetchOnWindowFocus: true };
 
 const isTokenId = (id) => /^\d+$/.test(String(id ?? ""));
@@ -22,7 +21,7 @@ export function useVeHemiListings() {
   return { listings: data ?? [], loading: isLoading, error, refetch };
 }
 
-// One position with its listing state; data is null when the token doesn't exist
+// One position with its listing state (null when the token doesn't exist)
 export function useVeHemiPosition(id) {
   const client = usePublicClient({ chainId: hemi.id });
   return useQuery({
@@ -63,9 +62,7 @@ export function useVeHemiMarket() {
   };
 }
 
-// What `owner` can pay with: their HEMI balance and approval for the market, and how much of that approval
-// their open offers rely on (leaving out the offer on `tokenId`, which a trade on it replaces or clears).
-// `token` is the market's payment token, read from the market rather than assumed.
+// `owner`'s HEMI balance, approval for the market, and how much of it their open offers need
 export function useHemiFunds(owner, tokenId) {
   const client = usePublicClient({ chainId: hemi.id });
   return useQuery({
@@ -84,8 +81,7 @@ export function useHemiFunds(owner, tokenId) {
   });
 }
 
-// `owner`'s HEMI approval for the market and every offer of theirs still stored there, for the approvals panel.
-// `token` is the market's payment token, read from the market like useHemiFunds does.
+// `owner`'s HEMI approval and every offer of theirs still stored, for the approvals panel
 export function useOfferApprovals(owner) {
   const client = usePublicClient({ chainId: hemi.id });
   return useQuery({

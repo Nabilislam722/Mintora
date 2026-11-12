@@ -21,7 +21,6 @@ export default function CollectionHero({ collection, nfts }) {
   const ethPrice = useEthPrice();
   const address = collection.contractAddress;
 
-  // Contract owner stands in for the creator; collections that aren't Ownable just skip the chip
   const { data: owner } = useReadContract({
     address,
     abi: OWNER_ABI,

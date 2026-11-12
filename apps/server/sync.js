@@ -9,16 +9,14 @@ import { createHemiProvider } from './lib/provider.js';
 const MONGODB_URI = 'mongodb://127.0.0.1:27017/nft_marketplace';
 const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755";
 
-
 const IPFS_GATEWAYS = [
     "https://amaranth-imperial-otter-134.mypinata.cloud/ipfs/",
-    "https://gateway.pinata.cloud/ipfs/",                      
+    "https://gateway.pinata.cloud/ipfs/",
     "https://cloudflare-ipfs.com/ipfs/",
     "https://dweb.link/ipfs/",
     "https://nftstorage.link/ipfs/",
-    "https://ipfs.io/ipfs/",                                 
+    "https://ipfs.io/ipfs/",
 ];
-
 
 const GATEWAY_HOSTNAMES = [
     'ipfs.io',
@@ -29,7 +27,7 @@ const GATEWAY_HOSTNAMES = [
     'nftstorage.link',
 ];
 
-const FETCH_TIMEOUT_MS = 15000; 
+const FETCH_TIMEOUT_MS = 15000;
 
 const ERC721_ABI = [
     "function name() view returns (string)",
@@ -42,36 +40,26 @@ const MARKETPLACE_ABI = [
     "function getListing(address nft, uint256 tokenId) view returns (address seller, uint256 price)"
 ];
 
-// In-memory cache: url -> parsed metadata object, or 'FAILED'
 const requestCache = new Map();
 
+// Whether the URI points at a known IPFS gateway
 function isGatewayWrappedUrl(uri) {
     return GATEWAY_HOSTNAMES.some(host => uri.includes(host));
 }
 
-/**
- * Strip any ipfs:// prefix or any known gateway prefix down to the raw
- * CID(+path). Returns null if the URI isn't IPFS-shaped at all.
- */
+// The CID and path of an ipfs:// or gateway URI, or null if it isn't IPFS
 function extractCidPath(uri) {
     if (uri.startsWith('ipfs://')) {
         return uri.replace(/^ipfs:\/\//, '');
     }
     if (uri.startsWith('http') && isGatewayWrappedUrl(uri)) {
-        // strips e.g. https://<any-host>/ipfs/<cid>/<path> -> <cid>/<path>
         const match = uri.match(/\/ipfs\/(.+)$/);
         return match ? match[1] : null;
     }
     return null;
 }
 
-/**
- * Check whether a gateway URL actually serves this content, without
- * downloading the whole body. Some gateways (notably Pinata's DEDICATED
- * gateway) only serve CIDs pinned under that specific account and will
- * 404 / ERR_ID:00006 on everything else — a HEAD check is the only way
- * to know in advance rather than guessing.
- */
+// Whether a URL answers a HEAD request (cached)
 async function checkReachable(url) {
     const cacheKey = `HEAD:${url}`;
     if (requestCache.has(cacheKey)) {
@@ -91,11 +79,7 @@ async function checkReachable(url) {
     }
 }
 
-/**
- * Race a reachability check across every URL in parallel and resolve with
- * the first URL that actually responds successfully — never just the
- * first one in the array. Resolves null only once ALL have failed.
- */
+// The first of `urls` that answers, or null if none do
 function raceFirstReachable(urls) {
     if (urls.length === 0) return Promise.resolve(null);
 
@@ -118,13 +102,7 @@ function raceFirstReachable(urls) {
     });
 }
 
-/**
- * Resolve an IPFS/HTTP URI into a gateway URL that has actually been
- * VERIFIED to serve this content — used for anything getting saved to the
- * DB ( an image URL). Unlike a plain string substitution, this can't
- * silently pick a gateway (like a dedicated Pinata gateway) that 404s on
- * content it doesn't personally have pinned.
- */
+// A gateway URL verified to serve the URI's content, or Pinata's public gateway
 async function resolveVerifiedGatewayUrl(uri) {
     if (!uri || typeof uri !== 'string') return null;
     uri = uri.trim();
@@ -142,14 +120,11 @@ async function resolveVerifiedGatewayUrl(uri) {
     const winner = await raceFirstReachable(urls);
     if (winner) return winner;
 
-    // Nothing verified as reachable — fall back to the shared public
-    // Pinata gateway anyway so the DB isn't left with an empty string;
-    // it's the most likely to eventually serve arbitrary public CIDs.
     console.warn(`   ↳ no gateway verified reachable for image: ${cidPath}, defaulting to shared gateway`);
     return `https://gateway.pinata.cloud/ipfs/${cidPath}`;
 }
 
-
+// The metadata URLs to try for a token, from its tokenURI
 function buildPathCandidates(uri, tokenId) {
     if (!uri || typeof uri !== 'string') return { kind: 'none', candidates: [] };
 
@@ -195,16 +170,12 @@ function buildPathCandidates(uri, tokenId) {
         candidates: [
             `${cleanPath}/${tokenId}`,
             `${cleanPath}/${tokenId}.json`,
-            cleanPath, // unrevealed / pre-reveal fallback (whole folder is one JSON)
+            cleanPath,
         ],
     };
 }
 
-/**
- * Fetch and parse JSON metadata from a single URL.
- * Returns the parsed object, or null on any failure.
- * Results are memoised in requestCache to avoid duplicate network calls.
- */
+// Fetches and parses a JSON object from a URL (cached), or null
 async function fetchJson(url) {
     if (requestCache.has(url)) {
         const cached = requestCache.get(url);
@@ -234,14 +205,12 @@ async function fetchJson(url) {
                     requestCache.set(url, parsed);
                     return parsed;
                 }
-            } catch (_) { /* not JSON */ }
+            } catch (_) {}
         }
 
         requestCache.set(url, 'FAILED');
         return null;
     } catch (err) {
-        // Remember definite answers (e.g. 404), but not rate limits (429), server errors or timeouts:
-        // public gateways throw those in bursts, and caching them would make every retry fail at once
         const status = err.response?.status;
         if (status && status < 500 && status !== 429) requestCache.set(url, 'FAILED');
         return null;
@@ -250,7 +219,7 @@ async function fetchJson(url) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Gateways rate-limit in bursts, so each token gets a few tries, further apart each time
+// resolveMetadata with up to 3 tries, waiting longer each time
 async function resolveMetadataWithRetry(uri, tokenId, attempts = 3) {
     for (let i = 1; i <= attempts; i++) {
         const metadata = await resolveMetadata(uri, tokenId);
@@ -263,12 +232,7 @@ async function resolveMetadataWithRetry(uri, tokenId, attempts = 3) {
     return null;
 }
 
-/**
- * Fire fetchJson against every URL in parallel and resolve as soon as the
- * FIRST one succeeds. Only resolves null once ALL of them have failed.
- * This is what makes a dead/slow gateway harmless — we don't wait for it,
- * we just take whichever gateway answers first.
- */
+// The first JSON any of `urls` returns, or null if all fail
 function raceFirstSuccess(urls) {
     if (urls.length === 0) return Promise.resolve(null);
 
@@ -291,12 +255,7 @@ function raceFirstSuccess(urls) {
     });
 }
 
-/**
- * Universal metadata resolver.
- * Handles: data URIs, bare CIDs, folder-base CIDs, plain HTTP APIs,
- * private gateway URLs, and pre-reveal / unrevealed states — resolving
- * IPFS content by racing every configured gateway in parallel.
- */
+// A token's metadata from its tokenURI: data URIs, HTTP APIs, or IPFS through every gateway
 async function resolveMetadata(uri, tokenId) {
     if (!uri || typeof uri !== 'string') return null;
     uri = uri.trim();
@@ -322,7 +281,6 @@ async function resolveMetadata(uri, tokenId) {
 
     if (kind === 'none' || candidates.length === 0) return null;
 
-    //   Plain HTTP API: no gateway fan-out, just try each URL variant    
     if (kind === 'http') {
         for (const url of candidates) {
             console.log(`   ↳ trying ${url}`);
@@ -332,7 +290,6 @@ async function resolveMetadata(uri, tokenId) {
         return null;
     }
 
-    //   IPFS: expand each path candidate across ALL gateways, race them   
     for (const cidPath of candidates) {
         const urls = IPFS_GATEWAYS.map(gw => `${gw}${cidPath}`);
         console.log(`   ↳ racing ${urls.length} gateways for: ${cidPath}`);
@@ -346,11 +303,7 @@ async function resolveMetadata(uri, tokenId) {
     return null;
 }
 
-/**
- * Normalise an image URL from metadata into a reliable public HTTPS URL.
- * Verifies reachability across all gateways rather than blindly trusting
- * whichever one happens to be first in the list.
- */
+// A reachable HTTPS URL for a metadata image
 async function resolveImageUrl(raw) {
     if (!raw || typeof raw !== 'string') return '';
 
@@ -361,6 +314,7 @@ async function resolveImageUrl(raw) {
     return (await resolveVerifiedGatewayUrl(raw)) || raw;
 }
 
+// Syncs every token of a collection (owner, listing and metadata) into the database
 async function syncExistingCollection(contractAddress) {
     if (!contractAddress) {
         console.error('❌ Usage: node sync.js <contractAddress>');
@@ -399,7 +353,6 @@ async function syncExistingCollection(contractAddress) {
         }
     }
 
-    // Find the token ids that actually exist (not just 0..totalSupply)
     const contractKey = contractAddress.toLowerCase();
     const knownIds = (await NFT.find({ contractAddress: contractKey }, { tokenId: 1 }).lean()).map((n) => n.tokenId);
     let tokenIds;
@@ -442,9 +395,6 @@ async function syncExistingCollection(contractAddress) {
             const metadata = await resolveMetadataWithRetry(uri, tokenId);
 
             if (!metadata) {
-                // Skipping the token here kept it off Mintora entirely (e.g. Hemi Bros #769 and #5145 after
-                // gateways rate-limited the sync). Store it with its owner and listing instead; the next run fills
-                // in the metadata. A token that's already stored keeps the metadata it has.
                 await NFT.updateOne(
                     { tokenId, contractAddress: contractKey },
                     {

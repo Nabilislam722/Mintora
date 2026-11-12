@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { Grid3X3, List, Search, X } from "lucide-react";
 import NftCard from "@/components/NftCard";
 
-// Building blocks shared by pages that browse a list of NFTs (collection page, profile)
-
 export const controlCls = "h-9 rounded-full bg-secondary/50 border border-white/10 text-sm outline-none focus:border-primary/50";
 export const tabCls = "rounded-full px-4 data-[state=active]:bg-card data-[state=active]:shadow-sm";
 const PAGE_SIZE = 40;
@@ -80,7 +78,7 @@ export function EmptyState({ message, action, onAction }) {
   );
 }
 
-// Grid or list of NFT cards, 40 at a time; a new `items` array (new filters) starts from the top again
+// NFT cards as a grid or list, 40 at a time; new `items` start from the top
 export function NftResults({ items, loading, view, empty }) {
   const [visible, setVisible] = useState(PAGE_SIZE);
   useEffect(() => setVisible(PAGE_SIZE), [items]);

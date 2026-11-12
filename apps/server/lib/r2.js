@@ -13,8 +13,8 @@ export const r2 = new S3Client({
 export const R2_BUCKET       = "mintora";
 export const R2_PUBLIC_URL   = process.env.R2_PUBLIC_URL;
 
-// Profile images: users/<wallet>/<uuid>.<ext>
 export const IMAGE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp": "webp" };
+// R2 key for a new profile image: users/<wallet>/<uuid>.<ext>
 export const userImageKey = (wallet, ext) => `users/${wallet}/${crypto.randomUUID()}.${ext}`;
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

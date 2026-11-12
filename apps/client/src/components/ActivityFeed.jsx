@@ -39,7 +39,7 @@ const eventOf = (item) =>
 const isVeHemi = (item) => item.market === "vehemi";
 const tokenKey = (item) => `${item.tx}:${item.collection}:${item.tokenId}`;
 
-// An NFT sale also moves the NFT, which is recorded as a transfer in the same transaction: show the sale alone
+// Hides the transfer an NFT sale also records, so each sale shows once
 function withoutSaleTransfers(items) {
   const sales = new Set(items.filter((i) => i.type === "SOLD").map(tokenKey));
   return items.filter((i) => i.type !== "TRANSFER" || !sales.has(tokenKey(i)));
@@ -151,7 +151,7 @@ function TimeLink({ item, className = "" }) {
   );
 }
 
-// Desktop: one row of six columns. Phone: event and time, then item and price, then who it was between.
+// One activity row: six columns on desktop, a stacked card on phones
 function Row({ item, prices, showCollection }) {
   const both = hasParty(item.from) && hasParty(item.to);
   return (
@@ -192,8 +192,7 @@ function SkeletonRows() {
   ));
 }
 
-// `filter` is passed straight to /api/activity, e.g. { collection: contractAddress }, { address: wallet },
-// { type: "SOLD" } or { market: "vehemi" }. `live` refreshes it every 15 s.
+// Activity from /api/activity for `filter`; `live` refreshes it every 15 s
 export default function ActivityFeed({ filter, showCollection = false, live = false, emptyText = "No activity yet." }) {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   const { data: prices } = useTokenPrices();
