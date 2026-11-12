@@ -8,6 +8,7 @@ import { getPrices, PRICE_TTL } from "./prices.js";
 import { withLiveFloors } from "./lib/floor.js";
 import { sortBySales, SALES_PERIODS } from "./lib/trending.js";
 import { topNfts } from "./lib/top-nfts.js";
+import { salesSummary } from "./lib/sales-summary.js";
 import { requireAuth } from "./lib/auth.js";
 import { isUserImageUrl } from "./lib/r2.js";
 
@@ -224,41 +225,81 @@ export async function registerRoutes(app) {
     }
   });
 
+  // Kinds of activity a feed can ask for: ?type=SOLD, or several (?type=LIST,UPDATE,CANCEL)
+  const ACTIVITY_TYPES = new Set(["LIST", "SOLD", "UPDATE", "CANCEL", "TRANSFER"]);
+  const MAX_ACTIVITY_PAGE = 50;
+  const queryText = (value) => (typeof value === "string" ? value.trim() : "");
+
+  // Newest first. Filters: ?collection (contract address), ?address (either side of the event), ?type, and
+  // ?market=vehemi for veHEMI sales only.
   app.get('/api/activity', async (req, res) => {
     try {
-      const { limit = 20, page = 1, collection, address } = req.query;
+      const limit = Math.min(MAX_ACTIVITY_PAGE, Math.max(1, parseInt(req.query.limit) || 20));
+      const page = Math.max(1, parseInt(req.query.page) || 1);
+      const collection = queryText(req.query.collection).toLowerCase();
+      const address = queryText(req.query.address).toLowerCase();
+      const types = queryText(req.query.type).split(",").filter((t) => ACTIVITY_TYPES.has(t));
 
       const filter = {};
-      if (collection) filter.collection = collection.toLowerCase();
-      if (address) filter.$or = [{ from: address.toLowerCase() }, { to: address.toLowerCase() }];
+      if (collection) filter.collection = collection;
+      if (address) filter.$or = [{ from: address }, { to: address }];
+      if (types.length) filter.type = { $in: types };
+      if (req.query.market === "vehemi") filter.market = "vehemi";
 
       const [items, total] = await Promise.all([
-        Activity.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(Number(limit)).lean(),
+        Activity.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
         Activity.countDocuments(filter),
       ]);
 
-      const addresses = [...new Set(items.flatMap(i => [i.from, i.to].filter(Boolean)))]
-      const collectionAddresses = [...new Set(items.map(i => i.collection).filter(Boolean))]
+      // NFT sales recorded before the crawler saved sellers have none: their seller is who sent the NFT in the
+      // sale's own Transfer, which is in the same transaction
+      const noSeller = items.filter((i) => i.type === "SOLD" && !i.from && i.market !== "vehemi");
+      const transfers = noSeller.length
+        ? await Activity.find({ tx: { $in: noSeller.map((i) => i.tx) }, type: "TRANSFER" }).select("tx collection tokenId from").lean()
+        : [];
+      const sellers = new Map(transfers.map((t) => [`${t.tx}:${t.collection}:${t.tokenId}`, t.from]));
+      const rows = items.map((i) =>
+        noSeller.includes(i) ? { ...i, from: sellers.get(`${i.tx}:${i.collection}:${i.tokenId}`) ?? null } : i
+      );
 
-      const [users, collections] = await Promise.all([
-        User.find({ walletAddress: { $in: addresses } }).select('walletAddress username profileImageUrl').lean(),
-        Collection.find({ contractAddress: { $in: collectionAddresses } }).select('contractAddress name imageUrl').lean(),
-      ])
+      const addresses = [...new Set(rows.flatMap((i) => [i.from, i.to].filter(Boolean)))];
+      const collectionAddresses = [...new Set(rows.map((i) => i.collection).filter(Boolean))];
+      // veHEMI positions aren't stored as NFTs: the site draws those itself
+      const tokens = [...new Map(rows.filter((i) => i.market !== "vehemi" && i.collection && i.tokenId)
+        .map((i) => [`${i.collection}:${i.tokenId}`, { contractAddress: i.collection, tokenId: i.tokenId }])).values()];
 
-      const userMap = Object.fromEntries(users.map(u => [u.walletAddress, u]))
-      const collectionMap = Object.fromEntries(collections.map(c => [c.contractAddress, c]))
+      const [users, collections, nfts] = await Promise.all([
+        User.find({ walletAddress: { $in: addresses } }).select("walletAddress username profileImageUrl").lean(),
+        Collection.find({ contractAddress: { $in: collectionAddresses } }).select("contractAddress name slug logoUrl").lean(),
+        tokens.length ? NFT.find({ $or: tokens }).select("contractAddress tokenId name imageUrl collectionId").lean() : [],
+      ]);
 
-      const enriched = items.map(item => ({
+      const userMap = Object.fromEntries(users.map((u) => [u.walletAddress, u]));
+      const collectionMap = Object.fromEntries(collections.map((c) => [c.contractAddress, c]));
+      const nftMap = Object.fromEntries(nfts.map((n) => [`${n.contractAddress}:${n.tokenId}`, n]));
+
+      const enriched = rows.map((item) => ({
         ...item,
         fromUser: userMap[item.from] ?? null,
         toUser: userMap[item.to] ?? null,
         collectionInfo: collectionMap[item.collection] ?? null,
-      }))
+        nft: nftMap[`${item.collection}:${item.tokenId}`] ?? null,
+      }));
 
-      res.json({ items: enriched, total, page: Number(page), limit: Number(limit) });
+      res.json({ items: enriched, total, page, limit });
     } catch (err) {
-      console.error('Activity route error:', err.message)
-      res.status(500).json({ error: err.message })
+      console.error("Activity route error:", err.message);
+      res.status(500).json({ message: "Could not load activity." });
+    }
+  });
+
+  // Sales and volume over the last 7 days, NFTs (ETH) and veHEMI (HEMI) apart (lib/sales-summary.js)
+  app.get("/api/activity/summary", async (req, res) => {
+    try {
+      res.json(await salesSummary());
+    } catch (err) {
+      console.error("Activity summary error:", err.message);
+      res.status(500).json({ message: "Could not load the sales summary." });
     }
   });
 }

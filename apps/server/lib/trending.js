@@ -11,7 +11,8 @@ const cache = new Map();
 
 async function countSales(windowMs) {
     const rows = await Activity.aggregate([
-        { $match: { type: "SOLD", createdAt: { $gte: new Date(Date.now() - windowMs) } } },
+        // veHEMI sales aren't collection sales
+        { $match: { type: "SOLD", market: { $ne: "vehemi" }, createdAt: { $gte: new Date(Date.now() - windowMs) } } },
         { $group: { _id: "$collection", sales: { $sum: 1 } } },
     ]);
     return new Map(rows.map((r) => [r._id, r.sales]));

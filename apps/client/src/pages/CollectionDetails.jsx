@@ -110,7 +110,7 @@ export default function CollectionDetails() {
           </TabsContent>
 
           <TabsContent value="activity" className="mt-0">
-            <ActivityFeed filter={{ collection: collection.contractAddress }} nfts={nfts} />
+            <ActivityFeed filter={{ collection: collection.contractAddress }} />
           </TabsContent>
         </Tabs>
       </div>

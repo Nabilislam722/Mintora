@@ -18,8 +18,8 @@ const PAGES = {
     description: "Browse every NFT collection on Mintora with live floor prices, volume and verified badges, all on Hemi Network.",
   },
   "/activity": {
-    title: "Live NFT Activity",
-    description: "Recent NFT sales, listings and transfers across Mintora on Hemi Network.",
+    title: "Live NFT and veHEMI Activity",
+    description: "Recent NFT sales, listings and transfers, and veHEMI sales, across Mintora on Hemi Network.",
   },
   "/vehemi": {
     title: "veHEMI Marketplace: Buy Locked HEMI",

@@ -178,7 +178,7 @@ function ProfileView({ address, isOwnProfile, ownRoute }) {
           </TabsContent>
 
           <TabsContent value="activity" className="mt-0">
-            <ActivityFeed filter={{ address }} nfts={nfts} showCollection />
+            <ActivityFeed filter={{ address }} showCollection />
           </TabsContent>
         </Tabs>
       </div>

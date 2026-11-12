@@ -30,8 +30,9 @@ async function compute(period) {
   const since = new Date(Date.now() - SALES_PERIODS[period]);
   const [listed, events] = await Promise.all([
     NFT.find({ isListed: true }, { contractAddress: 1, tokenId: 1, price: 1, priority: 1 }).lean(),
+    // NFT market events only: veHEMI sales are priced in HEMI
     Activity.find(
-      { type: { $in: ["SOLD", "LIST"] }, createdAt: { $gte: since } },
+      { type: { $in: ["SOLD", "LIST"] }, market: { $ne: "vehemi" }, createdAt: { $gte: since } },
       { type: 1, collection: 1, tokenId: 1, price: 1, _id: 0 }
     ).lean(),
   ]);

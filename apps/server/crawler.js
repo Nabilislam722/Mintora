@@ -8,6 +8,10 @@ import { getFloorPrices } from "./lib/floor.js";
 import { createHemiProvider } from "./lib/provider.js";
 
 const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755".toLowerCase();
+// MintoraVeHemi, and the veHEMI token it trades
+const VE_HEMI_MARKET = "0x6Fd47e5dA6c06a7D77A57893FD22C478b56C4Db1".toLowerCase();
+const VE_HEMI = "0x371d3718D5b7F75EAb050FAe6Da7DF3092031c89".toLowerCase();
+const VE_HEMI_MARKET_DEPLOY_BLOCK = 5_633_113;
 const ZERO_ADDRESS = ethers.ZeroAddress;
 
 // Hemi makes a block about every 12 s, so this sees each one within a few seconds of it
@@ -31,21 +35,29 @@ const ERC721 = new ethers.Interface([
     "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
 ]);
 
+// Only the veHEMI market's sales are indexed. A veHEMI listing or offer can be stored without being able to fill
+// (no approval yet, or not enough HEMI behind it), so the site reads those from the chain, where it checks them.
+const VE_MARKET = new ethers.Interface([
+    "event Sold(uint256 indexed tokenId, uint256 indexed listingId, address indexed seller, address buyer, uint256 price, uint256 fee)",
+    "event OfferAccepted(uint256 indexed tokenId, uint256 indexed offerId, address indexed seller, address buyer, uint256 amount, uint256 fee)",
+]);
+
 const EVENT_TYPES = { ItemListed: "LIST", ItemSold: "SOLD", ItemUpdated: "UPDATE", ItemCanceled: "CANCEL" };
 const TRANSFER_TOPIC = ERC721.getEvent("Transfer").topicHash;
 const TOPICS = [[...Object.keys(EVENT_TYPES).map((name) => MARKETPLACE.getEvent(name).topicHash), TRANSFER_TOPIC]];
+const VE_TOPICS = [["Sold", "OfferAccepted"].map((name) => VE_MARKET.getEvent(name).topicHash)];
 
 const provider = createHemiProvider("crawler");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// The saved position is the last block whose events are all in the database
-async function loadBlock() {
-    const doc = await SyncState.findOne({ key: "lastBlock" }).lean();
+// A source's saved position is the last block whose events are all in the database
+async function loadBlock(key) {
+    const doc = await SyncState.findOne({ key }).lean();
     return doc?.value ?? 0;
 }
 
-async function saveBlock(block) {
-    await SyncState.updateOne({ key: "lastBlock" }, { $set: { value: block } }, { upsert: true });
+async function saveBlock(key, block) {
+    await SyncState.updateOne({ key }, { $set: { value: block } }, { upsert: true });
 }
 
 // One normalised event per log we index, or null for anything else
@@ -82,6 +94,27 @@ function decode(log) {
     }
 }
 
+// A veHEMI sale as an activity row, or null for any other log
+function decodeVeHemi(log) {
+    try {
+        const parsed = VE_MARKET.parseLog(log);
+        if (!parsed) return null;
+        const { tokenId, seller, buyer } = parsed.args;
+        const viaOffer = parsed.name === "OfferAccepted";
+        return {
+            tx: log.transactionHash, logIndex: log.index, blockNumber: log.blockNumber,
+            type: "SOLD", market: "vehemi", viaOffer,
+            from: seller.toLowerCase(),
+            to: buyer.toLowerCase(),
+            collection: VE_HEMI,
+            tokenId: tokenId.toString(),
+            price: (viaOffer ? parsed.args.amount : parsed.args.price).toString(),
+        };
+    } catch {
+        return null;
+    }
+}
+
 const isMint = (e) => e.type === "TRANSFER" && e.from === ZERO_ADDRESS;
 const isBurn = (e) => e.type === "TRANSFER" && e.to === ZERO_ADDRESS;
 
@@ -110,19 +143,21 @@ function nftOp({ type, collection, tokenId, actor, to, price }) {
     }
 }
 
-function activityOp(e) {
-    const from = e.type === "TRANSFER" ? e.from : e.type === "SOLD" ? null : e.actor;
+// The activity row for an NFT market or collection event. A sale's seller comes from its Transfer (applyLogs).
+function nftActivity(e) {
+    const from = e.type === "TRANSFER" ? e.from : e.type === "SOLD" ? e.seller ?? null : e.actor;
     const to = e.type === "TRANSFER" ? e.to : e.type === "SOLD" ? e.actor : null;
+    const { tx, logIndex, type, collection, tokenId, price, blockNumber } = e;
+    return { tx, logIndex, type, from, to, collection, tokenId, price, blockNumber };
+}
+
+// Writes an activity row the first time its log is read. Rows are keyed by tx and log index, so reading a block
+// again changes nothing.
+function insertActivity(row) {
     return {
         updateOne: {
-            filter: { tx: e.tx, logIndex: e.logIndex },
-            update: {
-                $setOnInsert: {
-                    tx: e.tx, logIndex: e.logIndex, type: e.type, from, to,
-                    collection: e.collection, tokenId: e.tokenId, price: e.price,
-                    blockNumber: e.blockNumber, createdAt: blockTimes.get(e.blockNumber) ?? new Date(),
-                },
-            },
+            filter: { tx: row.tx, logIndex: row.logIndex },
+            update: { $setOnInsert: { ...row, createdAt: blockTimes.get(row.blockNumber) ?? new Date() } },
             upsert: true,
         },
     };
@@ -142,8 +177,12 @@ async function applyLogs(logs) {
     // Ordered, so a listing and its cancel in the same range land in that order
     await NFT.bulkWrite(events.map(nftOp), { ordered: true });
 
+    // ItemSold doesn't name the seller, but the sale's own Transfer, in the same transaction, does
+    const senders = new Map(events.filter((e) => e.type === "TRANSFER").map((e) => [`${e.tx}:${e.collection}:${e.tokenId}`, e.from]));
+    for (const e of events) if (e.type === "SOLD") e.seller = senders.get(`${e.tx}:${e.collection}:${e.tokenId}`);
+
     await loadBlockTimes(events);
-    const { upsertedIds } = await Activity.bulkWrite(events.map(activityOp), { ordered: false });
+    const { upsertedIds } = await Activity.bulkWrite(events.map((e) => insertActivity(nftActivity(e))), { ordered: false });
     const fresh = Object.keys(upsertedIds ?? {}).map((i) => events[Number(i)]);
     if (!fresh.length) return;
 
@@ -166,43 +205,84 @@ async function applyLogs(logs) {
     })));
 }
 
+// veHEMI sales: an activity row each. Nothing else in the database follows the veHEMI market.
+async function applyVeHemiLogs(logs) {
+    const sales = logs.map(decodeVeHemi).filter(Boolean);
+    if (!sales.length) return;
+    await loadBlockTimes(sales);
+    const { upsertedIds } = await Activity.bulkWrite(sales.map(insertActivity), { ordered: false });
+    for (const i of Object.keys(upsertedIds ?? {})) {
+        const s = sales[Number(i)];
+        console.log(`💎 veHEMI sold #${s.tokenId} for ${ethers.formatEther(s.price)} HEMI${s.viaOffer ? " (offer accepted)" : ""}`);
+    }
+}
+
 let stopping = false;
-let span = MAX_SPAN;
 
-// Reads every block from the saved position to the chain head, saving the position after each range is written
-async function pass() {
-    const head = await provider.getBlockNumber();
-    const saved = await loadBlock();
+// Each market is read from its own saved position, so one added later catches up on its past without the other
+// re-reading anything. Without a saved position, the NFT market starts at the chain head (its collections'
+// history is loaded by sync.js) and the veHEMI market where it was deployed, so its past sales are read once.
+const SOURCES = [
+    {
+        name: "NFT market",
+        key: "lastBlock",
+        async filter() {
+            const collections = await Collection.find({}, { contractAddress: 1 }).lean();
+            // One query covers the marketplace and every collection's transfers
+            const address = [MARKETPLACE_ADDRESS, ...collections.map((c) => c.contractAddress?.toLowerCase()).filter(Boolean)];
+            return { address, topics: TOPICS };
+        },
+        apply: applyLogs,
+    },
+    {
+        name: "veHEMI market",
+        key: "veHemiLastBlock",
+        startBlock: VE_HEMI_MARKET_DEPLOY_BLOCK,
+        filter: async () => ({ address: VE_HEMI_MARKET, topics: VE_TOPICS }),
+        apply: applyVeHemiLogs,
+    },
+].map((source) => ({ ...source, span: MAX_SPAN }));
 
+// Reads one source's blocks from its saved position to `head`, saving the position after each range is written
+async function scan(source, head) {
+    let saved = await loadBlock(source.key);
     if (!saved) {
-        await saveBlock(head);
-        console.log(`📌 Initialized at block ${head}`);
-        return;
+        if (!source.startBlock) {
+            await saveBlock(source.key, head);
+            console.log(`📌 ${source.name}: initialized at block ${head}`);
+            return;
+        }
+        saved = source.startBlock - 1;
     }
     if (head <= saved) return;
 
-    const collections = await Collection.find({}, { contractAddress: 1 }).lean();
-    // One query covers the marketplace and every collection's transfers
-    const addresses = [MARKETPLACE_ADDRESS, ...collections.map((c) => c.contractAddress?.toLowerCase()).filter(Boolean)];
-
+    const filter = await source.filter();
     let from = Math.max(1, saved - OVERLAP);
-    if (head - saved > MAX_SPAN) console.log(`⏩ Catching up ${saved} → ${head} (${head - saved} blocks)`);
+    if (head - saved > MAX_SPAN) console.log(`⏩ ${source.name}: catching up ${saved} → ${head} (${head - saved} blocks)`);
 
     while (from <= head && !stopping) {
-        const to = Math.min(head, from + span - 1);
+        const to = Math.min(head, from + source.span - 1);
         let logs;
         try {
-            logs = await provider.getLogs({ fromBlock: from, toBlock: to, address: addresses, topics: TOPICS });
+            logs = await provider.getLogs({ ...filter, fromBlock: from, toBlock: to });
         } catch (err) {
-            if (span <= MIN_SPAN) throw err;
-            span = Math.max(MIN_SPAN, Math.floor(span / 2));
-            console.warn(`getLogs ${from}–${to} failed (${err.shortMessage ?? err.message}); retrying ${span} blocks at a time`);
+            if (source.span <= MIN_SPAN) throw err;
+            source.span = Math.max(MIN_SPAN, Math.floor(source.span / 2));
+            console.warn(`${source.name}: getLogs ${from}–${to} failed (${err.shortMessage ?? err.message}); retrying ${source.span} blocks at a time`);
             continue;
         }
-        await applyLogs(logs);
-        await saveBlock(to);
+        await source.apply(logs);
+        await saveBlock(source.key, to);
         from = to + 1;
-        span = Math.min(MAX_SPAN, span * 2);
+        source.span = Math.min(MAX_SPAN, source.span * 2);
+    }
+}
+
+async function pass() {
+    const head = await provider.getBlockNumber();
+    for (const source of SOURCES) {
+        if (stopping) return;
+        await scan(source, head);
     }
 }
 
@@ -240,7 +320,10 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 try {
     await mongoose.connect(process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/nft_marketplace");
     console.log("📦 MongoDB connected");
-    console.log(`📡 Crawler started — resuming from block ${(await loadBlock()) || "latest"}`);
+    for (const source of SOURCES) {
+        const saved = await loadBlock(source.key);
+        console.log(`📡 ${source.name}: resuming from block ${saved || source.startBlock || "latest"}`);
+    }
     run();
 } catch (err) {
     console.error("Startup failed:", err);
