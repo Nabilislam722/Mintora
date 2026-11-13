@@ -7,8 +7,7 @@ import { VE_HEMI_ABI } from "@/lib/vehemi-abi";
 const MAX_POSITIONS = 48;
 const base = { address: VE_HEMI_CONTRACT, abi: VE_HEMI_ABI, chainId: hemi.id };
 
-// veHEMI positions held by `owner`, read from the veHEMI contract in three batched steps:
-// count → token ids → { HEMI locked, unlock time, current voting weight, transferable } per id
+// veHEMI positions held by `owner`: lock, unlock time, voting weight and transferability
 export function useVeHemiPositions(owner) {
   const { data: balance, isLoading: loadingCount } = useReadContract({
     ...base,

@@ -64,8 +64,7 @@ function ActionButton({ onClick, busy = false, secondary = false, icon = null, c
   );
 }
 
-// Any veHEMI position, listed or not. What you can do depends on who you are: the holder lists, reprices,
-// cancels and accepts offers; anyone else buys the listing or makes an offer.
+// A veHEMI position's page: the holder lists, reprices and accepts offers; anyone else buys or offers
 export default function VeHemiDetails() {
   const { id } = useParams();
   const { address } = useAccount();
@@ -74,7 +73,6 @@ export default function VeHemiDetails() {
   const { paused } = useVeHemiMarket();
   const actions = useVeHemiActions();
   const { busy, run } = useTxStep();
-  // Dialogs keep the position as it was when opened, so they can finish showing their result after it changes
   const [dialog, setDialog] = useState(null);
   useSeo(!isLoading && !p ? NOT_FOUND_SEO : veHemiSeo(id));
 
@@ -104,9 +102,6 @@ export default function VeHemiDetails() {
   const listing = p.listing;
   const isHolder = sameAddress(address, p.owner);
   const ended = p.left === 0;
-  // The holder's own listing, still stored but not filling: e.g. not approved yet, the approval moved to another
-  // marketplace, or the position moved out and back. It's re-activated by listing again, never by approving
-  // alone, which would bring it back at its old price.
   const inactive =
     !listing && p.storedListing && sameAddress(p.storedListing.seller, p.owner) && p.storedListing.expiry > Date.now();
   const myOffer = offers.find((o) => sameAddress(o.buyer, address));

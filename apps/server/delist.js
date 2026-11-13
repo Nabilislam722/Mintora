@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { NFT } from "./models/NFT.js";
 
+// Marks every NFT in the database as not listed
 async function cleanSlate() {
     try {
         console.log("📦 Connecting to MongoDB...");
@@ -9,9 +10,9 @@ async function cleanSlate() {
         console.log("🧹 Force-delisting all items in DB...");
         const result = await NFT.updateMany(
             { isListed: true },
-            { 
-                $set: { isListed: false, price: "0" }, 
-                $unset: { seller: "" } 
+            {
+                $set: { isListed: false, price: "0" },
+                $unset: { seller: "" }
             }
         );
 

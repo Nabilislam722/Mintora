@@ -1,234 +1,145 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useSeo } from '@/hooks/use-seo';
-import { pageSeo } from '@/lib/seo';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { formatEther } from "viem";
+import { Activity as ActivityIcon } from "lucide-react";
+import ActivityFeed from "@/components/ActivityFeed";
+import { useTokenPrices } from "@/hooks/use-token-prices";
+import { useSeo } from "@/hooks/use-seo";
+import { pageSeo } from "@/lib/seo";
+import { fmt } from "@/lib/vehemi";
 
-const COLUMNS = ['Tx', 'From', 'To', 'Collection', 'Token ID', 'Action'];
+const FILTERS = [
+  { id: "all", label: "All", params: {}, empty: "No activity yet." },
+  { id: "sales", label: "Sales", params: { type: "SOLD" }, empty: "No sales yet." },
+  { id: "listings", label: "Listings", params: { type: "LIST,UPDATE,CANCEL" }, empty: "No listings yet." },
+  { id: "vehemi", label: "veHEMI", params: { market: "vehemi" }, empty: "No veHEMI sales yet." },
+];
 
-const ACTION_STYLES = {
-  SOLD: { label: 'Sale', color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
-  LIST: { label: 'List', color: '#4da6ff', bg: 'rgba(77,166,255,0.1)' },
-  CANCEL: { label: 'Cancel', color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
-  UPDATE: { label: 'Update', color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
-  TRANSFER: { label: 'Transfer', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)' },
-}
+const toAmount = (wei) => {
+  try {
+    return Number(formatEther(BigInt(wei ?? 0)));
+  } catch {
+    return 0;
+  }
+};
+const usd = (n) => `≈ ${n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`;
 
-function UserCell({ address, user }) {
-  const short = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '—'
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-      {user?.profileImageUrl ? (
-        <img src={user.profileImageUrl} alt="" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-      ) : (
-        <span style={{
-          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          background: 'hsl(var(--primary) / 0.15)', fontSize: 9,
-          color: 'hsl(var(--primary))', fontWeight: 700,
-        }}>
-          {address?.slice(2, 4).toUpperCase() ?? '?'}
-        </span>
-      )}
-      <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'hsl(var(--muted-foreground))' }}>
-        {user?.username || short}
-      </span>
-    </div>
-  )
-}
-
-function Activity() {
-  useSeo(pageSeo('/activity'));
-  const [copied, setCopied] = useState(null)
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
-  
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-  React.useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', handler)
-    return () => window.removeEventListener('resize', handler)
-  }, [])
-
-  const { data: activityData, isLoading } = useQuery({
-    queryKey: [`${BASE_URL}/api/activity`],
+function useSalesSummary() {
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+  return useQuery({
+    queryKey: ["activity", "summary"],
     queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/api/activity?limit=20&page=1`);
-      if (!res.ok) return { items: [], total: 0 };
+      const res = await fetch(`${BASE_URL}/api/activity/summary`);
+      if (!res.ok) throw new Error("Failed to load the sales summary");
       return res.json();
     },
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
-
-  const handleCopy = (tx, index) => {
-    navigator.clipboard.writeText(tx)
-    setCopied(index)
-    setTimeout(() => setCopied(null), 1500)
-  }
-
-  const items = activityData?.items ?? []
-
-  if (isLoading) return (
-    <div style={{ padding: '32px 24px', color: 'hsl(var(--muted-foreground))' }}>Loading...</div>
-  )
-
-  return (
-    <div style={{
-      padding: isMobile ? '24px 16px' : '32px 48px',
-      minHeight: '100vh',
-      color: 'hsl(var(--foreground))',
-      backgroundColor: 'hsl(var(--background))',
-      fontFamily: 'var(--font-body)',
-    }}>
-      <h2 style={{
-        fontSize: 13, letterSpacing: '0.15em', textTransform: 'uppercase',
-        color: 'hsl(var(--muted-foreground))', marginBottom: 20,
-        textAlign: 'center', fontFamily: 'var(--font-display)',
-      }}>
-        Activity
-      </h2>
-
-      {!isMobile && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '2fr 1.5fr 1.5fr 1.5fr 0.8fr 1fr',
-          marginLeft: 300,
-          marginRight: 300,
-        }}>
-          {COLUMNS.map((col) => (
-            <div key={col} style={{
-              fontSize: 13, letterSpacing: '0.12em', textTransform: 'uppercase',
-              color: 'hsl(var(--muted-foreground))', padding: '12px 12px 12px 0',
-              borderBottom: '1px solid hsl(var(--border))', fontFamily: 'var(--font-display)',
-            }}>
-              {col}
-            </div>
-          ))}
-
-          {items.map((item, i) => {
-            const action = ACTION_STYLES[item.type] ?? { label: item.type, color: '#888', bg: 'rgba(136,136,136,0.1)' }
-            return (
-              <React.Fragment key={i}>
-                <div style={cellStyle}><TxSpan item={item} i={i} copied={copied} onCopy={handleCopy} /></div>
-                <div style={cellStyle}><UserCell address={item.from} user={item.fromUser} /></div>
-                <div style={cellStyle}><UserCell address={item.to} user={item.toUser} /></div>
-                <div style={cellStyle}><CollectionCell item={item} /></div>
-                <div style={cellStyle}><TokenBadge tokenId={item.tokenId} /></div>
-                <div style={cellStyle}><ActionBadge action={action} /></div> 
-              </React.Fragment>
-            )
-          })}
-        </div>
-      )}
-
-      {isMobile && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {items.map((item, i) => {
-            const action = ACTION_STYLES[item.type] ?? { label: item.type, color: '#888', bg: 'rgba(136,136,136,0.1)' }
-            return (
-              <div key={i} style={{
-                background: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: 'var(--radius)',
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <ActionBadge action={action} />
-                    <CollectionCell item={item} />
-                  </div>
-                  <TokenBadge tokenId={item.tokenId} />
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: 'hsl(var(--muted-foreground))', minWidth: 28 }}>Tx</span>
-                  <TxSpan item={item} i={i} copied={copied} onCopy={handleCopy} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>From</div>
-                    <UserCell address={item.from} user={item.fromUser} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'hsl(var(--muted-foreground))', marginBottom: 4 }}>To</div>
-                    <UserCell address={item.to} user={item.toUser} />
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
 }
 
-function ActionBadge({ action }) {
+function LivePill() {
   return (
-    <span style={{
-      fontSize: 11, fontWeight: 600, letterSpacing: '0.05em',
-      color: action.color, background: action.bg,
-      padding: '3px 8px', borderRadius: 6,
-      border: `1px solid ${action.color}33`,
-      whiteSpace: 'nowrap',
-    }}>
-      {action.label}
-    </span>
-  )
-}
-
-function TxSpan({ item, i, copied, onCopy }) {
-  return (
-    <span
-      title="Click to copy"
-      onClick={() => onCopy(item.tx, i)}
-      className="hover:bg-foreground/10 p-1 font-display rounded-md transition-colors"
-      style={{
-        fontFamily: 'monospace', fontSize: 13,
-        color: copied === i ? 'hsl(var(--primary))' : 'hsl(var(--accent))',
-        cursor: 'pointer', userSelect: 'none',
-        display: 'flex', alignItems: 'center', gap: 6,
-      }}
-    >
-      {copied === i ? 'Copied!' : `${item.tx.slice(0, 25)}…`}
-    </span>
-  )
-}
-
-function CollectionCell({ item }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-      {item.collectionInfo?.imageUrl && (
-        <img src={item.collectionInfo.imageUrl} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
-      )}
-      <span style={{ fontSize: 13, fontWeight: 500, color: 'hsl(var(--foreground))' }}>
-        {item.collectionInfo?.name || `${item.collection?.slice(0, 6)}…`}
+    <span className="inline-flex items-center gap-2 h-8 px-3.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+      <span className="relative flex w-2 h-2">
+        <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+        <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" />
       </span>
-    </div>
-  )
-}
-
-function TokenBadge({ tokenId }) {
-  return (
-    <span style={{
-      fontFamily: 'monospace', fontSize: 12,
-      color: 'hsl(var(--muted-foreground))',
-      background: 'hsl(var(--background))',
-      border: '1px solid hsl(var(--border))',
-      borderRadius: 'calc(var(--radius) - 4px)',
-      padding: '3px 8px', whiteSpace: 'nowrap',
-    }}>
-      #{tokenId}
+      Live
     </span>
-  )
+  );
 }
 
-const cellStyle = {
-  padding: '16px 12px 16px 0',
-  borderBottom: '1px solid hsl(var(--border) / 0.6)',
-  fontSize: 15, display: 'flex', alignItems: 'center', gap: 8,
+function Stat({ label, value, unit, sub }) {
+  return (
+    <div className="rounded-3xl border border-border/50 bg-card px-6 py-4">
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className="text-xl font-semibold tabular-nums leading-tight">
+        {value}
+        {unit && <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span>}
+      </p>
+      <p className="text-xs text-muted-foreground tabular-nums mt-1 min-h-4">{sub}</p>
+    </div>
+  );
 }
 
-export default Activity
+function SalesSummary() {
+  const { data: summary, isLoading } = useSalesSummary();
+  const { data: prices } = useTokenPrices();
+  const loading = isLoading || !summary;
+  const eth = toAmount(summary?.nft.volume);
+  const hemi = toAmount(summary?.vehemi.volume);
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <Stat
+        label="Sales · last 7 days"
+        value={loading ? "—" : summary.nft.sales + summary.vehemi.sales}
+        sub={loading ? null : `${summary.nft.sales} NFT · ${summary.vehemi.sales} veHEMI`}
+      />
+      <Stat
+        label="NFT volume · last 7 days"
+        value={loading ? "—" : fmt(eth)}
+        unit={loading ? null : "ETH"}
+        sub={!loading && prices?.ETH != null ? usd(eth * prices.ETH) : null}
+      />
+      <Stat
+        label="veHEMI volume · last 7 days"
+        value={loading ? "—" : fmt(hemi)}
+        unit={loading ? null : "HEMI"}
+        sub={!loading && prices?.HEMI != null ? usd(hemi * prices.HEMI) : null}
+      />
+    </div>
+  );
+}
+
+export default function Activity() {
+  useSeo(pageSeo("/activity"));
+  const [filterId, setFilterId] = useState("all");
+  const filter = FILTERS.find((f) => f.id === filterId);
+
+  return (
+    <div className="sm:pr-12">
+      <div className="container mx-auto px-4 py-6 flex flex-col gap-6">
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <ActivityIcon className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground leading-tight">Activity</h1>
+              <p className="text-sm text-muted-foreground">Every sale, listing and transfer on Mintora, NFTs and veHEMI</p>
+            </div>
+          </div>
+          <LivePill />
+        </header>
+
+        <SalesSummary />
+
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Show">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFilterId(f.id)}
+              aria-pressed={filterId === f.id}
+              className={`h-9 px-4 rounded-full text-sm font-medium border transition-colors ${
+                filterId === f.id
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-secondary/50 text-muted-foreground border-border hover:text-foreground"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <ActivityFeed key={filter.id} filter={filter.params} emptyText={filter.empty} showCollection live />
+
+        <p className="text-[11px] text-muted-foreground text-center">
+          Read from Hemi: new activity shows up a few seconds after its block. Times link to the transaction on the explorer.
+        </p>
+      </div>
+    </div>
+  );
+}

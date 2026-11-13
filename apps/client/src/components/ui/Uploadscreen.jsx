@@ -3,16 +3,6 @@ import { Upload, Loader2, CheckCircle, AlertCircle, Pencil, Wallet, Bell, Palett
 import { Button } from "@/components/ui/button";
 import { response } from "express";
 
-/**
- * UploadScreen — Full settings page (mirrors the OpenSea-style layout in the design)
- *
- * Props:
- *  - address:   string
- *  - dbUser:    { username, bio, profileImageUrl, bannerImageUrl } | null
- *  - onSuccess: (patch) => void
- *  - onClose:   () => void   (optional — e.g. navigate back)
- */
-
 const STYLES = `
   .settings-layout {
     display: flex;

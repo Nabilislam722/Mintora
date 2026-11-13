@@ -19,8 +19,7 @@ function blockedReason(offer, p) {
   return "The buyer's HEMI balance or approval is below the offer";
 }
 
-// Open offers on one position. The holder can accept the ones that would fill; buyers can cancel their own.
-// Offers that can't fill are shown only to the buyer who made them, with the reason, so they can cancel.
+// Open offers on one position: the holder accepts, buyers cancel their own
 export default function VeHemiOffers({ position: p, offers, loading, className = "" }) {
   const { address } = useAccount();
   const actions = useVeHemiActions();
@@ -28,7 +27,7 @@ export default function VeHemiOffers({ position: p, offers, loading, className =
   const [accepting, setAccepting] = useState(null);
   const isHolder = sameAddress(address, p.owner);
   const shown = offers.filter((o) => o.valid || sameAddress(o.buyer, address));
-  // Offers come best first, so the first one that would fill is the best
+  // The first offer that would fill (offers come best first)
   const best = shown.find((o) => o.valid);
 
   const cancel = async (offer) => {
@@ -119,14 +118,11 @@ function VeHemiAcceptDialog({ position: p, offer, onClose }) {
   const { busy, run } = useTxStep();
   const [done, setDone] = useState(false);
   const fee = (offer.amount * feeBps) / 10000;
-  // Offers have no ceiling, so the holder should know if the lock now holds more than the buyer saw
   const grown = p.lockAmountWei > offer.minLockAmountWei;
 
   const onAccept = async () => {
-    // The fee shown here is the most the contract may take; it reverts if the fee has gone up since
     const accepted = await run(() => actions.acceptOffer(offer, feeBps), "Couldn't accept the offer");
     if (accepted) setDone(true);
-    // On success the position has moved; on failure the fee may have changed, and this shows the new one
     actions.refresh();
   };
 

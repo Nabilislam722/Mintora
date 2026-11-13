@@ -20,8 +20,7 @@ import PointProgram from "./pages/PointProgram";
 import veHemi from "./pages/veHemi.jsx"
 import VeHemiDetails from "./pages/veHemiDetails.jsx"
 
-// A new route also needs its SEO entry: PAGES in lib/seo.js for a static page, or a case in worker/index.js for
-// one with URL params. Otherwise the Worker serves it with a 404 status and "Page Not Found" tags.
+// The site's pages; a new route also needs its SEO entry in lib/seo.js or worker/index.js
 function Router() {
   return (
     <Switch>

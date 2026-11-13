@@ -14,9 +14,7 @@ function ChainIcon({ chain }) {
   );
 }
 
-// Networks come from the wagmi config in main.jsx; add a chain there and it shows up here.
-// The menu is positioned with plain CSS instead of a Radix popper because html { zoom: 0.85 }
-// in index.css throws off popper coordinates and pushes the menu toward the middle of the screen.
+// Network switcher for the chains in the wagmi config (main.jsx)
 export default function NetworkSelector() {
   const { chains } = useConfig();
   const { chainId, isConnected } = useAccount();

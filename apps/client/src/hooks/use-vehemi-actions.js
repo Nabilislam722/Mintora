@@ -9,12 +9,11 @@ import { MARKET_ABI, MARKET_ERRORS, VE_HEMI_ABI } from "@/lib/vehemi-abi";
 import { VE_HEMI_CONTRACT, VE_HEMI_MARKET, isHemiShortfall, maxLockAmountFor, sameAddress, txErrorMessage } from "@/lib/vehemi";
 
 const market = { address: VE_HEMI_MARKET, abi: MARKET_ABI };
-// When veHEMI hands a position to the market, the market's errors bubble up through veHEMI, so decode them too
 const ve = { address: VE_HEMI_CONTRACT, abi: [...VE_HEMI_ABI, ...MARKET_ERRORS] };
 const OFFER_DATA = parseAbiParameters("address buyer, uint256 offerId, uint16 maxFeeBps");
 const seconds = (days) => BigInt(days * 86400);
 
-// Wallet actions for the veHEMI market. Each one resolves once its transaction is confirmed.
+// Wallet actions for the veHEMI market, each resolving once its transaction is confirmed
 export function useVeHemiActions() {
   const { address, chainId } = useAccount();
   const config = useConfig();
@@ -25,8 +24,6 @@ export function useVeHemiActions() {
 
   async function send(request) {
     if (chainId !== hemi.id) await switchChainAsync({ chainId: hemi.id });
-    // Simulate first, so a call that would revert shows its reason instead of costing gas. Wallets don't
-    // reliably report the contract's error, and some let the user send a transaction that will fail.
     await client.simulateContract({ ...request, account: address });
     const hash = await writeContractAsync({ ...request, chainId: hemi.id });
     const receipt = await waitForTransactionReceipt(config, { hash, chainId: hemi.id });
@@ -35,20 +32,19 @@ export function useVeHemiActions() {
   }
 
   return {
-    // Positions, listings, offers and balances can all change after a trade
+    // Refetches positions, listings, offers and balances after a trade
     refresh: () =>
       queryClient.invalidateQueries({
         predicate: ({ queryKey: [key] }) => ["vehemi", "readContract", "readContracts", "balance"].includes(key),
       }),
-    // Sets the market's approval for its payment token (from useHemiFunds) to exactly `amountWei`
+    // Sets the market's HEMI approval to exactly `amountWei`
     approveHemi: (token, amountWei) =>
       send({ address: token, abi: [...erc20Abi, ...MARKET_ERRORS], functionName: "approve", args: [VE_HEMI_MARKET, amountWei] }),
     approvePosition: (tokenId) => send({ ...ve, functionName: "approve", args: [VE_HEMI_MARKET, tokenId] }),
-    // Read fresh after a listing confirms: an approval still in place makes the new listing live straight away
+    // Whether the market is approved for the position, read fresh
     isMarketApproved: async (tokenId) =>
       sameAddress(await client.readContract({ ...ve, functionName: "getApproved", args: [tokenId] }), VE_HEMI_MARKET),
     list: async (tokenId, priceWei, days) => {
-      // The limit on top-ups starts from the lock as it is now, not as the page loaded it
       const lock = await client.readContract({ ...ve, functionName: "getLockedBalance", args: [tokenId] });
       const locked = lock.amount > 0n ? lock.amount : 0n;
       return send({ ...market, functionName: "list", args: [tokenId, priceWei, seconds(days), maxLockAmountFor(locked)] });
@@ -57,7 +53,7 @@ export function useVeHemiActions() {
     cancelListing: (tokenId) => send({ ...market, functionName: "cancelListing", args: [tokenId] }),
     makeOffer: (tokenId, amountWei, days) => send({ ...market, functionName: "makeOffer", args: [tokenId, amountWei, seconds(days)] }),
     cancelOffer: (tokenId) => send({ ...market, functionName: "cancelOffer", args: [tokenId] }),
-    // Sending the position to the market with the offer attached accepts it, so no approval is needed
+    // Accepts an offer by sending the position to the market with the offer attached
     acceptOffer: async (offer, maxFeeBps) => {
       try {
         return await send({
@@ -66,8 +62,6 @@ export function useVeHemiActions() {
           args: [address, VE_HEMI_MARKET, offer.tokenId, encodeAbiParameters(OFFER_DATA, [offer.buyer, offer.offerId, maxFeeBps])],
         });
       } catch (error) {
-        // Offers aren't escrowed, and it's the buyer's HEMI that couldn't be pulled: don't tell the holder
-        // "you don't have enough HEMI". Nothing moved; the position is still theirs.
         if (isHemiShortfall(error)) {
           throw new Error("The buyer no longer has enough HEMI in their wallet, or approved, to cover this offer. Your position hasn't moved.");
         }
@@ -77,8 +71,7 @@ export function useVeHemiActions() {
   };
 }
 
-// Runs one wallet step at a time: tracks `busy`, and shows a toast with the reason if the step fails.
-// `run` resolves to true when the step succeeded.
+// Runs one wallet step at a time and toasts the reason if it fails; resolves to true on success
 export function useTxStep() {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);

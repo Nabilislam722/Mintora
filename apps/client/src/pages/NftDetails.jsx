@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatEther, parseEther } from "viem";
-import { ExternalLink, Info, Loader2, Pencil, ShoppingCart, Tag, Wallet, X } from "lucide-react";
-import { useWeb3, MARKETPLACE_CONTRACT } from "../lib/web3.jsx";
+import { AlertTriangle, ExternalLink, Info, Loader2, Pencil, ShoppingCart, Tag, Wallet, X } from "lucide-react";
+import { useWeb3, MARKETPLACE_CONTRACT, listingState, listingStateReads } from "../lib/web3.jsx";
 import { useToast } from "@/hooks/use-toast";
 import { useEthPrice } from "@/hooks/use-token-prices";
 import { useNftSync } from "@/hooks/use-nft-sync";
@@ -37,7 +37,7 @@ const parsePrice = (value) => {
   }
 };
 
-// Price → marketplace fee → what the seller gets, using the fee read from the marketplace contract
+// Price → marketplace fee → what the seller gets
 function SaleBreakdown({ priceWei, feeBps, ethPrice, priceLabel = "Listing price" }) {
   const feeWei = priceWei != null ? (priceWei * BigInt(feeBps)) / 10000n : null;
   const receiveWei = priceWei != null ? priceWei - feeWei : null;
@@ -106,7 +106,7 @@ export default function NftDetails() {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { buyItem, listItem, approveNft, cancelListing, updateListing } = useWeb3();
+  const { buyItem, listItem, cancelListing, updateListing } = useWeb3();
   const { toast } = useToast();
   const ethPrice = useEthPrice();
   const { collectionId, tokenId } = useParams();
@@ -114,6 +114,7 @@ export default function NftDetails() {
   const [listPrice, setListPrice] = useState("");
   const [editing, setEditing] = useState(false);
   const [newPrice, setNewPrice] = useState("");
+  const [listStep, setListStep] = useState(null);
   const syncNft = useNftSync();
 
   const queryKey = [`${BASE_URL}/api/nfts/${collectionId}/${tokenId}`];
@@ -123,8 +124,6 @@ export default function NftDetails() {
     enabled: !!collectionId && !!tokenId,
   });
 
-  // While loading, or if the request fails (API down), keep the current tags: on a first visit they're the
-  // Worker's, which already match this NFT, so an outage never marks it noindex
   useSeo(nft ? nftSeo(nft, collectionId) : isNotFoundError(nftError) ? NOT_FOUND_SEO : null);
 
   const { data: feeData } = useReadContract({ address: MARKETPLACE_CONTRACT, abi: FEE_ABI, functionName: "marketplaceFee", chainId: hemi.id });
@@ -133,7 +132,14 @@ export default function NftDetails() {
   const isOwner = address?.toLowerCase() === nft?.ownerAddress?.toLowerCase();
   const contractAddr = nft?.collectionId?.contractAddress || nft?.collection?.contractAddress;
 
-  // Show the trade's result here and on every other page now, then refresh them once the API has recorded it
+  const shownListed = !!nft?.isListed && !!nft?.price && nft.price !== "0";
+  const { data: listingReads } = useReadContracts({
+    contracts: contractAddr && address && nft ? listingStateReads(contractAddr, nft.tokenId, address) : [],
+    query: { enabled: !!contractAddr && !!nft && isOwner && !shownListed },
+  });
+  const oldListing = isOwner && !shownListed ? listingState(listingReads, address) : { oldPrice: 0n, approved: false };
+
+  // Shows the trade's result now, then refreshes once the API has recorded it
   const patchAndSync = (patch) => syncNft(queryKey, nft, patch);
 
   const purchaseMutation = useMutation({
@@ -157,9 +163,10 @@ export default function NftDetails() {
         throw new Error("Must enter a price");
       }
       setPriceError(false);
-      await approveNft(contractAddr, nft.tokenId);
-      return await listItem(contractAddr, nft.tokenId, listPrice);
+      if (!contractAddr) throw new Error("Missing collection contract address.");
+      return await listItem(contractAddr, nft.tokenId, listPrice, setListStep);
     },
+    onSettled: () => setListStep(null),
     onSuccess: () => {
       toast({ title: "Successfully Listed!", description: "Your NFT is now on the market." });
       patchAndSync({ isListed: true, price: parseEther(listPrice).toString() });
@@ -253,6 +260,35 @@ export default function NftDetails() {
   } else if (!listed && isOwner) {
     action = (
       <>
+        {oldListing.oldPrice > 0n && (
+          <div
+            className={`flex gap-2.5 rounded-xl border px-3.5 py-3 text-xs ${
+              oldListing.approved
+                ? "border-destructive/40 bg-destructive/10 text-destructive"
+                : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold">An old listing of yours is still stored: {formatEth(oldListing.oldPrice, 6)} ETH</p>
+              <p className="mt-0.5 opacity-90">
+                {oldListing.approved
+                  ? "The marketplace is approved for this NFT, so anyone can buy it at that price right now."
+                  : "It would sell at that price as soon as the marketplace is approved for this NFT."}{" "}
+                Listing below replaces it safely, or you can cancel it now.
+              </p>
+              <button
+                type="button"
+                onClick={() => cancelMutation.mutate()}
+                disabled={cancelMutation.isPending || listMutation.isPending}
+                className="mt-2 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border bg-background/60 font-semibold hover:bg-background disabled:opacity-50 transition-colors"
+              >
+                {cancelMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                {cancelMutation.isPending ? "Confirm in wallet…" : "Cancel old listing"}
+              </button>
+            </div>
+          </div>
+        )}
         <div>
           <label className="text-xs text-muted-foreground">Set a price</label>
           <div className="mt-1.5">
@@ -268,13 +304,16 @@ export default function NftDetails() {
           </div>
         </div>
         <SaleBreakdown priceWei={parsePrice(listPrice)} feeBps={feeBps} ethPrice={ethPrice} />
-        <button type="button" className={primaryBtn} onClick={() => listMutation.mutate()} disabled={listMutation.isPending}>
+        <button type="button" className={primaryBtn} onClick={() => listMutation.mutate()} disabled={listMutation.isPending || cancelMutation.isPending}>
           {listMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Tag className="w-4 h-4" />}
-          {listMutation.isPending ? "Confirm in wallet…" : "List for sale"}
+          {listMutation.isPending ? (listStep ? `${listStep}: confirm in wallet` : "Checking the marketplace…") : "List for sale"}
         </button>
         <p className="flex gap-2 text-[11px] text-muted-foreground">
           <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
-          Two wallet confirmations: approve the marketplace for this NFT, then create the listing. {royaltyNote}
+          <span>
+            Approve the marketplace for this NFT (skipped if it already is), then create the listing. If an old listing of
+            yours is still stored for it, it's replaced first, so it can never sell at its old price. {royaltyNote}
+          </span>
         </p>
       </>
     );
@@ -341,7 +380,6 @@ export default function NftDetails() {
   return (
     <div className="container mx-auto px-4 py-8 sm:pr-12">
       <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
-        {/* Media: the frame takes the artwork's own shape instead of forcing a square */}
         <div className="lg:sticky lg:top-24 min-w-0">
           <div className="w-fit max-w-full mx-auto rounded-2xl overflow-hidden border border-border/50 bg-card shadow-2xl">
             <ResilientNftImage

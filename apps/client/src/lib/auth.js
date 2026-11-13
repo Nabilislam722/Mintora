@@ -1,12 +1,9 @@
-// Wallet sign-in for the API's write routes. The wallet signs a "Sign-In with Ethereum" message once; the API
-// returns a session token (valid 7 days), kept here per address.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 const storageKey = (address) => `mintora:session:${address.toLowerCase()}`;
 
 function storedToken(address) {
   try {
     const session = JSON.parse(localStorage.getItem(storageKey(address)));
-    // Treat a session about to expire as gone, so a save doesn't fail halfway
     return session && new Date(session.expiresAt).getTime() > Date.now() + 5 * 60_000 ? session.token : null;
   } catch {
     return null;
@@ -25,7 +22,7 @@ async function readJson(res) {
 
 export const hasSession = (address) => !!address && !!storedToken(address);
 
-// Asks the wallet to sign in and stores the session. `signMessageAsync` is wagmi's.
+// Asks the wallet to sign in and stores the session
 export async function signIn(address, signMessageAsync) {
   const { message } = await readJson(await fetch(`${BASE_URL}/api/auth/nonce`, {
     method: "POST",
@@ -42,7 +39,7 @@ export async function signIn(address, signMessageAsync) {
   return session.token;
 }
 
-// fetch() as `address`, signing in first if there's no session, and once more if the API has dropped it
+// fetch() as `address`, signing in first if needed, and again if the API dropped the session
 export async function authFetch(address, signMessageAsync, url, init = {}) {
   const send = (token) => fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } });
   let res = await send(storedToken(address) ?? await signIn(address, signMessageAsync));

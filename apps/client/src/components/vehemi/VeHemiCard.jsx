@@ -65,8 +65,6 @@ export default function VeHemiCard({ listing, onBuy }) {
         )}
       </div>
 
-      {/* Tab that slides out from under the card on hover; clipped by its wrapper while hidden.
-          While hovered its gradient flows continuously and a white shine sweeps across it. */}
       <div aria-hidden className="pointer-events-none absolute inset-x-6 top-full h-5 overflow-hidden">
         <Link
           href={`/vehemi/${listing.id}`}

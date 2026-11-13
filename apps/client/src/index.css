@@ -30,7 +30,6 @@ html {
   background: transparent;
 }
 
-/* Firefox */
 * {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--border)) transparent;

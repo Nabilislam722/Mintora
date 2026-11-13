@@ -35,8 +35,7 @@ function DealCard({ listing }) {
   );
 }
 
-// Home page teaser for the veHEMI marketplace: pitch, quick stats and the best current deals.
-// The pitch shows even before anything is listed, so the market can be found from the home page.
+// Home page teaser for the veHEMI market: pitch, quick stats and the best deals
 export default function VeHemiPromo() {
   const { listings, loading } = useVeHemiListings();
 

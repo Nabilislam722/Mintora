@@ -75,7 +75,6 @@ function Hero({ onWatchDemo }) {
     return () => { yLoop.stop(); sLoop.stop(); };
   }, [sweepProgress, introBlur, floatY, floatScale]);
 
-  // Moves the title's gradient with the mouse by setting CSS variables directly, without re-rendering
   useEffect(() => {
     return mouseOffset.on('change', (v) => {
       const el = titleRef.current;

@@ -14,7 +14,7 @@ const badgeCls = "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text
 const cardCls =
   "group text-left snap-start shrink-0 w-64 sm:w-auto rounded-2xl border border-border/50 bg-card p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl";
 
-// Red count on a button's corner, like an app's notification badge; "9+" past nine
+// Red count on a button's corner, "9+" past nine
 function CountBadge({ count, label }) {
   if (!count) return null;
   return (
@@ -34,7 +34,6 @@ function PositionCard({ position: p, listing, inactiveListing, bestOffer, offerC
   const daysLeft = Math.max(0, Math.ceil((p.end - Date.now()) / 864e5));
   const unlocked = daysLeft === 0;
   const listable = p.transferable && !unlocked;
-  // weight / amount = time left / 4-year max lock, so this is how much of its max weight it still has
   const share = p.hemi > 0 ? Math.min(100, (p.weight / p.hemi) * 100) : 0;
 
   const badge = listing ? (
@@ -49,7 +48,6 @@ function PositionCard({ position: p, listing, inactiveListing, bestOffer, offerC
     <span className={`${badgeCls} bg-secondary/60 text-muted-foreground border-white/10`}>Not listed</span>
   );
 
-  // The button is visual only; the whole card links to the position's page
   const action = listing || bestOffer || inactiveListing ? "View" : isOwnProfile && listable ? "List" : null;
 
   return (
@@ -98,7 +96,6 @@ function PositionCard({ position: p, listing, inactiveListing, bestOffer, offerC
             }`}
           >
             {action}
-            {/* Offers its holder can accept now */}
             <CountBadge count={offerCount} label="offer" />
           </span>
         )}
@@ -107,15 +104,12 @@ function PositionCard({ position: p, listing, inactiveListing, bestOffer, offerC
   );
 }
 
-// veHEMI positions held by this wallet; renders nothing for wallets without any.
-// Each card opens the position's page, where its holder can list it or accept offers.
+// The wallet's veHEMI positions (nothing if it has none); each card opens the position's page
 export default function ProfileVeHemi({ address, isOwnProfile }) {
   const { count, positions, loading } = useVeHemiPositions(address);
   const { listings } = useVeHemiListings();
   const { offers } = useVeHemiOffers(positions?.map((p) => p.id) ?? []);
   const listingById = useMemo(() => new Map(listings.map((l) => [l.id, l])), [listings]);
-  // Offers come best first, so the first acceptable one per position is its best; the count is of
-  // acceptable offers only, the same ones the holder could take
   const { bestOfferById, offerCountById } = useMemo(() => {
     const best = new Map();
     const counts = new Map();
@@ -126,7 +120,6 @@ export default function ProfileVeHemi({ address, isOwnProfile }) {
     }
     return { bestOfferById: best, offerCountById: counts };
   }, [offers]);
-  // The owner's stored listings, so ones that stopped filling show up here to be relisted or cancelled
   const { data: stored } = useReadContracts({
     contracts: (isOwnProfile ? positions ?? [] : []).map((p) => ({
       address: VE_HEMI_MARKET,

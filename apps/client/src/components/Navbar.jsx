@@ -30,15 +30,11 @@ function Logo() {
   );
 }
 
-// The phone menu's timing. Written as [property:value] because the tailwindcss-animate plugin also defines the
-// duration and ease utilities: Tailwind skips their bracketed forms as ambiguous, and the browser falls back
-// to 150ms. The curve is an ease-out: it moves as soon as you tap and settles gently.
 const MENU_EASE = "[transition-timing-function:cubic-bezier(0.33,1,0.68,1)]";
 const OPEN_TIME = "[transition-duration:380ms]";
 const CLOSE_TIME = "[transition-duration:260ms]";
 
-// The page icons on phones, shown in the menu that the ☰ button opens. Opening, they rise in one after
-// another while the menu grows; closing, they all fade quickly together so the menu shuts promptly.
+// The page icons in the phone menu, rising in one after another as it opens
 function MobileNavIcons({ open, onNavigate }) {
   const [location] = useLocation();
   return (
@@ -67,7 +63,7 @@ function MobileNavIcons({ open, onNavigate }) {
   );
 }
 
-// Three lines that turn into an ✕: the outer two meet in the middle and rotate, the middle one fades out
+// The ☰ icon that turns into an ✕
 function MenuIcon({ open }) {
   const line = `absolute left-0 block h-[2px] w-5 rounded-full bg-current transition-all ${OPEN_TIME} ${MENU_EASE} motion-reduce:transition-none`;
   return (
@@ -117,8 +113,6 @@ export default function Navbar() {
     if (mobileSearchOpen) mobileInputRef.current?.focus();
   }, [mobileSearchOpen]);
 
-  // The phone menu closes on a new page, a tap outside it, or Escape. The ☰ button counts as inside, so
-  // tapping it toggles the menu instead of closing and reopening it.
   useEffect(() => setMenuOpen(false), [location]);
   useEffect(() => {
     if (!menuOpen) return;
@@ -133,7 +127,7 @@ export default function Navbar() {
     };
   }, [menuOpen]);
 
-  // One overlay at a time under the bar
+  // Opens one overlay at a time under the bar
   const toggleMenu = () => { setMenuOpen(v => !v); setMobileSearchOpen(false); };
   const toggleMobileSearch = () => { setMobileSearchOpen(v => !v); setMenuOpen(false); };
 
@@ -213,7 +207,6 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/70 dark:bg-background/50 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
 
-        {/* Phone menu button: opens the page icons (the hover sidebar covers this on larger screens) */}
         <button
           ref={menuButtonRef}
           type="button"
@@ -252,7 +245,6 @@ export default function Navbar() {
           {open && query.length >= 2 && resultsDropdown}
         </div>
 
-        {/* Mobile spacer so right-side items sit at the edge when search is hidden */}
         <div className="flex-1 md:hidden" />
 
         <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
@@ -298,10 +290,6 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Phone menu, opened by the ☰ button; it covers the page instead of pushing it down. It stays in the
-          page so it can animate shut: a clip wipes it open from the top (the bottom inset goes past the edge
-          when open, so the shadow shows) while the content slides down a little, and `inert` keeps the hidden
-          links from being tapped or tabbed to. */}
       <div
         ref={menuRef}
         id="mobile-nav"

@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-// Only what the visitor picks in Settings is saved, so a changed default reaches everyone who never picked
 const STORAGE_KEY = "mintora_layout_choices";
-// The old key saved every pref, defaults included (both were "right" then), so only values that differ were picked
 const OLD_STORAGE_KEY = "mintora_layout_prefs";
 const OLD_DEFAULTS = { sidebarPosition: "right", logoPosition: "right" };
 
@@ -11,6 +9,7 @@ const defaultPrefs = {
   logoPosition: "right",
 };
 
+// The layout choices the visitor saved (carrying over ones picked under the old storage key)
 function loadChoices() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);

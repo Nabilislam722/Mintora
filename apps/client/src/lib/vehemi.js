@@ -1,17 +1,14 @@
 import { parseUnits } from "viem";
 
 export const VE_HEMI_CONTRACT = "0x371d3718D5b7F75EAb050FAe6Da7DF3092031c89";
-export const VE_HEMI_MARKET = "0x6Fd47e5dA6c06a7D77A57893FD22C478b56C4Db1"; // MintoraVeHemi proxy
-export const MARKET_DEPLOY_BLOCK = 5633113n; // no market events before this block
+export const VE_HEMI_MARKET = "0x6Fd47e5dA6c06a7D77A57893FD22C478b56C4Db1";
+export const MARKET_DEPLOY_BLOCK = 5633113n;
 export const EXPLORER = "https://explorer.hemi.xyz";
-export const MAX_LOCK_DAYS = 1461; // 4 years of 365.25 days, veHEMI's max lock
-export const LISTING_FEE_BPS = 500; // shown until the market's live feeBps loads
-// How long a listing or offer stays open. MintoraVeHemi rejects anything outside MIN_DURATION..MAX_DURATION (7–90 days).
+export const MAX_LOCK_DAYS = 1461;
+export const LISTING_FEE_BPS = 500;
 export const MIN_LISTING_DAYS = 7;
 export const MAX_LISTING_DAYS = 90;
 export const LISTING_DURATIONS = [7, 14, 30, 60, 90];
-// A listing keeps filling after HEMI is added to its lock, up to this margin; without one, anyone could
-// stop a listing by adding 1 wei of HEMI to the lock
 export const LOCK_MARGIN_BPS = 100n;
 
 export const LOCK_FILTERS = [
@@ -22,17 +19,21 @@ export const LOCK_FILTERS = [
 
 export const inputCls = "h-9 rounded-3xl bg-secondary/50 border border-white/10 focus:border-primary/50 outline-none text-sm px-3";
 
-// Without `d`, keeps more decimals for small amounts: positions can hold fractions of a HEMI
+// Formats a number, keeping more decimals for small amounts unless `d` is given
 export const fmt = (n, d) =>
   n.toLocaleString(undefined, { maximumFractionDigits: d ?? (Math.abs(n) >= 1000 ? 0 : Math.abs(n) >= 1 ? 2 : 4) });
 
 // "1.2M", "45K"
 export const fmtCompact = (n) => n.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 2 });
 
-// Listings are priced and paid in HEMI, so the discount is the price against the HEMI locked inside
-export const discountOf = (l) => (l.hemi > 0 ? Math.round((1 - l.price / l.hemi) * 100) : 0);
+// A listing's discount to its locked HEMI in %, negative when priced above it (one decimal under 1%, so it never rounds away)
+export function discountOf(l) {
+  if (!(l.hemi > 0)) return 0;
+  const pct = (1 - l.price / l.hemi) * 100;
+  return Math.abs(pct) < 1 ? Math.round(pct * 10) / 10 : Math.round(pct);
+}
 
-// "≈ $1,234.56" for an amount of HEMI at the live HEMI price, or null until the price loads
+// "≈ $1,234.56" for an amount of HEMI, or null until the price loads
 export const hemiToUsd = (amount, hemiUsd) =>
   hemiUsd == null
     ? null
@@ -59,7 +60,7 @@ export function parseHemi(text) {
   }
 }
 
-// Most HEMI a new listing still sells at its price: what's locked now plus LOCK_MARGIN_BPS
+// Most HEMI a new listing still sells at: what's locked now plus LOCK_MARGIN_BPS
 export const maxLockAmountFor = (lockAmountWei) => lockAmountWei + (lockAmountWei * LOCK_MARGIN_BPS) / 10_000n;
 
 const ERROR_MESSAGES = {
@@ -90,13 +91,12 @@ const ERROR_MESSAGES = {
   ERC20InsufficientBalance: "You don't have enough HEMI.",
 };
 
-// HEMI reverts with OpenZeppelin 4-style strings rather than custom errors
 const REASON_MESSAGES = [
   ["insufficient allowance", ERROR_MESSAGES.ERC20InsufficientAllowance],
   ["exceeds balance", ERROR_MESSAGES.ERC20InsufficientBalance],
 ];
 
-// True when a trade failed because HEMI couldn't be pulled: the payer's balance or approval is too low
+// Whether a trade failed because the payer's HEMI balance or approval was too low
 export function isHemiShortfall(error) {
   const reverted = error?.walk?.((e) => e?.name === "ContractFunctionRevertedError");
   return (

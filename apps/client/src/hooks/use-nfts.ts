@@ -8,7 +8,6 @@ export function useNfts(filters?: { collectionId?: number; owner?: string; searc
     queryKey,
     queryFn: async () => {
       const url = buildUrl(api.nfts.list.path);
-      // Construct query string manually since buildUrl only handles path params
       const params = new URLSearchParams();
       if (filters?.collectionId) params.append("collectionId", filters.collectionId.toString());
       if (filters?.owner) params.append("owner", filters.owner);

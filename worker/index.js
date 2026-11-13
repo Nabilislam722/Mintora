@@ -1,7 +1,3 @@
-// Cloudflare Worker in front of the built site (./dist/public). For page requests it writes that page's title,
-// description, canonical URL, robots and link-preview tags into the HTML before sending it: Google reads them on
-// its first pass, and X/Discord/Telegram previews never run JavaScript. It also returns a real 404 status for
-// unknown pages and serves /sitemap.xml. Files (JS, CSS, images) go straight to the static assets.
 import {
   NOT_FOUND_SEO,
   SITE_URL,
@@ -19,8 +15,7 @@ import {
 const API_URL = "https://api.mintora.app";
 const API_TIMEOUT_MS = 2500;
 
-// GET an API path. Returns the JSON, null when the API says it doesn't exist (4xx), or undefined when the API
-// is down or slow, so the page gets generic tags instead of a false 404.
+// GETs an API path: the JSON, null if the API says it doesn't exist (4xx), undefined if it's down
 async function api(path) {
   try {
     const res = await fetch(API_URL + path, {
@@ -37,7 +32,7 @@ async function api(path) {
 
 const notFound = (path) => ({ seo: { ...NOT_FOUND_SEO, path }, status: 404 });
 
-// SEO entry and HTTP status for a page. Keep in step with the routes in apps/client/src/App.jsx.
+// SEO entry and HTTP status for a page (keep in step with the routes in App.jsx)
 async function resolvePage(path) {
   const page = pageSeo(path);
   if (page) return { seo: page, status: 200 };
@@ -77,7 +72,6 @@ function withSeoTags(shell, meta, { status, jsonLd }) {
 
   const out = rewriter.transform(shell);
   const headers = new Headers(out.headers);
-  // The shell's ETag belongs to index.html, not to this page's HTML
   headers.delete("etag");
   return new Response(out.body, { status, headers });
 }
@@ -96,24 +90,22 @@ async function sitemap() {
 }
 
 export default {
+  // Serves each page with its SEO tags, plus the sitemap; files go straight to the static assets
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
     if (path === "/sitemap.xml") return sitemap();
 
-    // Files (anything with an extension) and non-GET requests are served as-is
     if ((request.method !== "GET" && request.method !== "HEAD") || /\.[a-z0-9]+$/i.test(path)) {
       return env.ASSETS.fetch(request);
     }
 
-    // One URL per page: /faq/ -> /faq
     if (path.length > 1 && path.endsWith("/")) {
       url.pathname = path.replace(/\/+$/, "") || "/";
       return Response.redirect(url.toString(), 301);
     }
 
-    // Plain GET for the shell, without the browser's If-None-Match, so it never comes back as an empty 304
     const [shell, { seo, status }] = await Promise.all([env.ASSETS.fetch(new URL("/", url)), resolvePage(path)]);
     if (!shell.ok || !shell.headers.get("content-type")?.includes("text/html")) return shell;
     return withSeoTags(shell, buildMeta(seo), { status, jsonLd: path === "/" ? homeJsonLd() : null });

@@ -14,7 +14,7 @@ export function useWallet() {
     address: null,
     balance: null,
     isConnected: false,
-    isConnecting: true, // Start true to check localStorage
+    isConnecting: true,
     error: null,
   });
 
@@ -68,7 +68,6 @@ export function useWallet() {
     localStorage.removeItem('walletConnected');
   };
 
-  // Auto-connect if previously connected
   useEffect(() => {
     const checkConnection = async () => {
       const shouldConnect = localStorage.getItem('walletConnected') === 'true';

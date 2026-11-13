@@ -5,10 +5,10 @@ import cors from "cors";
 import { registerRoutes } from "./routes.js";
 import { registerUploadRoutes } from "./routes/upload.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { startDataDump } from "./lib/dataDump.js";
 
 const app = express();
 
-// Sites that may call the API, and the only ones a wallet sign-in message can be written for
 const ORIGINS = [
   "https://mintora.app",
   "http://127.0.0.1:5173",
@@ -39,5 +39,6 @@ mongoose
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
+    startDataDump();
   })
   .catch((err) => console.error("MongoDB Connection Error:", err));

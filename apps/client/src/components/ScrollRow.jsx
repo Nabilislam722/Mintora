@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 const arrowCls =
   "absolute top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-border border border-white/10 flex items-center justify-center shadow-lg hover:bg-border/40 transition-colors";
 
-// A single row that scrolls sideways, with arrows and faded edges while there's more to see
+// A sideways-scrolling row with arrows and faded edges while there's more to see
 export default function ScrollRow({ children, className = "" }) {
   const ref = useRef(null);
   const [canLeft, setCanLeft] = useState(false);
@@ -17,7 +17,6 @@ export default function ScrollRow({ children, className = "" }) {
     setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
   };
 
-  // After every render, since the cards inside may have changed
   useEffect(check);
 
   useEffect(() => {
@@ -31,7 +30,7 @@ export default function ScrollRow({ children, className = "" }) {
     };
   }, []);
 
-  // A screenful at a time
+  // Scrolls one screenful left or right
   const scroll = (dir) => ref.current?.scrollBy({ left: dir * ref.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (

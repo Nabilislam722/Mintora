@@ -133,7 +133,6 @@ export default function Demo({ active }) {
                     </div>
                 </div>
 
-                {/* Floating stat bubbles */}
                 {[
                     { label: '', val: 'High speed', style: { left: '-15%', top: '15%' }, accent: '#6FCF97', dx: -20 },
                     { label: 'Platform Fee', val: '~5%', style: { right: '-15%', top: '15%' }, accent: '#A78BFA', dx: 20 },

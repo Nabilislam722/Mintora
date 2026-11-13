@@ -2,19 +2,18 @@ import { useState } from "react";
 import { Lock } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
+import VeHemiDiscount from "@/components/vehemi/VeHemiDiscount";
 import VeHemiDialog, { DialogDone, DialogRows, DurationSelect, HemiInput, StepButton, StepNote } from "@/components/vehemi/VeHemiDialog";
 import { useVeHemiMarket } from "@/hooks/use-vehemi";
 import { useTxStep, useVeHemiActions } from "@/hooks/use-vehemi-actions";
-import { MIN_LISTING_DAYS, fmt, formatDate, parseHemi } from "@/lib/vehemi";
+import { MIN_LISTING_DAYS, discountOf, fmt, formatDate, parseHemi } from "@/lib/vehemi";
 
-// List a position for sale, or change the price of its listing. `position` comes from useVeHemiPosition.
-// Lists first and approves second: approving first would revive any older listing left for this position.
-// The approval is skipped when the market already holds it, e.g. when changing the price.
+// Lists a position or changes its price: list first, then approve (approving first would revive an old listing)
 export default function VeHemiListDialog({ position: p, onClose }) {
   const current = p.listing ?? p.storedListing;
   const [price, setPrice] = useState(current ? String(current.price) : "");
   const [days, setDays] = useState(MIN_LISTING_DAYS);
-  const [step, setStep] = useState("list"); // list -> approve -> done
+  const [step, setStep] = useState("list");
   const { feeBps, paused } = useVeHemiMarket();
   const actions = useVeHemiActions();
   const { busy, run } = useTxStep();
@@ -24,13 +23,12 @@ export default function VeHemiListDialog({ position: p, onClose }) {
   const needsApproval = !p.approved;
   const priceWei = parseHemi(price);
   const amount = priceWei ? Number(price) : 0;
-  const discount = priceWei && p.hemi > 0 ? Math.round((1 - amount / p.hemi) * 100) : null;
+  const discount = priceWei ? discountOf({ price: amount, hemi: p.hemi }) : 0;
   const fee = priceWei ? (amount * feeBps) / 10000 : null;
 
   const onAction = async () => {
     if (step === "list") {
       let live = false;
-      // Approve only after the listing has confirmed; whether it's needed is read fresh at that point
       const listed = await run(async () => {
         await actions.list(p.tokenId, priceWei, days);
         live = await actions.isMarketApproved(p.tokenId);
@@ -94,11 +92,7 @@ export default function VeHemiListDialog({ position: p, onClose }) {
             hint={
               <>
                 <span>Locked value {fmt(p.hemi, 2)} HEMI</span>
-                {discount != null && (
-                  <span className={discount >= 0 ? "text-emerald-400" : "text-red-400"}>
-                    {discount >= 0 ? `${discount}% below` : `${-discount}% above`} locked value
-                  </span>
-                )}
+                {discount !== 0 && <VeHemiDiscount pct={discount} suffix={discount > 0 ? " off" : ""} size="xs" />}
               </>
             }
           />

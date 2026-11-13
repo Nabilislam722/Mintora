@@ -11,11 +11,8 @@ function setMeta(attr, key, content) {
   el.setAttribute("content", content);
 }
 
-// Sets the page title, description, canonical URL, robots and link-preview tags (see lib/seo.js).
-// Pass null to leave the tags alone, e.g. when a child component sets them instead. Entries without a path
-// (like NOT_FOUND_SEO) use the current URL.
+// Sets the page's title, description, canonical, robots and preview tags (null leaves them alone)
 export function useSeo(seo) {
-  // Compared as a string so a new object with the same values doesn't rerun the effect
   const key = seo ? JSON.stringify(buildMeta({ path: window.location.pathname, ...seo })) : null;
 
   useEffect(() => {

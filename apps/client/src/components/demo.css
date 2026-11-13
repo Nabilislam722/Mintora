@@ -5,7 +5,7 @@
   height: 100vh;
   width: 100%;
   position: relative;
-  overflow: hidden; /* Fixes section bleed */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;

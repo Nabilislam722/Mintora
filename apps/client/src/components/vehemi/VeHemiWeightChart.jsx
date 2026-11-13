@@ -3,9 +3,9 @@ import { fmt, unlockDate } from "@/lib/vehemi";
 
 const MILESTONES = [[90, "In 3 months"], [365, "In 1 year"], [730, "In 2 years"]];
 
-// Linear decay from today's weight to 0 at unlock; x and y both run 0–100 in the plot
+// Voting weight falling from today's value to zero at unlock
 export default function VeHemiWeightChart({ weight, days }) {
-  const [hover, setHover] = useState(null); // days from today
+  const [hover, setHover] = useState(null);
   const at = (d) => weight * (1 - d / days);
   const x = hover === null ? null : (hover / days) * 100;
   const step = Math.max(1, Math.round(days / 24));

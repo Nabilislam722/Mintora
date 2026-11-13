@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// `onImage` is told the image of the slide on show (or null), so the page can tint its background with it
+// Featured collections carousel; `onImage` gets the slide's image so the page can tint its background
 export default function FeaturedCarousel({ onImage }) {
   const [slides, setSlides] = useState([]);
   const [current, setCurrent] = useState(0);

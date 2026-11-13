@@ -1,5 +1,4 @@
-// Uploads one profile image (uploadType "avatar" or "banner") straight to R2 and returns its public URL.
-// `send` is a signed-in fetch (see lib/auth.js). The image only appears on the profile once it's saved with this URL.
+// Uploads a profile image (avatar or banner) to R2 and returns its public URL
 export async function uploadToR2(file, uploadType, send, onProgress) {
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -16,9 +15,8 @@ export async function uploadToR2(file, uploadType, send, onProgress) {
 
   const { presignedUrl, publicUrl } = await presignRes.json();
 
-  onProgress?.(0.1); // started
+  onProgress?.(0.1);
 
-  // The URL is signed for exactly this type and size
   const putRes = await fetch(presignedUrl, {
     method:  "PUT",
     headers: { "Content-Type": file.type },

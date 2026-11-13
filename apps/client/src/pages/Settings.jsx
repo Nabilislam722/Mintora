@@ -20,7 +20,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const MAX_USERNAME = 32;
 const MAX_BIO = 160;
 
-// Same rule as the API (apps/server/models/User.js)
+// Why a username can't be used, or null (same rule as the API)
 function usernameProblem(name) {
   if (name === "") return null;
   if (name.length < 2 || name.length > MAX_USERNAME) return `Usernames are 2 to ${MAX_USERNAME} characters.`;
@@ -140,14 +140,12 @@ function ProfileTab({ address, dbUser, onSaved }) {
 
     setStatus("saving"); setProgress(0);
     try {
-      // Usernames belong to one account each; check before asking for a signature or uploading anything
       if (usernameChanged && username.trim()) {
         const r = await fetch(`${BASE_URL}/api/usernames/${encodeURIComponent(username.trim())}?for=${address}`);
         const check = await r.json().catch(() => ({}));
         if (r.ok && !check.available) throw new Error(check.message || "That username is taken.");
       }
 
-      // One signature proves this wallet is yours; the session then lasts 7 days
       if (!hasSession(address)) {
         setStatus("signing");
         await signIn(address, signMessageAsync);
@@ -192,7 +190,6 @@ function ProfileTab({ address, dbUser, onSaved }) {
       setStatus("success");
       setTimeout(() => { onSaved(patch); setStatus("idle"); }, 1200);
     } catch (e) {
-      // wagmi's errors carry a one-line shortMessage ("User rejected the request.")
       setSaveErr(e.shortMessage || e.message || "Something went wrong.");
       setStatus("error");
     }
@@ -401,7 +398,6 @@ export default function Settings() {
   return (
     <div className="s-layout max-md:!flex max-md:!flex-col max-md:!gap-4 max-md:!px-4 max-md:!py-2">
 
-      {/* Sidebar - Converts to a horizontal scrollable menu on mobile */}
       <nav className="s-sidebar ml-64 max-md:!static max-md:!w-full max-md:!h-auto max-md:!ml-0 max-md:!p-0 max-md:!flex max-md:!flex-row max-md:!items-center max-md:overflow-x-auto max-md:gap-2 max-md:pb-3 max-md:border-r-0 max-md:border-b max-md:border-border max-md:[&::-webkit-scrollbar]:hidden">
         <p className="s-sidebar-heading max-md:hidden">Settings</p>
         {NAV.map(({ id, label, Icon }) => (

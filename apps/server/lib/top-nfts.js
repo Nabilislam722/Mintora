@@ -1,18 +1,8 @@
 import { Activity } from "../models/Activity.js";
 import { NFT } from "../models/NFT.js";
-import "../models/Collection.js"; // registers the model the cards' collection is populated from
+import "../models/Collection.js";
 import { SALES_PERIODS } from "./trending.js";
 
-// The home page's Top NFTs: the best listings for a period (24h, 7d or 30d). Every listed NFT gets a score:
-//
-//   2 × log2(1 + its collection's sales in the period)   demand, with diminishing returns
-// + its own sales in the period (up to 3)                 it's actively trading
-// + 0.5 if it was listed during the period                fresh on the market
-// + log2(reference price ÷ its price), within −2..+2      a good deal against what the collection has been
-//                                                          selling for (or its floor, if nothing sold)
-// + 3 × priority                                          hand-picked in the database
-//
-// Each collection's best listing goes in first, so the row isn't one collection; the rest fill by score.
 const LIMIT = 5;
 const WEIGHTS = { collectionSales: 2, ownSales: 1, maxOwnSales: 3, freshListing: 0.5, deal: 1, priority: 3 };
 const CACHE_TTL = 60_000;
@@ -26,19 +16,19 @@ const toEth = (wei) => {
   }
 };
 
+// Scores every listed NFT for a period and picks the best 5, one per collection first
 async function compute(period) {
   const since = new Date(Date.now() - SALES_PERIODS[period]);
   const [listed, events] = await Promise.all([
     NFT.find({ isListed: true }, { contractAddress: 1, tokenId: 1, price: 1, priority: 1 }).lean(),
     Activity.find(
-      { type: { $in: ["SOLD", "LIST"] }, createdAt: { $gte: since } },
+      { type: { $in: ["SOLD", "LIST"] }, market: { $ne: "vehemi" }, createdAt: { $gte: since } },
       { type: 1, collection: 1, tokenId: 1, price: 1, _id: 0 }
     ).lean(),
   ]);
 
-  // The period's sales per collection and per token, and which tokens were listed in it
-  const collections = new Map(); // address → { sales, saleTotal, floor }
-  const ownSales = new Map(); // "address:tokenId" → count
+  const collections = new Map();
+  const ownSales = new Map();
   const freshlyListed = new Set();
   const col = (address) => {
     if (!collections.has(address)) collections.set(address, { sales: 0, saleTotal: 0, floor: Infinity });
@@ -77,7 +67,6 @@ async function compute(period) {
       WEIGHTS.priority * (n.priority ?? 0);
   }
 
-  // Best first; ties go to the higher price, then the id, so the order never shuffles
   const ranked = candidates.sort(
     (a, b) => b.score - a.score || b.eth - a.eth || String(a._id).localeCompare(String(b._id))
   );
@@ -92,7 +81,6 @@ async function compute(period) {
   for (const n of ranked) if (picked.length < LIMIT && !picked.includes(n)) picked.push(n);
   picked.sort((a, b) => b.score - a.score || b.eth - a.eth || String(a._id).localeCompare(String(b._id)));
 
-  // The full documents the cards need, in the picked order
   const docs = await NFT.find({ _id: { $in: picked.map((n) => n._id) } }).populate("collectionId").lean();
   const byId = new Map(docs.map((d) => [String(d._id), d]));
   return picked
@@ -100,7 +88,7 @@ async function compute(period) {
     .filter(Boolean);
 }
 
-// Top NFTs for `period` (one of SALES_PERIODS), recomputed at most once a minute
+// Top NFTs for `period` (24h, 7d or 30d), recomputed at most once a minute
 export function topNfts(period) {
   const hit = cache.get(period);
   if (!hit || Date.now() - hit.at > CACHE_TTL) {

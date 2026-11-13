@@ -1,9 +1,9 @@
 import { ethers } from "ethers";
 import { createChallenge, signIn, signOut } from "../lib/auth.js";
 
-// `origins` are the sites allowed to ask for a sign-in message (the same list CORS allows)
+// Wallet sign-in routes; `origins` are the sites a sign-in message can be written for
 export function registerAuthRoutes(app, origins) {
-
+    // Creates a sign-in message for a wallet to sign
     app.post("/api/auth/nonce", async (req, res) => {
         const origin = req.get("origin");
         if (!origins.includes(origin)) return res.status(403).json({ message: "Sign-in only works on Mintora." });
@@ -20,6 +20,7 @@ export function registerAuthRoutes(app, origins) {
         }
     });
 
+    // Checks the signed message and returns a session token
     app.post("/api/auth/verify", async (req, res) => {
         const { message, signature } = req.body ?? {};
         if (typeof message !== "string" || typeof signature !== "string")
@@ -35,6 +36,7 @@ export function registerAuthRoutes(app, origins) {
         }
     });
 
+    // Ends the session
     app.post("/api/auth/logout", async (req, res) => {
         try {
             await signOut(req);

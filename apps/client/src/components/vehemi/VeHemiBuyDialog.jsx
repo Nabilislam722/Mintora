@@ -12,7 +12,7 @@ import { discountOf, fmt, formatDate, sameAddress } from "@/lib/vehemi";
 
 const toHemi = (wei) => Number(formatUnits(wei, 18));
 
-// Approve HEMI if needed, then buy(tokenId, listingId)
+// Buys a listing: approves HEMI if needed, then buy(tokenId, listingId)
 export default function VeHemiBuyDialog({ listing, onClose }) {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -23,7 +23,6 @@ export default function VeHemiBuyDialog({ listing, onClose }) {
   const [approvedHere, setApprovedHere] = useState(false);
   const [done, setDone] = useState(false);
 
-  // The approval covers this price on top of what the buyer's open offers rely on
   const needed = funds ? funds.reserved + listing.priceWei : null;
   const approved = !!funds && funds.allowance >= needed;
   const short = !!funds && funds.balance < listing.priceWei;
@@ -67,7 +66,6 @@ export default function VeHemiBuyDialog({ listing, onClose }) {
         ? "Step 2 of 2 · paid in HEMI"
         : "Paid in HEMI";
 
-  // A top-up within the listing's limit only adds HEMI, so the buyer gets at least what was listed
   const grown = listing.lockAmountWei > listing.listedLockAmountWei;
   const rows = [
     ["Locked", `${fmt(listing.hemi)} HEMI`],

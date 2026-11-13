@@ -123,7 +123,6 @@ export default function Genesis() {
 
   const comingSoon = !MINT_LIVE;
   const contractCfg = { address: GENESIS_CONTRACT, abi: GENESIS_ABI };
-  // Skip on-chain reads until there is a real contract to read from
   const readQuery = { query: { enabled: MINT_LIVE } };
 
   const { data: mintPrice, isLoading: priceLoading } = useReadContract({ ...contractCfg, functionName: "mintPrice", ...readQuery });

@@ -3,7 +3,6 @@ import { erc20Abi, formatUnits } from "viem";
 import { hemi } from "@/lib/hemi";
 import { useTokenPrices } from "@/hooks/use-token-prices";
 
-// Hemi mainnet tokens from hemilabs/token-list; USDC on Hemi is Stargate-bridged USDC.e
 export const WALLET_TOKENS = [
   { symbol: "ETH", name: "Ether", decimals: 18 },
   { symbol: "HEMI", name: "Hemi", address: "0x99e3dE3817F6081B2568208337ef83295b7f591D", decimals: 18 },
@@ -12,7 +11,7 @@ export const WALLET_TOKENS = [
 
 const ERC20S = WALLET_TOKENS.filter((t) => t.address);
 
-// Amount and USD value of each WALLET_TOKENS entry; total is null until every value is known
+// Amount and USD value of each wallet token; total is null until every value is known
 export function useWalletBalances(address) {
   const eth = useBalance({ address, chainId: hemi.id });
   const tokens = useReadContracts({
