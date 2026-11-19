@@ -114,9 +114,11 @@ export default function Home() {
       <HeroBackdrop image={heroImage} />
       <FeaturedCarousel onImage={setHeroImage} />
 
-      <VeHemiPromo />
-      
-      <section className="container mx-auto px-4">
+      <div className="enter enter-rise [--enter-delay:160ms]">
+        <VeHemiPromo />
+      </div>
+
+      <section className="enter enter-rise [--enter-delay:240ms] container mx-auto px-4">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <BsFillCollectionFill className="w-5 h-5 text-foreground opacity-80" />
@@ -134,7 +136,10 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid gap-4 items-center" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+        <div
+          className="enter-each enter-zoom [--enter-delay:340ms] [--enter-step:55ms] grid gap-4 items-center"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
           {featuredSpan > 0 && <FeaturedFrame collections={featuredCollections} span={featuredSpan} />}
           {regularCollections.map((collection) => (
             <CollectionCard key={collection._id} collection={collection} size="large" />
@@ -142,12 +147,15 @@ export default function Home() {
         </div>
       </section>
 
-      <TopNftsSection nfts={topNfts} timeFilter={topPeriod} setTimeFilter={setTopPeriod} />
+      <div className="enter enter-rise [--enter-delay:320ms]">
+        <TopNftsSection nfts={topNfts} timeFilter={topPeriod} setTimeFilter={setTopPeriod} />
+      </div>
 
+      <div className="enter enter-rise [--enter-delay:400ms]">
+        <LatestListingsSection nfts={latestNfts} />
+      </div>
 
-      <LatestListingsSection nfts={latestNfts} />
-
-      <section className="container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-6 mb-10">
+      <section className="enter enter-zoom [--enter-delay:460ms] container mx-auto px-4 apply-banner rounded-2xl overflow-hidden relative mt-6 mb-10">
         <div className="flex items-center justify-between px-5 sm:px-12 py-8 sm:py-10">
           <div className="flex flex-col gap-3 z-10">
             <p className="text-xs text-blue-200 uppercase tracking-widest flex items-center gap-1">
@@ -166,7 +174,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-border py-6 px-4 sm:px-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-0 justify-between text-sm text-muted-foreground">
+      <footer className="enter enter-fade [--enter-delay:520ms] border-t border-border py-6 px-4 sm:px-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-0 justify-between text-sm text-muted-foreground">
         <div>© 2026 Mintora. All rights reserved.</div>
         <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
           <a href="/faq" className="hover:text-foreground transition">FAQ</a>

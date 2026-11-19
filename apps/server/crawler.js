@@ -7,6 +7,7 @@ import { Activity } from "./models/Activity.js";
 import { getFloorPrices } from "./lib/floor.js";
 import { createHemiProvider } from "./lib/provider.js";
 import { VE_HEMI_MARKET, VE_HEMI_MARKET_DEPLOY_BLOCK, VE_TOPICS, decodeVeHemi, settleVeHemiCancels } from "./lib/vehemi-events.js";
+import { notifyActivity } from "./lib/notify.js";
 
 const MARKETPLACE_ADDRESS = "0xf93AF302727E0ef59522Cd9D9Ff19Ba6b5BB7755".toLowerCase();
 const ZERO_ADDRESS = ethers.ZeroAddress;
@@ -112,6 +113,11 @@ function nftActivity(e) {
     return { tx, logIndex, type, from, to, collection, tokenId, price, blockNumber };
 }
 
+// Emails the people new rows are about, in the background so mail never slows the crawl
+function notifyLater(rows) {
+    void notifyActivity(rows.map((row) => ({ ...row, createdAt: blockTimes.get(row.blockNumber) ?? new Date() })));
+}
+
 // Inserts an activity row once; reading the same log again changes nothing
 function insertActivity(row) {
     return {
@@ -142,6 +148,7 @@ async function applyLogs(logs) {
     const { upsertedIds } = await Activity.bulkWrite(events.map((e) => insertActivity(nftActivity(e))), { ordered: false });
     const fresh = Object.keys(upsertedIds ?? {}).map((i) => events[Number(i)]);
     if (!fresh.length) return;
+    notifyLater(fresh.map(nftActivity));
 
     const volumes = new Map();
     for (const e of fresh) {
@@ -169,11 +176,12 @@ async function applyVeHemiLogs(logs) {
     if (!rows.length) return;
     await loadBlockTimes(rows);
     const { upsertedIds } = await Activity.bulkWrite(rows.map(insertActivity), { ordered: false });
-    for (const i of Object.keys(upsertedIds ?? {})) {
-        const r = rows[Number(i)];
+    const fresh = Object.keys(upsertedIds ?? {}).map((i) => rows[Number(i)]);
+    for (const r of fresh) {
         const amount = r.price !== "0" ? ` for ${ethers.formatEther(r.price)} HEMI` : "";
         console.log(`${VE_LOG_LABEL[r.type]} #${r.tokenId}${amount}${r.viaOffer ? " (offer accepted)" : ""}`);
     }
+    notifyLater(fresh);
 }
 
 let stopping = false;

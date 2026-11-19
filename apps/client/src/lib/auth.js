@@ -50,6 +50,16 @@ export async function authFetch(address, signMessageAsync, url, init = {}) {
   return res;
 }
 
+// fetch() as `address` using only a session it already has: never asks the wallet to sign. Null without a session.
+export async function sessionFetch(address, url, init = {}) {
+  const token = storedToken(address);
+  if (!token) return null;
+  const res = await fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } });
+  if (res.status !== 401) return res;
+  forget(address);
+  return null;
+}
+
 // Ends the session on this device and on the API
 export async function signOut(address) {
   const token = address && storedToken(address);

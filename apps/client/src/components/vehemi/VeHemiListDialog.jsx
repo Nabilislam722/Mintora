@@ -4,6 +4,7 @@ import hemiLogo from "/hemi.svg";
 import { VeHemiUsd } from "@/components/vehemi/VeHemiPrice";
 import VeHemiDiscount from "@/components/vehemi/VeHemiDiscount";
 import VeHemiDialog, { DialogDone, DialogRows, DurationSelect, HemiInput, StepButton, StepNote } from "@/components/vehemi/VeHemiDialog";
+import { EmailAlertsCard } from "@/components/EmailAlerts";
 import { useVeHemiMarket } from "@/hooks/use-vehemi";
 import { useTxStep, useVeHemiActions } from "@/hooks/use-vehemi-actions";
 import { MIN_LISTING_DAYS, discountOf, fmt, formatDate, parseHemi } from "@/lib/vehemi";
@@ -69,7 +70,16 @@ export default function VeHemiListDialog({ position: p, onClose }) {
           <button type="button" onClick={onClose} className="h-10 px-6 rounded-lg bg-secondary text-sm font-medium hover:bg-secondary/70">Close</button>
         </div>
       ) : step === "done" ? (
-        <DialogDone title="Listed for sale" onClose={onClose}>
+        <DialogDone
+          title="Listed for sale"
+          onClose={onClose}
+          extra={
+            <EmailAlertsCard
+              title="Know the moment it sells"
+              text={`Get an email when someone buys veHEMI #${p.id} or makes an offer on it.`}
+            />
+          }
+        >
           veHEMI #{p.id} is listed for {fmt(amount)} HEMI for {days} days.
         </DialogDone>
       ) : step === "approve" ? (

@@ -13,7 +13,7 @@ const PAGES = {
   },
   "/activity": {
     title: "Live NFT and veHEMI Activity",
-    description: "Recent NFT sales, listings and transfers, and veHEMI sales, across Mintora on Hemi Network.",
+    description: "Recent NFT sales, listings and transfers, and veHEMI sales, listings and offers, across Mintora on Hemi Network.",
   },
   "/vehemi": {
     title: "veHEMI Marketplace: Buy Locked HEMI",

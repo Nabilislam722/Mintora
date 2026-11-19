@@ -204,8 +204,8 @@ export default function Navbar() {
   );
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/70 dark:bg-background/50 backdrop-blur-md border-b border-border/50">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
+    <nav className="enter enter-top fixed top-0 left-0 right-0 z-50 bg-background/70 dark:bg-background/50 backdrop-blur-md border-b border-border/50">
+      <div className="enter-each enter-drop [--enter-delay:200ms] [--enter-step:70ms] container mx-auto px-4 h-16 flex items-center justify-between gap-4">
 
         <button
           ref={menuButtonRef}
@@ -222,7 +222,7 @@ export default function Navbar() {
 
         {logoPosition === "left" && <Logo />}
 
-        <div ref={wrapRef} className="hidden md:block flex-1 max-w-xl relative">
+        <div ref={wrapRef} className="enter-unfold hidden md:block flex-1 max-w-xl relative">
           <div
             className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-200 bg-secondary/60
               ${focused
@@ -247,7 +247,7 @@ export default function Navbar() {
 
         <div className="flex-1 md:hidden" />
 
-        <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
+        <div className="enter-each [--enter-delay:300ms] flex items-center gap-2 sm:gap-3 md:gap-5">
           <button
             type="button"
             className="md:hidden p-2 -mr-1 rounded-full hover:bg-secondary/60 transition-colors"

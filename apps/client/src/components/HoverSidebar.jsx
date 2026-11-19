@@ -178,7 +178,7 @@ export default function HoverSidebar() {
 
   return (
     <div
-      className={`fixed top-16 bottom-0 z-40 hidden md:flex ${isLeft ? "left-0" : "right-0"}`}
+      className={`enter [--enter-delay:120ms] fixed top-16 bottom-0 z-40 hidden md:flex ${isLeft ? "enter-left left-0" : "enter-right right-0"}`}
       onMouseEnter={() => setExpanded(true)}
       onMouseLeave={() => setExpanded(false)}
     >
@@ -197,7 +197,7 @@ export default function HoverSidebar() {
             {expanded && <span className="text-sm text-muted-foreground">Menu</span>}
           </div>
 
-          <nav className="space-y-1">
+          <nav className={`enter-each [--enter-delay:320ms] [--enter-step:45ms] space-y-1 ${isLeft ? "enter-nudge-left" : "enter-nudge-right"}`}>
             {navItems.map((item) => (
               <NavItem
                 key={item.href}

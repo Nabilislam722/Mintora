@@ -10,6 +10,7 @@ import "../components/settings.css";
 import { uploadToR2 } from "../lib/uploadToR2";
 import { authFetch, hasSession, signIn } from "../lib/auth";
 import { useLayoutPreferences } from "../context/LayoutPreferencesContext";
+import { isEmail, useEmailSettings } from "@/hooks/use-email-settings";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 
@@ -32,7 +33,7 @@ function usernameProblem(name) {
 const NAV = [
   { id: "profile",       label: "Profile",            Icon: User        },
   { id: "wallets",       label: "Linked Wallets",      Icon: Wallet      },
-  { id: "notifications", label: "Email Notifications", Icon: Bell        },
+  { id: "notifications", label: "Email Notifications", Icon: Bell, badge: "New" },
   { id: "customize",     label: "Customize",           Icon: Palette     },
   { id: "developer",     label: "Developer",           Icon: Code2       },
   { id: "verification",  label: "Verification",        Icon: ShieldCheck },
@@ -316,6 +317,184 @@ function ToggleRow({ label, description, value, onChange }) {
   );
 }
 
+function SwitchRow({ label, description, checked, onChange, disabled }) {
+  return (
+    <div className="flex max-[420px]:flex-col max-[420px]:items-start max-[420px]:gap-3 items-center justify-between py-4 border-b border-border last:border-b-0">
+      <div className="pr-4 min-w-0">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <div className={disabled ? "opacity-50 pointer-events-none" : ""}>
+        <ToggleSwitch checked={checked} onChange={onChange} />
+      </div>
+    </div>
+  );
+}
+
+// Where to send offer and sale emails, and which ones to send
+function NotificationsTab({ address }) {
+  const { toast } = useToast();
+  const alerts = useEmailSettings(address);
+  const { settings, isLoading, error: loadErr } = alerts;
+  const [signing, setSigning] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const handleSignIn = async () => {
+    setErr("");
+    setSigning(true);
+    try {
+      await alerts.signIn();
+    } catch (e) {
+      setErr(e.shortMessage || e.message || "Sign-in failed.");
+    } finally {
+      setSigning(false);
+    }
+  };
+
+  const intro = (
+    <>
+      <p className="s-page-title">Email Notifications</p>
+      <p className="text-sm text-muted-foreground -mt-5 mb-7">
+        Get an email when someone makes an offer on your veHEMI position, or buys your NFT or veHEMI position.
+        Your email stays private: it never shows on your profile.
+      </p>
+    </>
+  );
+
+  if (isLoading) return <>{intro}<Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></>;
+  if (loadErr) return <>{intro}<ErrorBanner msg={loadErr.message} /></>;
+
+  if (!settings) {
+    return (
+      <>
+        {intro}
+        {err && <ErrorBanner msg={err} />}
+        <Button
+          onClick={handleSignIn}
+          disabled={signing}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-6 h-11"
+        >
+          {signing ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirm in wallet</> : "Sign in to manage emails"}
+        </Button>
+        <p className="s-hint">Signing in proves you own this wallet. It doesn't send a transaction or cost gas.</p>
+      </>
+    );
+  }
+
+  const email = draft ?? (settings.pendingEmail || settings.email);
+  const trimmed = email.trim().toLowerCase();
+  const unchanged = trimmed === (settings.pendingEmail || settings.email);
+  const hasAny = !!(settings.email || settings.pendingEmail);
+
+  const run = async (work) => {
+    setErr("");
+    setBusy(true);
+    try {
+      await work();
+    } catch (e) {
+      setErr(e.shortMessage || e.message || "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveEmail = (value = trimmed) => run(async () => {
+    if (!isEmail(value)) throw new Error("Enter a valid email address.");
+    const next = await alerts.saveEmail(value);
+    setDraft(null);
+    if (next.pendingEmail) toast({ title: "Check your inbox", description: `We sent a confirmation link to ${next.pendingEmail}.` });
+  });
+
+  const removeEmail = () => run(async () => {
+    await alerts.removeEmail();
+    setDraft(null);
+    toast({ title: "Email removed" });
+  });
+
+  const setSetting = (key, value) => run(() => alerts.update({ [key]: value }));
+
+  return (
+    <>
+      {intro}
+
+      <div className="s-field">
+        <label className="s-label" htmlFor="notify-email">Email</label>
+        <div className="flex items-end gap-3 max-sm:flex-col max-sm:items-stretch">
+          <input
+            id="notify-email"
+            type="email"
+            autoComplete="email"
+            className="s-input"
+            placeholder="you@example.com"
+            value={email}
+            maxLength={254}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !unchanged && trimmed && !busy && saveEmail()}
+          />
+          <Button
+            onClick={() => saveEmail()}
+            disabled={busy || unchanged || !trimmed}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-5 h-10 shrink-0 disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : settings.email ? "Change email" : "Send link"}
+          </Button>
+        </div>
+
+        {settings.pendingEmail ? (
+          <p className="s-hint">
+            We sent a link to <span className="text-foreground font-medium">{settings.pendingEmail}</span>. Click it to start getting emails.{" "}
+            <button type="button" className="underline hover:text-foreground disabled:opacity-50" disabled={busy}
+              onClick={() => saveEmail(settings.pendingEmail)}>Send it again</button>
+            {settings.email && <> Until then, emails go to {settings.email}.</>}
+          </p>
+        ) : settings.email ? (
+          <p className="s-hint flex items-center gap-1.5">
+            <CheckCircle className="w-3.5 h-3.5 text-primary shrink-0" />
+            Emails go to <span className="text-foreground font-medium">{settings.email}</span>
+          </p>
+        ) : (
+          <p className="s-hint">We'll send a link to confirm it's yours. No emails until you click it.</p>
+        )}
+      </div>
+
+      {err && <ErrorBanner msg={err} />}
+
+      <p className="s-label">Email me when</p>
+      <div>
+        <SwitchRow
+          label="Someone makes an offer"
+          description="An offer on one of your veHEMI positions."
+          checked={settings.offers}
+          onChange={(v) => setSetting("offers", v)}
+          disabled={busy}
+        />
+        <SwitchRow
+          label="Something of mine sells"
+          description="Your listed NFT or veHEMI position is bought."
+          checked={settings.sales}
+          onChange={(v) => setSetting("sales", v)}
+          disabled={busy}
+        />
+      </div>
+      {!settings.email && (
+        <p className="s-hint">These apply once your email is confirmed.</p>
+      )}
+
+      {hasAny && (
+        <>
+          <hr className="s-divider" />
+          <button type="button" onClick={removeEmail} disabled={busy}
+            className="text-sm text-destructive hover:underline disabled:opacity-50">
+            Remove my email
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
 function CustomizeTab() {
   const { sidebarPosition, logoPosition, setSidebarPosition, setLogoPosition } = useLayoutPreferences();
 
@@ -351,7 +530,11 @@ export default function Settings() {
   const [, navigate]             = useLocation();
   const queryClient              = useQueryClient();
 
-  const [activeNav, setActiveNav] = useState("profile");
+  // Opens on ?tab=<id> (e.g. /settings?tab=notifications), else on the profile
+  const [activeNav, setActiveNav] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return NAV.some((n) => n.id === tab) ? tab : "profile";
+  });
 
   const { data: dbUser, isLoading } = useQuery({
     queryKey: [`${BASE_URL}/api/users/${address}`],
@@ -400,7 +583,7 @@ export default function Settings() {
 
       <nav className="s-sidebar ml-64 max-md:!static max-md:!w-full max-md:!h-auto max-md:!ml-0 max-md:!p-0 max-md:!flex max-md:!flex-row max-md:!items-center max-md:overflow-x-auto max-md:gap-2 max-md:pb-3 max-md:border-r-0 max-md:border-b max-md:border-border max-md:[&::-webkit-scrollbar]:hidden">
         <p className="s-sidebar-heading max-md:hidden">Settings</p>
-        {NAV.map(({ id, label, Icon }) => (
+        {NAV.map(({ id, label, Icon, badge }) => (
           <button
             key={id}
             className={`s-nav-btn max-md:!w-auto max-md:!inline-flex max-md:!shrink-0 max-md:whitespace-nowrap max-md:text-xs max-md:px-3.5 max-md:py-2 max-md:rounded-full ${activeNav === id ? "active" : ""}`}
@@ -408,6 +591,11 @@ export default function Settings() {
           >
             <Icon className="w-4 h-4 shrink-0" style={{ opacity: activeNav === id ? 1 : 0.6 }} />
             {label}
+            {badge && (
+              <span className="ml-auto max-md:ml-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
+                {badge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -417,7 +605,8 @@ export default function Settings() {
           <ProfileTab address={address} dbUser={dbUser} onSaved={handleSaved} />
         )}
         {activeNav === "customize" && <CustomizeTab />}
-        {activeNav !== "profile" && activeNav !== "customize" && (
+        {activeNav === "notifications" && <NotificationsTab key={address} address={address} />}
+        {!["profile", "customize", "notifications"].includes(activeNav) && (
           <ComingSoon Icon={activeNavMeta?.Icon} />
         )}
       </main>

@@ -12,6 +12,7 @@ import VeHemiBuyDialog from "@/components/vehemi/VeHemiBuyDialog";
 import VeHemiListDialog from "@/components/vehemi/VeHemiListDialog";
 import VeHemiOfferDialog from "@/components/vehemi/VeHemiOfferDialog";
 import VeHemiOffers from "@/components/vehemi/VeHemiOffers";
+import { EmailAlertsCard } from "@/components/EmailAlerts";
 import { useVeHemiMarket, useVeHemiOffers, useVeHemiPosition } from "@/hooks/use-vehemi";
 import { useTxStep, useVeHemiActions } from "@/hooks/use-vehemi-actions";
 import {
@@ -266,6 +267,14 @@ export default function VeHemiDetails() {
                   </p>
                 )}
               </div>
+            )}
+
+            {isHolder && !ended && (
+              <EmailAlertsCard
+                dismissible
+                title="Get an email for new offers"
+                text={`We'll email you when someone makes an offer on veHEMI #${p.id} or buys it, so you can answer fast.`}
+              />
             )}
 
             {!isHolder && !ended && (

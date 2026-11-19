@@ -5,6 +5,7 @@ import cors from "cors";
 import { registerRoutes } from "./routes.js";
 import { registerUploadRoutes } from "./routes/upload.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerEmailRoutes } from "./routes/email.js";
 import { startDataDump } from "./lib/dataDump.js";
 
 const app = express();
@@ -28,6 +29,7 @@ app.use(express.json());
 registerAuthRoutes(app, ORIGINS);
 registerRoutes(app);
 registerUploadRoutes(app);
+registerEmailRoutes(app);
 
 const MONGODB_URI = "mongodb://127.0.0.1:27017/nft_marketplace";
 const PORT = 3000;

@@ -12,7 +12,8 @@ const FILTERS = [
   { id: "all", label: "All", params: {}, empty: "No activity yet." },
   { id: "sales", label: "Sales", params: { type: "SOLD" }, empty: "No sales yet." },
   { id: "listings", label: "Listings", params: { type: "LIST,UPDATE,CANCEL" }, empty: "No listings yet." },
-  { id: "vehemi", label: "veHEMI", params: { market: "vehemi" }, empty: "No veHEMI sales yet." },
+  { id: "offers", label: "Offers", params: { type: "OFFER" }, empty: "No offers yet." },
+  { id: "vehemi", label: "veHEMI", params: { market: "vehemi" }, empty: "No veHEMI activity yet." },
 ];
 
 const toAmount = (wei) => {
@@ -108,7 +109,7 @@ export default function Activity() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground leading-tight">Activity</h1>
-              <p className="text-sm text-muted-foreground">Every sale, listing and transfer on Mintora, NFTs and veHEMI</p>
+              <p className="text-sm text-muted-foreground">Every sale, listing, offer and transfer on Mintora, NFTs and veHEMI</p>
             </div>
           </div>
           <LivePill />

@@ -105,12 +105,14 @@ export function StepNote({ children }) {
   return <p className="text-[11px] text-muted-foreground text-center">{children}</p>;
 }
 
-export function DialogDone({ title, children, onClose }) {
+// The success step; `extra` sits between the message and the Done button
+export function DialogDone({ title, children, onClose, extra = null }) {
   return (
     <div className="text-center py-6">
       <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
       <p className="font-bold mb-1">{title}</p>
       <p className="text-xs text-muted-foreground mb-5">{children}</p>
+      {extra && <div className="mb-5">{extra}</div>}
       <button type="button" onClick={onClose} className="h-10 px-6 rounded-lg bg-secondary text-sm font-medium hover:bg-secondary/70">Done</button>
     </div>
   );

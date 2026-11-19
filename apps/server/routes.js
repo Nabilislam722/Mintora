@@ -226,7 +226,7 @@ export async function registerRoutes(app) {
     }
   });
 
-  const ACTIVITY_TYPES = new Set(["LIST", "SOLD", "UPDATE", "CANCEL", "TRANSFER"]);
+  const ACTIVITY_TYPES = new Set(["LIST", "SOLD", "UPDATE", "CANCEL", "TRANSFER", "OFFER"]);
   const MAX_ACTIVITY_PAGE = 50;
   const queryText = (value) => (typeof value === "string" ? value.trim() : "");
 
@@ -244,7 +244,6 @@ export async function registerRoutes(app) {
       if (address) filter.$or = [{ from: address }, { to: address }];
       if (types.length) filter.type = { $in: types };
       if (req.query.market === "vehemi") filter.market = "vehemi";
-      filter.$nor = [{ market: "vehemi", type: { $ne: "SOLD" } }];
 
       const [items, total] = await Promise.all([
         Activity.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),

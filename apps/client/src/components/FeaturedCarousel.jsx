@@ -66,7 +66,7 @@ export default function FeaturedCarousel({ onImage }) {
   if (slides.length === 0) return null;
 
   return (
-    <div className="relative bottom-5 h-[250px] sm:h-[350px] md:h-[450px] xl:h-[500px] w-full max-w-[2000px] mx-auto overflow-hidden sm:rounded-2xl">
+    <div className="enter enter-zoom [--enter-delay:80ms] relative bottom-5 h-[250px] sm:h-[350px] md:h-[450px] xl:h-[500px] w-full max-w-[2000px] mx-auto overflow-hidden sm:rounded-2xl">
       <div
         className="absolute inset-0 bg-cover bg-center transition-all duration-700"
         style={{ backgroundImage: `url(${bgImage})` }} 

@@ -14,6 +14,7 @@ import { useVeHemiListings, useVeHemiMarket } from "@/hooks/use-vehemi";
 import { LOCK_FILTERS, discountOf, fmtCompact, inputCls } from "@/lib/vehemi";
 import { discountTextCls } from "@/components/vehemi/VeHemiDiscount";
 import VeHemiApprovals from "@/components/vehemi/VeHemiApprovals";
+import { EmailAlertsButton } from "@/components/EmailAlerts";
 import { useSeo } from "@/hooks/use-seo";
 import { pageSeo } from "@/lib/seo";
 
@@ -77,7 +78,8 @@ export default function VeHemi() {
               <p className="text-sm text-muted-foreground">Trade locked HEMI positions before they unlock · priced in HEMI</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <EmailAlertsButton className="h-9 p-6 text-lg" />
             <button type="button" onClick={onList} className="h-9 p-6 rounded-full border border-white/10 bg-primary/90 font-semibold font-display hover:bg-secondary text-lg inline-flex items-center gap-2 transition-colors">
               <Plus className="w-3.5 h-3.5" /> List veHEMI
             </button>

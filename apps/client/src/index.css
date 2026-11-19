@@ -142,6 +142,85 @@ html {
   }
 }
 
+/*
+  Entrance motion: the navbar and sidebar slide in, then the page flows in after them,
+  on Fluent's decelerate curve (fast off the mark, long soft landing).
+    .enter         this element enters
+    .enter-each    its children enter one after another; a child that is itself .enter-each
+                   hands it on to its own children
+    .enter-<how>   top | left | right (slide in from that edge), rise, drop, zoom, fade,
+                   unfold (opens out from the middle), nudge-left | nudge-right (a short slide from that side)
+    .enter-page    on <main>: each page's content fades in as it opens
+  Timing: [--enter-delay:200ms], [--enter-step:50ms] between children.
+  A child of .enter-each can take its own <how>. Tailwind's duration-* and delay-* also set animation
+  timing, so an element that has one should not use .enter: move the entrance to a wrapper.
+*/
+:root {
+  --ease-enter: cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+@keyframes enter-top { from { transform: translateY(-100%); } }
+@keyframes enter-left { from { transform: translateX(-100%); } }
+@keyframes enter-right { from { transform: translateX(100%); } }
+@keyframes enter-rise { from { opacity: 0; transform: translateY(32px); } }
+@keyframes enter-drop { from { opacity: 0; transform: translateY(-12px); } }
+@keyframes enter-zoom { from { opacity: 0; transform: scale(0.96); } }
+@keyframes enter-fade { from { opacity: 0; } }
+@keyframes enter-nudge-left { from { opacity: 0; transform: translateX(-16px); } }
+@keyframes enter-nudge-right { from { opacity: 0; transform: translateX(16px); } }
+@keyframes enter-unfold {
+  from { opacity: 0; clip-path: inset(-8px 50% -8px 50% round 999px); }
+  to { clip-path: inset(-8px round 999px); }
+}
+
+@layer components {
+  .enter-top { --enter-name: enter-top; --enter-time: 800ms; }
+  .enter-left { --enter-name: enter-left; --enter-time: 800ms; }
+  .enter-right { --enter-name: enter-right; --enter-time: 800ms; }
+  .enter-rise { --enter-name: enter-rise; --enter-time: 800ms; }
+  .enter-drop { --enter-name: enter-drop; --enter-time: 700ms; }
+  .enter-zoom { --enter-name: enter-zoom; --enter-time: 900ms; }
+  .enter-fade { --enter-name: enter-fade; --enter-time: 600ms; }
+  .enter-unfold { --enter-name: enter-unfold; --enter-time: 900ms; }
+  .enter-nudge-left { --enter-name: enter-nudge-left; --enter-time: 700ms; }
+  .enter-nudge-right { --enter-name: enter-nudge-right; --enter-time: 700ms; }
+
+  .enter-page > * > * {
+    animation: enter-fade 500ms var(--ease-enter) backwards;
+  }
+
+  .enter,
+  .enter-each {
+    --enter-delay: 0ms;
+    --enter-step: 60ms;
+  }
+  .enter,
+  .enter-each > * { --enter-i: 0; }
+  .enter-each > :nth-child(2) { --enter-i: 1; }
+  .enter-each > :nth-child(3) { --enter-i: 2; }
+  .enter-each > :nth-child(4) { --enter-i: 3; }
+  .enter-each > :nth-child(5) { --enter-i: 4; }
+  .enter-each > :nth-child(6) { --enter-i: 5; }
+  .enter-each > :nth-child(7) { --enter-i: 6; }
+  .enter-each > :nth-child(8) { --enter-i: 7; }
+  .enter-each > :nth-child(9) { --enter-i: 8; }
+  .enter-each > :nth-child(n + 10) { --enter-i: 9; }
+
+  .enter,
+  .enter-each > :not(.enter-each) {
+    animation: var(--enter-name, enter-fade) var(--enter-time, 600ms) var(--ease-enter) backwards;
+    animation-delay: calc(var(--enter-delay) + var(--enter-i) * var(--enter-step));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter-page > * > *,
+    .enter,
+    .enter-each > :not(.enter-each) {
+      animation: none;
+    }
+  }
+}
+
 @layer utilities {
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-400 to-yellow-500;

@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { formatEther } from "viem";
-import { ArrowLeftRight, ArrowRight, ExternalLink, Flame, Handshake, History, Loader2, Pencil, ShoppingCart, Tag, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, ExternalLink, Flame, HandCoins, Handshake, History, Loader2, Pencil, ShoppingCart, Tag, X } from "lucide-react";
 import hemiLogo from "/hemi.svg";
 import ResilientNftImage from "@/components/ResilientNftImage";
 import { useTokenPrices } from "@/hooks/use-token-prices";
@@ -17,21 +17,22 @@ const LIVE_INTERVAL = 15_000;
 const SALE_CLS = "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/25";
 const EVENTS = {
   SOLD: { label: "Sale", icon: ShoppingCart, cls: SALE_CLS },
-  OFFER: { label: "Offer accepted", icon: Handshake, cls: SALE_CLS },
+  ACCEPTED: { label: "Offer accepted", icon: Handshake, cls: SALE_CLS },
+  OFFER: { label: "Offer", icon: HandCoins, cls: "text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/25" },
   LIST: { label: "Listing", icon: Tag, cls: "text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/25" },
   UPDATE: { label: "Price change", icon: Pencil, cls: "text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/25" },
   CANCEL: { label: "Delisted", icon: X, cls: "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/25" },
   TRANSFER: { label: "Transfer", icon: ArrowLeftRight, cls: "text-muted-foreground bg-secondary/50 border-border" },
   BURN: { label: "Burn", icon: Flame, cls: "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/25" },
 };
-const PRICED = new Set(["SOLD", "LIST", "UPDATE"]);
+const PRICED = new Set(["SOLD", "LIST", "UPDATE", "OFFER"]);
 
 const COLS =
   "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[9.5rem_minmax(0,1.7fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem]";
 
 const eventOf = (item) =>
   item.type === "SOLD" && item.viaOffer
-    ? EVENTS.OFFER
+    ? EVENTS.ACCEPTED
     : item.type === "TRANSFER" && item.to === ZERO
       ? EVENTS.BURN
       : EVENTS[item.type] ?? EVENTS.TRANSFER;
