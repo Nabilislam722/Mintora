@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#060709" />
+  <title>Studio Light — ESP32 CW/WW Controller</title>
+  <style>
+    /* ================================================================
+       Tokens
+       ================================================================ */
+    :root {
+      --bg: #060709;
+      --ink: #f3f5f8;
+      --ink-2: #aeb5c0;
+      --ink-3: #6f7783;
+      --line: rgba(255, 255, 255, 0.08);
+      --accent: #d4f56b;
+      --warn: #f5b54a;
+      --danger: #ff6b81;
+      --cool: #8fc2ff;
+      --warm: #ffb25e;
+
+      --r-xl: 32px;
+      --r-lg: 22px;
+
+      --font: "Google Sans Flex", "Google Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+      --chrome: linear-gradient(180deg, #ffffff 0%, #e3e7ec 20%, #aab1bb 47%, #7f8690 51%, #c9ced6 66%, #eef1f4 88%, #ffffff 100%);
+      --rim: linear-gradient(140deg, rgba(255,255,255,.42), rgba(255,255,255,.07) 26%, rgba(255,255,255,.02) 55%, rgba(255,255,255,.18) 82%, rgba(255,255,255,.05));
+      --warm-grad: linear-gradient(90deg, #f2952f 0%, #f7bd78 26%, #fde4c8 52%, #f6f7fb 76%, #d6e7ff 100%);
+
+      /* Driven by JS from the current light output */
+      --light-rgb: 255, 233, 208;
+      --light-hi-rgb: 255, 245, 235;
+      --glow-alpha: 0;
+      --glow-blur: 24px;
+      --warm-glow: 0.12;
+      --cool-glow: 0.1;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    * { margin: 0; }
+    [hidden] { display: none !important; }
+    html { color-scheme: dark; }
+
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 var(--font);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    /* Film grain for a brushed / liquid-metal depth */
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: .07;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 2px solid rgba(255, 255, 255, .85); outline-offset: 3px; }
+
+    /* ================================================================
+       Ambient light — reacts to the warm / cool channel output
+       ================================================================ */
+    .ambient { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(90px); transition: opacity .6s ease, background-color .6s ease; }
+    .blob.warm { width: 620px; height: 620px; left: -180px; top: 18%; background: #c7832a; opacity: var(--warm-glow); }
+    .blob.cool { width: 660px; height: 660px; right: -220px; bottom: -160px; background: #127a6a; opacity: var(--cool-glow); }
+    .blob.glow { width: 520px; height: 520px; left: 8%; top: 30%; background: rgb(var(--light-rgb)); opacity: calc(var(--glow-alpha) * .5); }
+
+    /* ================================================================
+       Shell + top bar
+       ================================================================ */
+    .shell { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 18px 20px 48px; }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .brand { justify-self: start; display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+    .brand-text strong { font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+    .brand-text small { font-size: 12px; color: var(--ink-3); }
+
+    @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+    .orb {
+      position: relative;
+      width: 40px; height: 40px; border-radius: 50%; flex: none;
+      background:
+        radial-gradient(circle at 32% 26%, rgba(255,255,255,.95) 0 7%, transparent 26%),
+        conic-gradient(from var(--spin), #f6f7f9, #8e959f, #e3e6ea, #59606a, #f1f3f5, #a2a9b2, #f6f7f9);
+      box-shadow: inset 0 -5px 9px rgba(0,0,0,.45), inset 0 2px 3px rgba(255,255,255,.8), 0 0 0 1px rgba(255,255,255,.14), 0 8px 20px -6px rgba(0,0,0,.8);
+      animation: spin 10s linear infinite;
+    }
+    .orb::after {
+      content: ""; position: absolute; inset: 0; border-radius: 50%;
+      background: radial-gradient(circle at 68% 74%, rgba(var(--light-rgb), .85), transparent 58%);
+      opacity: calc(var(--glow-alpha) * 1.6);
+      mix-blend-mode: color;
+      transition: opacity .4s;
+    }
+    @keyframes spin { to { --spin: 360deg; } }
+
+    /* Fully rounded nav pill */
+    .nav-pill {
+      position: relative;
+      display: flex; gap: 4px; padding: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .055);
+      -webkit-backdrop-filter: blur(22px) saturate(140%);
+      backdrop-filter: blur(22px) saturate(140%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 12px 30px -12px rgba(0,0,0,.7);
+    }
+    .nav-item {
+      position: relative; overflow: hidden;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 20px; border-radius: 999px;
+      color: var(--ink-2); font-weight: 550; font-size: 14.5px; text-decoration: none;
+      transition: color .2s, background-color .2s;
+    }
+    .nav-item:hover { color: var(--ink); background: rgba(255,255,255,.05); }
+    .nav-item svg { width: 18px; height: 18px; flex: none; }
+    .nav-item[aria-current="page"] {
+      color: #0b0c0f;
+      background: var(--chrome);
+      box-shadow: inset 0 1px 0 #fff, inset 0 -1px 1px rgba(0,0,0,.35), 0 6px 16px -6px rgba(0,0,0,.8);
+    }
+
+    .status-chip {
+      justify-self: end;
+      position: relative;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 15px 9px 13px; border-radius: 999px;
+      color: var(--ink-2); font-size: 13px; font-weight: 550; text-decoration: none;
+      background: rgba(255,255,255,.055);
+      -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+
+    /* Metallic rim shared by glass surfaces */
+    .rim::before, .card::before, .nav-pill::before, .status-chip::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+      background: var(--rim);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+      pointer-events: none;
+    }
+
+    /* Liquid sheen sweeping across chrome elements */
+    .sheen { position: relative; overflow: hidden; }
+    .sheen::after {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.75) 50%, transparent 65%);
+      transform: translateX(-130%);
+      animation: sweep 7s ease-in-out infinite;
+      mix-blend-mode: soft-light;
+    }
+    .nav-item.sheen:not([aria-current="page"])::after { display: none; }
+    @keyframes sweep { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(130%); } }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+    .dot.live { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+    .dot.error { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+    /* ================================================================
+       Bento grid
+       ================================================================ */
+    .view { animation: viewIn .45s cubic-bezier(.2,.8,.2,1); }
+    @keyframes viewIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    .bento { display: grid; gap: 16px; grid-template-columns: minmax(290px, .9fr) 1fr 1fr; }
+    .bento-dash {
+      grid-template-areas:
+        "hero warmth warmth"
+        "hero scenes scenes"
+        "hero output boost";
+    }
+    .bento-dev {
+      grid-template-areas:
+        "device device signal"
+        "driver driver driver"
+        "fw     fw     fw";
+    }
+
+    .card {
+      position: relative;
+      isolation: isolate;
+      display: flex; flex-direction: column; gap: 16px;
+      padding: 22px;
+      border-radius: var(--r-xl);
+      background: linear-gradient(155deg, rgba(255,255,255,.075), rgba(255,255,255,.028) 45%, rgba(255,255,255,.018));
+      -webkit-backdrop-filter: blur(28px) saturate(140%);
+      backdrop-filter: blur(28px) saturate(140%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 24px 50px -24px rgba(0,0,0,.85);
+      animation: rise .6s cubic-bezier(.2,.8,.2,1) both;
+      animation-delay: calc(var(--i, 0) * 55ms);
+      min-width: 0;
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .eyebrow { font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+    .title-xl { font-size: 30px; font-weight: 650; letter-spacing: -.02em; line-height: 1.1; }
+    .card-title { font-size: 18px; font-weight: 620; letter-spacing: -.01em; }
+    .muted-sm { font-size: 12.5px; color: var(--ink-3); }
+    .body-sm { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+    .mono-sm { font: 12px/1.5 var(--mono); color: var(--ink-3); overflow-wrap: anywhere; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    .title-with-icon { display: flex; align-items: center; gap: 12px; }
+    .icon-badge {
+      position: relative; display: grid; place-items: center; flex: none;
+      width: 40px; height: 40px; border-radius: 14px;
+      background: linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,.03));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.2), inset 0 0 0 1px rgba(255,255,255,.07);
+    }
+    .icon-badge svg { width: 20px; height: 20px; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 999px;
+      font-size: 12.5px; color: var(--ink-2); white-space: nowrap;
+      background: rgba(255,255,255,.06);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }
+
+    .metal-text {
+      background: linear-gradient(180deg, #ffffff 0%, #eef1f5 38%, #a3abb6 60%, #f3f5f8 100%);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+
+    /* ================================================================
+       Switch (liquid-metal knob)
+       ================================================================ */
+    .switch {
+      position: relative; flex: none;
+      width: 56px; height: 32px; padding: 0; border: 0; border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      box-shadow: inset 0 2px 6px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.08);
+      transition: background .25s, box-shadow .25s;
+    }
+    .switch .knob {
+      position: absolute; top: 3px; left: 3px;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: radial-gradient(circle at 34% 28%, #fff 0, #eef0f3 22%, #a9b0ba 60%, #dadde2 100%);
+      box-shadow: 0 2px 6px rgba(0,0,0,.55), inset 0 -1px 2px rgba(0,0,0,.25);
+      transition: transform .3s cubic-bezier(.3,1.4,.5,1);
+    }
+    .switch[aria-checked="true"] {
+      background: linear-gradient(180deg, #e6fb96, #b6e246);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,.65), inset 0 -2px 4px rgba(60,90,0,.35), 0 0 20px -4px rgba(212,245,107,.55);
+    }
+    .switch[aria-checked="true"] .knob { transform: translateX(24px); }
+
+    /* ================================================================
+       Segmented control
+       ================================================================ */
+    .seg {
+      display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px;
+      padding: 4px; border-radius: 999px;
+      background: rgba(0,0,0,.35);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.06);
+    }
+    .seg button {
+      border: 0; background: transparent; color: var(--ink-2);
+      font-size: 13.5px; font-weight: 600; white-space: nowrap;
+      padding: 9px 16px; border-radius: 999px;
+      transition: color .2s, background-color .2s;
+    }
+    .seg button:hover { color: var(--ink); }
+    .seg button[aria-pressed="true"] {
+      color: #0b0c0f; background: var(--chrome);
+      box-shadow: inset 0 1px 0 #fff, inset 0 -1px 1px rgba(0,0,0,.35), 0 4px 12px -4px rgba(0,0,0,.8);
+    }
+    .seg-wide { display: grid; width: 100%; }
+
+    /* ================================================================
+       Buttons
+       ================================================================ */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 18px; border: 0; border-radius: 999px;
+      font-size: 13.5px; font-weight: 620; white-space: nowrap;
+    }
+    .btn svg { width: 16px; height: 16px; }
+    .btn-metal {
+      color: #0b0c0f; background: var(--chrome);
+      box-shadow: inset 0 1px 0 #fff, inset 0 -1px 1px rgba(0,0,0,.35), 0 6px 16px -6px rgba(0,0,0,.8);
+    }
+    .btn-metal:active { transform: scale(.97); }
+
+    /* ================================================================
+       HERO — vertical brightness pill
+       ================================================================ */
+    .hero { align-items: center; text-align: center; overflow: hidden; }
+    .hero .card-head { width: 100%; text-align: left; }
+    .hero::after {
+      content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+      background: radial-gradient(60% 45% at 50% 72%, rgba(var(--light-rgb), var(--glow-alpha)), transparent 70%);
+      opacity: .55; transition: background .4s;
+    }
+    .hero-chip { margin-top: 8px; }
+
+    .readout-caption { font-size: 14px; color: var(--ink-2); }
+    .readout-value { font-size: 60px; font-weight: 640; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; margin-top: 4px; }
+
+    .hero-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; width: 100%; }
+
+    .vslider {
+      position: relative;
+      width: 132px; height: clamp(250px, 40vh, 320px);
+      border-radius: 46px;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      user-select: none; -webkit-user-select: none;
+      background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.03));
+      -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.16),
+        inset 0 0 0 1px rgba(255,255,255,.07),
+        inset 0 22px 34px -14px rgba(0,0,0,.7),
+        0 0 var(--glow-blur) rgba(var(--light-rgb), var(--glow-alpha)),
+        0 30px 60px -26px rgba(0,0,0,.95);
+      transition: box-shadow .35s ease, transform .2s ease;
+    }
+    .vslider:focus-visible { outline-offset: 5px; }
+    .vslider.is-dragging { cursor: grabbing; transform: scale(1.025); }
+    .vslider-fill {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+      background: linear-gradient(180deg, rgb(var(--light-hi-rgb)) 0%, rgb(var(--light-rgb)) 100%);
+      transition: height .2s cubic-bezier(.2,.8,.2,1), background .35s ease;
+    }
+    .vslider.is-dragging .vslider-fill { transition: background .35s ease; }
+    .vslider-fill::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(255,255,255,.95); }
+    .vslider.is-off .vslider-fill { background: linear-gradient(180deg, #5b616b, #3b4048); }
+    .vslider.is-off .vslider-fill::before { background: rgba(255,255,255,.25); }
+    .vslider::after {
+      content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(100deg, rgba(255,255,255,.2) 0%, transparent 26%, transparent 72%, rgba(255,255,255,.07) 100%);
+    }
+    .vslider-icon {
+      position: absolute; left: 50%; bottom: 20px; z-index: 1;
+      width: 26px; height: 26px; transform: translateX(-50%);
+      color: rgba(255,255,255,.55); transition: color .2s;
+    }
+    .vslider-icon.on-fill { color: rgba(25,18,8,.55); }
+    .vslider.is-off .vslider-icon.on-fill { color: rgba(255,255,255,.6); }
+
+    /* ================================================================
+       Range inputs
+       ================================================================ */
+    input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 34px; background: transparent; cursor: pointer; }
+    input[type="range"]:focus-visible { outline: none; }
+
+    /* Warmth — thick gradient track, white thumb with dark ring */
+    .range-warmth::-webkit-slider-runnable-track {
+      height: 22px; border-radius: 999px; background: var(--warm-grad);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,.55), inset 0 -2px 4px rgba(0,0,0,.18), 0 0 0 1px rgba(255,255,255,.08);
+    }
+    .range-warmth::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 30px; height: 30px; margin-top: -4px; border-radius: 50%;
+      background: #fff; border: 3px solid #0b0c0f;
+      box-shadow: 0 0 0 1.5px rgba(255,255,255,.8), 0 4px 12px rgba(0,0,0,.55);
+      transition: transform .12s;
+    }
+    .range-warmth:active::-webkit-slider-thumb { transform: scale(1.1); }
+    .range-warmth:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1.5px #fff, 0 0 0 6px rgba(255,255,255,.3), 0 4px 12px rgba(0,0,0,.55); }
+    .range-warmth::-moz-range-track {
+      height: 22px; border-radius: 999px; background: var(--warm-grad);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,.55), inset 0 -2px 4px rgba(0,0,0,.18);
+    }
+    .range-warmth::-moz-range-thumb {
+      box-sizing: border-box; width: 30px; height: 30px; border-radius: 50%;
+      background: #fff; border: 3px solid #0b0c0f;
+      box-shadow: 0 0 0 1.5px rgba(255,255,255,.8), 0 4px 12px rgba(0,0,0,.55);
+    }
+    .range-warmth:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 1.5px #fff, 0 0 0 6px rgba(255,255,255,.3); }
+
+    /* Metal — thin glass track with filled part, chrome thumb */
+    .range-metal { --pct: 0%; }
+    .range-metal::-webkit-slider-runnable-track {
+      height: 8px; border-radius: 999px;
+      background: linear-gradient(90deg, rgba(255,255,255,.8) var(--pct), rgba(255,255,255,.1) var(--pct));
+      box-shadow: inset 0 1px 2px rgba(0,0,0,.5);
+    }
+    .range-metal::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 24px; height: 24px; margin-top: -8px; border-radius: 50%; border: 0;
+      background: radial-gradient(circle at 34% 28%, #fff 0, #eef0f3 22%, #a9b0ba 60%, #dadde2 100%);
+      box-shadow: 0 3px 8px rgba(0,0,0,.6), inset 0 -1px 2px rgba(0,0,0,.25);
+    }
+    .range-metal:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(255,255,255,.28), 0 3px 8px rgba(0,0,0,.6); }
+    .range-metal::-moz-range-track { height: 8px; border-radius: 999px; background: rgba(255,255,255,.1); }
+    .range-metal::-moz-range-progress { height: 8px; border-radius: 999px; background: rgba(255,255,255,.8); }
+    .range-metal::-moz-range-thumb {
+      width: 24px; height: 24px; border-radius: 50%; border: 0;
+      background: radial-gradient(circle at 34% 28%, #fff 0, #eef0f3 22%, #a9b0ba 60%, #dadde2 100%);
+      box-shadow: 0 3px 8px rgba(0,0,0,.6);
+    }
+
+    .scale { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+    .value-lg { font-size: 26px; font-weight: 640; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .value-lg .unit, .value-md .unit { font-size: 15px; color: var(--ink-2); font-weight: 550; margin-left: 2px; }
+    .value-md { font-size: 18px; font-weight: 620; font-variant-numeric: tabular-nums; }
+
+    .warmth { justify-content: space-between; }
+
+    /* ================================================================
+       Scenes
+       ================================================================ */
+    .scene-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+    .scene {
+      position: relative;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+      padding: 14px; border: 0; border-radius: var(--r-lg);
+      text-align: left;
+      background: rgba(255,255,255,.04);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.07), inset 0 1px 0 rgba(255,255,255,.05);
+      transition: background-color .2s, transform .15s, box-shadow .2s;
+    }
+    .scene:hover { background: rgba(255,255,255,.075); }
+    .scene:active { transform: scale(.97); }
+    .scene::before { opacity: 0; transition: opacity .2s; }
+    .scene[aria-pressed="true"] {
+      background: linear-gradient(160deg, rgba(255,255,255,.15), rgba(255,255,255,.045));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 26px -14px rgba(0,0,0,.9);
+    }
+    .scene[aria-pressed="true"]::before { opacity: 1; background: var(--chrome); }
+    .scene-icon {
+      display: grid; place-items: center;
+      width: 38px; height: 38px; margin-bottom: 10px; border-radius: 50%;
+      color: var(--swatch);
+      background: rgba(255,255,255,.06);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 0 22px -6px var(--swatch);
+    }
+    .scene-icon svg { width: 19px; height: 19px; }
+    .scene-name { font-size: 14px; font-weight: 600; }
+    .scene-meta { font: 11.5px/1.4 var(--mono); color: var(--ink-3); }
+
+    /* ================================================================
+       Boost / output
+       ================================================================ */
+    .warn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 12px; border-radius: 14px;
+      font-size: 12.5px; color: #ffd796;
+      background: rgba(245,181,74,.1);
+      box-shadow: inset 0 0 0 1px rgba(245,181,74,.28);
+    }
+    .warn svg { width: 16px; height: 16px; flex: none; color: var(--warn); }
+    .boost .icon-badge { color: var(--accent); }
+
+    .meters { display: grid; gap: 16px; }
+    .meter-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+    .meter-label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
+    .meter-label small { color: var(--ink-3); font: 11.5px var(--mono); }
+    .meter-val { font-size: 20px; font-weight: 620; font-variant-numeric: tabular-nums; }
+    .meter-track { height: 10px; border-radius: 999px; background: rgba(255,255,255,.07); box-shadow: inset 0 1px 2px rgba(0,0,0,.5); overflow: hidden; }
+    .meter-fill { height: 100%; width: 0; border-radius: 999px; transition: width .25s cubic-bezier(.2,.8,.2,1); }
+    .meter-fill.cool { background: linear-gradient(90deg, #5d9df0, var(--cool)); }
+    .meter-fill.warm { background: linear-gradient(90deg, #f08a2c, var(--warm)); }
+    .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+    .sw-cool { background: var(--cool); }
+    .sw-warm { background: var(--warm); }
+
+    /* ================================================================
+       Devices view
+       ================================================================ */
+    .field-label { font-size: 12.5px; color: var(--ink-3); font-weight: 600; margin-bottom: -8px; }
+    .field {
+      display: flex; align-items: center; gap: 10px;
+      padding: 13px 18px; border-radius: 999px;
+      background: rgba(0,0,0,.35);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.07);
+      transition: box-shadow .2s;
+    }
+    .field:focus-within { box-shadow: inset 0 1px 3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.4); }
+    .field svg { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
+    .field input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: 14px var(--mono); }
+    .status-line { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+    .device #last-request { margin-top: auto; }
+    .chan-list { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+    .driver-grid { display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); align-items: center; }
+    .driver-controls { display: flex; flex-direction: column; gap: 14px; }
+    .driver-controls hr { border: 0; height: 1px; background: var(--line); margin: 6px 0; }
+    .cell-title { font-size: 15px; font-weight: 600; }
+    .plot-cell { padding: 14px 16px 10px; border-radius: var(--r-lg); background: rgba(0,0,0,.25); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+
+    .chan { padding: 14px; border-radius: var(--r-lg); background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+    .chan-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .chan-name { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+    .chan-duty { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+    .mono-xl { font: 600 28px/1 var(--mono); letter-spacing: -.02em; }
+    .state { font: 600 10.5px var(--mono); letter-spacing: .06em; padding: 4px 8px; border-radius: 999px; color: var(--ink-3); background: rgba(255,255,255,.06); }
+    .state.is-on { color: #10180a; background: var(--accent); }
+
+    .spec { display: grid; gap: 8px; font-size: 12.5px; }
+    .spec div { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .spec dt { color: var(--ink-3); }
+    .spec dd { color: var(--ink); font-family: var(--mono); text-align: right; }
+
+    .gamma-plot { width: 100%; height: auto; display: block; }
+    .gamma-plot .grid line { stroke: rgba(255,255,255,.07); stroke-width: 1; }
+    .gamma-plot .ref { stroke: rgba(255,255,255,.22); stroke-width: 1; stroke-dasharray: 3 4; fill: none; }
+    .gamma-plot .curve { stroke: #f3f5f8; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: d .25s; }
+    .gamma-plot .marker { fill: #f3f5f8; stroke: #15171c; stroke-width: 2; }
+    .gamma-plot text { fill: var(--ink-3); font: 7.5px var(--mono); }
+
+    .fw-details summary {
+      display: inline-flex; align-items: center; gap: 6px;
+      list-style: none; cursor: pointer; user-select: none;
+      font-size: 13.5px; font-weight: 600; color: var(--ink-2);
+      padding: 8px 14px; border-radius: 999px;
+      background: rgba(255,255,255,.05);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }
+    .fw-details summary::-webkit-details-marker { display: none; }
+    .fw-details summary svg { width: 16px; height: 16px; transition: transform .2s; }
+    .fw-details[open] summary svg { transform: rotate(180deg); }
+    .fw-details pre {
+      margin-top: 14px; max-height: 520px; overflow: auto;
+      padding: 18px; border-radius: var(--r-lg);
+      background: rgba(0,0,0,.45);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.06);
+      font: 12.5px/1.65 var(--mono); color: #d7dce4;
+    }
+    pre::-webkit-scrollbar { width: 8px; height: 8px; }
+    pre::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
+
+    /* ================================================================
+       Toast
+       ================================================================ */
+    .toast {
+      position: fixed; left: 50%; bottom: 22px; z-index: 50;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px; border-radius: 999px;
+      font-size: 13.5px; font-weight: 550;
+      background: rgba(22,24,30,.82);
+      -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 18px 40px -12px rgba(0,0,0,.8);
+      transform: translate(-50%, 24px); opacity: 0; pointer-events: none;
+      transition: transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s;
+      max-width: calc(100vw - 32px);
+    }
+    .toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+    /* ================================================================
+       Responsive
+       ================================================================ */
+    @media (max-width: 1023px) {
+      .bento { grid-template-columns: 1fr 1fr; }
+      .bento-dash {
+        grid-template-areas:
+          "hero warmth"
+          "hero output"
+          "hero boost"
+          "scenes scenes";
+      }
+      .bento-dev {
+        grid-template-areas:
+          "device device"
+          "signal signal"
+          "driver driver"
+          "fw fw";
+      }
+    }
+
+    @media (max-width: 720px) {
+      .topbar { grid-template-columns: 1fr auto; grid-template-areas: "brand status" "nav nav"; }
+      .brand { grid-area: brand; }
+      .status-chip { grid-area: status; }
+      .nav-pill { grid-area: nav; }
+      .nav-item { flex: 1; }
+    }
+
+    @media (max-width: 640px) {
+      .shell { padding: 14px 14px 40px; }
+      .bento { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+      .bento-dash { grid-template-areas: "hero" "warmth" "scenes" "boost" "output"; }
+      .bento-dev { grid-template-areas: "device" "signal" "driver" "fw"; }
+      .driver-grid { grid-template-columns: minmax(0, 1fr); }
+      .card { padding: 18px; border-radius: 28px; }
+      .readout-value { font-size: 54px; }
+      .device .card-head { flex-direction: column; }
+      .device .seg { width: 100%; }
+      .fw .card-head { flex-wrap: wrap; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient" aria-hidden="true">
+    <span class="blob warm"></span>
+    <span class="blob cool"></span>
+    <span class="blob glow"></span>
+  </div>
+
+  <div class="shell">
+
+    <!-- ===================== Top bar ===================== -->
+    <header class="topbar">
+      <a class="brand" href="#dashboard" aria-label="Studio Light — Dashboard">
+        <span class="orb" aria-hidden="true"></span>
+        <span class="brand-text"><strong>Studio Light</strong><small>ESP32 · CW/WW</small></span>
+      </a>
+
+      <nav class="nav-pill" aria-label="Primary">
+        <a class="nav-item sheen" href="#dashboard" data-view="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item sheen" href="#devices" data-view="devices">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5"/></svg>
+          <span>Devices</span>
+        </a>
+      </nav>
+
+      <a class="status-chip" href="#devices" title="Connection settings">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-label">Demo</span>
+      </a>
+    </header>
+
+    <main>
+      <!-- ===================== DASHBOARD ===================== -->
+      <section id="view-dashboard" class="view" aria-label="Dashboard">
+        <div class="bento bento-dash">
+
+          <!-- Hero: brightness -->
+          <article class="card hero" style="grid-area: hero; --i: 0">
+            <div class="card-head">
+              <div>
+                <p class="eyebrow">24 V strip</p>
+                <h1 class="title-xl">Light</h1>
+                <span class="chip hero-chip" id="hero-chip">Warm light</span>
+              </div>
+              <button class="switch" id="power-switch" type="button" role="switch" aria-checked="false" aria-label="Power"><span class="knob"></span></button>
+            </div>
+
+            <div class="hero-body">
+              <div>
+                <p class="readout-caption" id="bri-caption">Set brightness to</p>
+                <p class="readout-value metal-text" id="bri-value" aria-hidden="true">0%</p>
+              </div>
+
+              <div class="vslider" id="bri-slider" tabindex="0" role="slider"
+                   aria-label="Brightness" aria-orientation="vertical"
+                   aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0%">
+                <div class="vslider-fill" id="bri-fill"></div>
+                <svg class="vslider-icon" id="bri-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6L6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>
+              </div>
+            </div>
+          </article>
+
+          <!-- Warmth -->
+          <article class="card warmth" style="grid-area: warmth; --i: 1">
+            <div class="row">
+              <h2 class="card-title">Warmth</h2>
+              <p class="value-lg"><span id="kelvin-value">4600</span><span class="unit">K</span></p>
+            </div>
+            <input id="warmth-slider" class="range-warmth" type="range" min="2700" max="6500" step="50" value="4600" aria-label="Color temperature (kelvin)" />
+            <div class="row scale"><span>Warm 2700K</span><span>Cool 6500K</span></div>
+          </article>
+
+          <!-- Scenes -->
+          <article class="card scenes" style="grid-area: scenes; --i: 2">
+            <div class="row">
+              <h2 class="card-title">Scenes</h2>
+              <span class="muted-sm">One tap</span>
+            </div>
+            <div class="scene-grid">
+              <button class="scene rim" type="button" data-scene="night" aria-pressed="false" style="--swatch: #d08a3a">
+                <span class="scene-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span>
+                <span class="scene-name">Night</span>
+                <span class="scene-meta">5% · 2700K</span>
+              </button>
+              <button class="scene rim" type="button" data-scene="relax" aria-pressed="false" style="--swatch: #f6ad55">
+                <span class="scene-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1.8 3 5 5.2 5 9.5a5 5 0 0 1-10 0c0-2.2 1-3.8 2.2-4.8.4 1.6 1.4 2.6 2.8 2.8-.9-2.2-.9-4.9 0-7.5z"/></svg></span>
+                <span class="scene-name">Relax</span>
+                <span class="scene-meta">45% · 3000K</span>
+              </button>
+              <button class="scene rim" type="button" data-scene="studio" aria-pressed="false" style="--swatch: #ffe6c4">
+                <span class="scene-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="12" height="10" rx="2.5"/><path d="M15 10.5l6-3.5v10l-6-3.5z"/></svg></span>
+                <span class="scene-name">Studio</span>
+                <span class="scene-meta">80% · 4600K</span>
+              </button>
+              <button class="scene rim" type="button" data-scene="daylight" aria-pressed="false" style="--swatch: #bcdcff">
+                <span class="scene-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg></span>
+                <span class="scene-name">Daylight</span>
+                <span class="scene-meta">90% · 6500K</span>
+              </button>
+              <button class="scene rim" type="button" data-scene="boost" aria-pressed="false" style="--swatch: #d4f56b">
+                <span class="scene-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M13 2.5L4.5 14H11l-1 7.5L19.5 10H13l1-7.5z"/></svg></span>
+                <span class="scene-name">Full boost</span>
+                <span class="scene-meta">100% · CW+WW</span>
+              </button>
+            </div>
+          </article>
+
+          <!-- Output -->
+          <article class="card output" style="grid-area: output; --i: 3">
+            <div class="row">
+              <h2 class="card-title">Output</h2>
+              <span class="muted-sm num" id="load-label">Total 0% of max</span>
+            </div>
+            <div class="meters">
+              <div>
+                <div class="meter-row">
+                  <span class="meter-label"><i class="sw sw-cool"></i>Cool white <small>GPIO 33</small></span>
+                  <span class="meter-val" id="out-cw">0%</span>
+                </div>
+                <div class="meter-track"><div class="meter-fill cool" id="bar-cw"></div></div>
+              </div>
+              <div>
+                <div class="meter-row">
+                  <span class="meter-label"><i class="sw sw-warm"></i>Warm white <small>GPIO 32</small></span>
+                  <span class="meter-val" id="out-ww">0%</span>
+                </div>
+                <div class="meter-track"><div class="meter-fill warm" id="bar-ww"></div></div>
+              </div>
+            </div>
+          </article>
+
+          <!-- Boost -->
+          <article class="card boost" style="grid-area: boost; --i: 4">
+            <div class="card-head">
+              <div class="title-with-icon">
+                <span class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M13 2.5L4.5 14H11l-1 7.5L19.5 10H13l1-7.5z"/></svg></span>
+                <h2 class="card-title">Boost</h2>
+              </div>
+              <button class="switch" id="boost-switch" type="button" role="switch" aria-checked="false" aria-label="Boost"><span class="knob"></span></button>
+            </div>
+            <p class="body-sm">Drives the brighter channel to full at any warmth — up to 2× the power of normal mixing.</p>
+            <p class="warn" id="boost-warn" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18.5A2 2 0 0 0 3.5 21.5h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+              <span>Check PSU and HYG009N04 cooling</span>
+            </p>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- ===================== DEVICES ===================== -->
+      <section id="view-devices" class="view" aria-label="Devices" hidden>
+        <div class="bento bento-dev">
+
+          <!-- Device / connection -->
+          <article class="card device" style="grid-area: device; --i: 0">
+            <div class="card-head">
+              <div class="title-with-icon">
+                <span class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 2.5V6M15 2.5V6M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5"/></svg></span>
+                <div>
+                  <h2 class="card-title">ESP32 Controller</h2>
+                  <p class="muted-sm">Wi-Fi · REST API</p>
+                </div>
+              </div>
+              <div class="seg" role="group" aria-label="Connection mode">
+                <button type="button" data-live="false" aria-pressed="true">Demo</button>
+                <button type="button" data-live="true" aria-pressed="false">Live</button>
+              </div>
+            </div>
+
+            <div class="chips">
+              <span class="chip"><i class="sw sw-cool"></i>CW · GPIO 33</span>
+              <span class="chip"><i class="sw sw-warm"></i>WW · GPIO 32</span>
+              <span class="chip">12-bit LEDC</span>
+              <span class="chip">24 V inverted gate</span>
+            </div>
+
+            <label class="field-label" for="esp-url">Device address</label>
+            <div class="field">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10.5 10.5 0 0 1 14 0M8.5 16.4a5.5 5.5 0 0 1 7 0M12 20h.01"/></svg>
+              <input id="esp-url" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="http://192.168.1.100" />
+            </div>
+
+            <div class="status-line"><span class="dot" id="dev-dot"></span><span id="dev-status">Demo — no network requests are sent</span></div>
+            <p class="mono-sm" id="last-request">GET /api/set?cw=&amp;ww=&amp;gamma= · GET /api/freq?hz=</p>
+          </article>
+
+          <!-- Signal chain -->
+          <article class="card signal" style="grid-area: signal; --i: 1">
+            <div>
+              <h2 class="card-title">Signal chain</h2>
+              <p class="muted-sm">Inverted through Q1 (BC547)</p>
+            </div>
+            <div class="chan-list">
+            <div class="chan">
+              <div class="chan-top"><span class="chan-name"><i class="sw sw-cool"></i>CW · GPIO 33</span><span class="state" id="cw-state">OFF</span></div>
+              <div class="chan-duty"><span class="mono-xl" id="cw-duty">4095</span><span class="muted-sm">LEDC duty</span></div>
+            </div>
+            <div class="chan">
+              <div class="chan-top"><span class="chan-name"><i class="sw sw-warm"></i>WW · GPIO 32</span><span class="state" id="ww-state">OFF</span></div>
+              <div class="chan-duty"><span class="mono-xl" id="ww-duty">4095</span><span class="muted-sm">LEDC duty</span></div>
+            </div>
+            </div>
+            <dl class="spec">
+              <div><dt>Resolution</dt><dd>12-bit · 0–4095</dd></div>
+              <div><dt>Logic</dt><dd>4095 off · 0 full</dd></div>
+            </dl>
+          </article>
+
+          <!-- Driver tuning: PWM frequency + dimming curve -->
+          <article class="card driver" style="grid-area: driver; --i: 2">
+            <div class="title-with-icon">
+              <span class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>
+              <div>
+                <h2 class="card-title">Driver tuning</h2>
+                <p class="muted-sm">LEDC PWM · dimming curve</p>
+              </div>
+            </div>
+            <div class="driver-grid">
+              <div class="driver-controls">
+                <h3 class="cell-title">PWM frequency</h3>
+                <div class="seg seg-wide" role="group" aria-label="PWM frequency">
+                  <button type="button" data-freq="10000" aria-pressed="false">10 kHz</button>
+                  <button type="button" data-freq="15000" aria-pressed="false">15 kHz</button>
+                  <button type="button" data-freq="19531" aria-pressed="true">19.5 kHz</button>
+                </div>
+                <p class="body-sm">10 kHz runs cooler if the BC547/BC557 or HYG009N04 warm up. 19.5 kHz is silent and camera-safe.</p>
+                <hr />
+                <div class="row">
+                  <h3 class="cell-title">Dimming curve</h3>
+                  <p class="value-md" id="gamma-value">Linear</p>
+                </div>
+                <input id="gamma-slider" class="range-metal" type="range" min="1" max="2.4" step="0.1" value="1" aria-label="Gamma" />
+                <div class="row scale"><span>Linear 1.0</span><span>Perceptual 2.4</span></div>
+              </div>
+              <div class="plot-cell">
+                <svg class="gamma-plot" viewBox="0 0 240 130" role="img" aria-labelledby="gamma-plot-title">
+                  <title id="gamma-plot-title">PWM on-time versus channel level for the current gamma</title>
+                  <g class="grid">
+                    <line x1="30" y1="10" x2="230" y2="10"/>
+                    <line x1="30" y1="35" x2="230" y2="35"/>
+                    <line x1="30" y1="60" x2="230" y2="60"/>
+                    <line x1="30" y1="85" x2="230" y2="85"/>
+                    <line x1="30" y1="110" x2="230" y2="110"/>
+                  </g>
+                  <line class="ref" x1="30" y1="110" x2="230" y2="10"/>
+                  <path class="curve" id="gamma-curve" d="M30 110 L230 10"/>
+                  <circle class="marker" id="gamma-dot" cx="30" cy="110" r="4.5"/>
+                  <text x="24" y="13" text-anchor="end">100</text>
+                  <text x="24" y="113" text-anchor="end">0</text>
+                  <text x="30" y="125">0</text>
+                  <text x="230" y="125" text-anchor="end">level 100%</text>
+                </svg>
+                <p class="mono-sm" id="gamma-readout">—</p>
+              </div>
+            </div>
+          </article>
+
+          <!-- Firmware -->
+          <article class="card fw" style="grid-area: fw; --i: 3">
+            <div class="card-head">
+              <div class="title-with-icon">
+                <span class="icon-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 20l4-16M18 8l4 4-4 4M6 16l-4-4 4-4"/></svg></span>
+                <div>
+                  <h2 class="card-title">Firmware</h2>
+                  <p class="muted-sm">Arduino ESP32 · CORS · /api/set · /api/freq</p>
+                </div>
+              </div>
+              <button class="btn btn-metal sheen" id="copy-fw" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+                <span id="copy-label">Copy</span>
+              </button>
+            </div>
+            <details class="fw-details">
+              <summary>Show source <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+              <pre><code id="fw-code">#include &lt;WiFi.h&gt;
+#include &lt;WebServer.h&gt;
+#include &lt;math.h&gt;
+
+// ====== Wi-Fi Credentials ======
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
+
+// ====== Hardware Pins &amp; LEDC Config ======
+const int PIN_CW = 33;  // Cool White -&gt; 1k R3 -&gt; Q1 BC547
+const int PIN_WW = 32;  // Warm White -&gt; 1k R3 -&gt; Q1 BC547
+
+uint32_t pwmFreq = 19531;               // 19.53 kHz @ 12-bit
+const uint8_t PWM_RES = 12;
+const uint16_t MAX_DUTY = (1 &lt;&lt; PWM_RES) - 1; // 4095
+
+WebServer server(80);
+
+float currentCwPct = 0.0f;
+float currentWwPct = 0.0f;
+float currentGamma = 1.0f;
+
+// Inverted 12-bit duty for Q1 (BC547) level-shifter:
+//   0%   -&gt; 4095 (GPIO HIGH -&gt; Q1 ON  -&gt; MOSFET OFF)
+//   100% -&gt; 0    (GPIO LOW  -&gt; Q1 OFF -&gt; MOSFET ON)
+uint16_t pctToInvertedDuty(float pct, float gammaVal) {
+  pct = constrain(pct, 0.0f, 100.0f);
+  if (pct &lt;= 0.01f) return MAX_DUTY;
+  if (pct &gt;= 99.99f) return 0;
+
+  float norm = pct / 100.0f;
+  float corrected = (gammaVal &gt; 1.01f) ? powf(norm, gammaVal) : norm;
+  uint16_t forwardDuty = (uint16_t)lroundf(corrected * MAX_DUTY);
+  return MAX_DUTY - forwardDuty;
+}
+
+void sendCorsHeaders() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+void handleOptions() {
+  sendCorsHeaders();
+  server.send(204);
+}
+
+// Endpoint: /api/set?cw=50&amp;ww=50&amp;gamma=2.2
+void handleSet() {
+  sendCorsHeaders();
+
+  if (server.hasArg("cw")) {
+    currentCwPct = constrain(server.arg("cw").toFloat(), 0.0f, 100.0f);
+  }
+  if (server.hasArg("ww")) {
+    currentWwPct = constrain(server.arg("ww").toFloat(), 0.0f, 100.0f);
+  }
+  if (server.hasArg("gamma")) {
+    currentGamma = constrain(server.arg("gamma").toFloat(), 1.0f, 2.4f);
+  }
+
+  uint16_t dutyCw = pctToInvertedDuty(currentCwPct, currentGamma);
+  uint16_t dutyWw = pctToInvertedDuty(currentWwPct, currentGamma);
+
+  ledcWrite(PIN_CW, dutyCw);
+  ledcWrite(PIN_WW, dutyWw);
+
+  String json = "{";
+  json += "\"cw\":" + String(currentCwPct, 1) + ",";
+  json += "\"ww\":" + String(currentWwPct, 1) + ",";
+  json += "\"gamma\":" + String(currentGamma, 2) + ",";
+  json += "\"dutyCw\":" + String(dutyCw) + ",";
+  json += "\"dutyWw\":" + String(dutyWw) + ",";
+  json += "\"freq\":" + String(pwmFreq);
+  json += "}";
+
+  server.send(200, "application/json", json);
+}
+
+// Endpoint: /api/freq?hz=19531
+void handleFreq() {
+  sendCorsHeaders();
+
+  if (server.hasArg("hz")) {
+    uint32_t hz = (uint32_t)server.arg("hz").toInt();
+    if (hz &gt;= 1000 &amp;&amp; hz &lt;= 80000) {
+      pwmFreq = hz;
+      ledcChangeFrequency(PIN_CW, pwmFreq, PWM_RES);
+      ledcChangeFrequency(PIN_WW, pwmFreq, PWM_RES);
+      ledcWrite(PIN_CW, pctToInvertedDuty(currentCwPct, currentGamma));
+      ledcWrite(PIN_WW, pctToInvertedDuty(currentWwPct, currentGamma));
+    }
+  }
+
+  server.send(200, "application/json", "{\"freq\":" + String(pwmFreq) + "}");
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  ledcAttach(PIN_CW, pwmFreq, PWM_RES);
+  ledcAttach(PIN_WW, pwmFreq, PWM_RES);
+
+  // Start safely OFF (duty = 4095 -&gt; GPIO HIGH)
+  ledcWrite(PIN_CW, MAX_DUTY);
+  ledcWrite(PIN_WW, MAX_DUTY);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(400);
+    Serial.print(".");
+  }
+  Serial.println();
+  Serial.print("ESP32 IP Address: http://");
+  Serial.println(WiFi.localIP());
+
+  server.on("/api/set", HTTP_OPTIONS, handleOptions);
+  server.on("/api/set", HTTP_GET, handleSet);
+  server.on("/api/set", HTTP_POST, handleSet);
+
+  server.on("/api/freq", HTTP_OPTIONS, handleOptions);
+  server.on("/api/freq", HTTP_GET, handleFreq);
+  server.on("/api/freq", HTTP_POST, handleFreq);
+
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}</code></pre>
+            </details>
+          </article>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span class="dot live" id="toast-dot"></span>
+    <span id="toast-msg">Updated</span>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // ================================================================
+    // Constants
+    // ================================================================
+    const STORAGE_KEY = 'esp32_cwww_studio_v2';
+    const LEGACY_KEY = 'esp32_cwww_studio_v1';
+    const MAX_DUTY = 4095;
+    const K_MIN = 2700;
+    const K_MAX = 6500;
+    const DEFAULT_URL = 'http://192.168.1.100';
+    const FREQS = [10000, 15000, 19531];
+    const REQUEST_TIMEOUT_MS = 2500;
+
+    const SCENES = {
+      night:    { name: 'Night',          brightness: 5,   kelvin: 2700, boost: false },
+      relax:    { name: 'Relax',          brightness: 45,  kelvin: 3000, boost: false },
+      studio:   { name: 'Studio',         brightness: 80,  kelvin: 4600, boost: false },
+      daylight: { name: 'Daylight',       brightness: 90,  kelvin: 6500, boost: false },
+      boost:    { name: 'Full boost',     brightness: 100, kelvin: 4600, boost: true  },
+    };
+
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+    const clamp = (v, lo = 0, hi = 100) => Math.min(hi, Math.max(lo, v));
+    const snapKelvin = (k) => clamp(Math.round(k / 50) * 50, K_MIN, K_MAX);
+    const fmtHz = (hz) => `${hz.toLocaleString('en-US')} Hz`;
+
+    // ================================================================
+    // State (persisted; migrates settings from the previous UI)
+    // ================================================================
+    function readJSON(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function loadState() {
+      let saved = readJSON(STORAGE_KEY);
+      if (!saved) {
+        const v1 = readJSON(LEGACY_KEY);
+        if (v1) {
+          saved = {
+            brightness: v1.masterBrightness,
+            kelvin: K_MIN + Number(v1.cctMix ?? 50) * (K_MAX - K_MIN) / 100,
+            freq: v1.freq,
+            gamma: v1.gammaEnabled ? v1.gammaValue : 1,
+            liveMode: v1.liveMode,
+            espUrl: v1.espUrl,
+          };
+        }
+      }
+      const s = saved || {};
+      return {
+        power: saved ? s.power !== false : false,
+        brightness: Math.round(clamp(Number(saved ? s.brightness : 60) || 0)),
+        kelvin: snapKelvin(Number(s.kelvin) || 4600),
+        boost: Boolean(s.boost),
+        freq: FREQS.includes(Number(s.freq)) ? Number(s.freq) : 19531,
+        gamma: Math.round(clamp(Number(s.gamma) || 1, 1, 2.4) * 10) / 10,
+        liveMode: Boolean(s.liveMode),
+        espUrl: typeof s.espUrl === 'string' && s.espUrl.trim() ? s.espUrl : DEFAULT_URL,
+      };
+    }
+
+    const state = loadState();
+
+    let saveTimer = null;
+    function persist() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (err) { /* storage unavailable */ }
+      }, 120);
+    }
+
+    // ================================================================
+    // Light math
+    // ================================================================
+    // Normal: cw + ww = brightness (constant power).
+    // Boost:  brighter channel = brightness, the other keeps the mix ratio
+    //         (at 4600K / 100% both channels run at 100%).
+    function channels() {
+      const level = state.power ? state.brightness : 0;
+      const cwShare = (state.kelvin - K_MIN) / (K_MAX - K_MIN);
+      const wwShare = 1 - cwShare;
+      const scale = state.boost ? 1 / Math.max(cwShare, wwShare) : 1;
+      return {
+        cw: clamp(level * cwShare * scale),
+        ww: clamp(level * wwShare * scale),
+      };
+    }
+
+    function pctToInvertedDuty(pct) {
+      if (pct <= 0.01) return MAX_DUTY;
+      if (pct >= 99.99) return 0;
+      const norm = pct / 100;
+      const corrected = state.gamma > 1.001 ? Math.pow(norm, state.gamma) : norm;
+      return MAX_DUTY - Math.round(corrected * MAX_DUTY);
+    }
+
+    const COLOR_STOPS = [
+      [2700, [255, 164, 80]],
+      [4600, [255, 233, 208]],
+      [6500, [212, 229, 255]],
+    ];
+    function lightRGB(k) {
+      for (let i = 0; i < COLOR_STOPS.length - 1; i++) {
+        const [k0, c0] = COLOR_STOPS[i];
+        const [k1, c1] = COLOR_STOPS[i + 1];
+        if (k <= k1) {
+          const t = (k - k0) / (k1 - k0);
+          return c0.map((c, j) => Math.round(c + (c1[j] - c) * t));
+        }
+      }
+      return COLOR_STOPS[COLOR_STOPS.length - 1][1];
+    }
+
+    function kelvinWord(k) {
+      if (k < 3300) return 'Warm light';
+      if (k < 4300) return 'Soft white';
+      if (k < 5300) return 'Neutral white';
+      return 'Daylight';
+    }
+
+    // ================================================================
+    // DOM
+    // ================================================================
+    const root = document.documentElement;
+    const el = {
+      powerSwitch: $('#power-switch'),
+      boostSwitch: $('#boost-switch'),
+      heroChip: $('#hero-chip'),
+      briCaption: $('#bri-caption'),
+      briValue: $('#bri-value'),
+      briSlider: $('#bri-slider'),
+      briFill: $('#bri-fill'),
+      briIcon: $('#bri-icon'),
+      warmth: $('#warmth-slider'),
+      kelvinValue: $('#kelvin-value'),
+      boostWarn: $('#boost-warn'),
+      outCw: $('#out-cw'),
+      outWw: $('#out-ww'),
+      barCw: $('#bar-cw'),
+      barWw: $('#bar-ww'),
+      load: $('#load-label'),
+      cwDuty: $('#cw-duty'),
+      wwDuty: $('#ww-duty'),
+      cwState: $('#cw-state'),
+      wwState: $('#ww-state'),
+      gammaSlider: $('#gamma-slider'),
+      gammaValue: $('#gamma-value'),
+      gammaCurve: $('#gamma-curve'),
+      gammaDot: $('#gamma-dot'),
+      gammaReadout: $('#gamma-readout'),
+      url: $('#esp-url'),
+      statusDot: $('#status-dot'),
+      statusLabel: $('#status-label'),
+      devDot: $('#dev-dot'),
+      devStatus: $('#dev-status'),
+      lastRequest: $('#last-request'),
+      toast: $('#toast'),
+      toastMsg: $('#toast-msg'),
+      toastDot: $('#toast-dot'),
+    };
+
+    // ================================================================
+    // Render
+    // ================================================================
+    const PLOT = { x0: 30, x1: 230, y0: 10, y1: 110 };
+    const plotX = (x) => PLOT.x0 + x * (PLOT.x1 - PLOT.x0);
+    const plotY = (y) => PLOT.y1 - y * (PLOT.y1 - PLOT.y0);
+
+    function drawGamma(levelPct) {
+      let d = '';
+      for (let i = 0; i <= 48; i++) {
+        const x = i / 48;
+        const y = state.gamma > 1.001 ? Math.pow(x, state.gamma) : x;
+        d += `${i ? 'L' : 'M'}${plotX(x).toFixed(1)} ${plotY(y).toFixed(1)} `;
+      }
+      el.gammaCurve.setAttribute('d', d.trim());
+
+      const onTime = (MAX_DUTY - pctToInvertedDuty(levelPct)) / MAX_DUTY;
+      el.gammaDot.setAttribute('cx', plotX(levelPct / 100).toFixed(1));
+      el.gammaDot.setAttribute('cy', plotY(onTime).toFixed(1));
+      el.gammaReadout.textContent = `Brightest channel ${levelPct.toFixed(0)}% → ${(onTime * 100).toFixed(1)}% PWM on-time`;
+    }
+
+    function setStateChip(chip, on) {
+      chip.textContent = on ? 'PWM' : 'OFF';
+      chip.classList.toggle('is-on', on);
+    }
+
+    function render({ send = true } = {}) {
+      const { cw, ww } = channels();
+      const lit = state.power && state.brightness > 0;
+      const level = lit ? state.brightness / 100 : 0;
+      const rgb = lightRGB(state.kelvin);
+      const hi = rgb.map((c) => Math.round(c + (255 - c) * 0.6));
+
+      // Ambient + glow
+      root.style.setProperty('--light-rgb', rgb.join(', '));
+      root.style.setProperty('--light-hi-rgb', hi.join(', '));
+      root.style.setProperty('--glow-alpha', lit ? (0.18 + level * 0.42).toFixed(3) : '0');
+      root.style.setProperty('--glow-blur', `${Math.round(24 + level * 72)}px`);
+      root.style.setProperty('--warm-glow', (0.1 + 0.5 * ww / 100).toFixed(3));
+      root.style.setProperty('--cool-glow', (0.08 + 0.45 * cw / 100).toFixed(3));
+
+      // Hero
+      el.powerSwitch.setAttribute('aria-checked', String(lit));
+      el.heroChip.textContent = lit ? kelvinWord(state.kelvin) : 'Standby';
+      el.briCaption.textContent = lit ? 'Set brightness to' : 'Light is off';
+      el.briValue.textContent = lit ? `${state.brightness}%` : 'Off';
+      el.briFill.style.height = `${state.brightness}%`;
+      el.briSlider.classList.toggle('is-off', !lit);
+      el.briIcon.classList.toggle('on-fill', state.brightness >= 16);
+      el.briSlider.setAttribute('aria-valuenow', String(lit ? state.brightness : 0));
+      el.briSlider.setAttribute('aria-valuetext', lit ? `${state.brightness}%` : 'Off');
+
+      // Warmth
+      el.warmth.value = String(state.kelvin);
+      el.kelvinValue.textContent = state.kelvin;
+
+      // Boost
+      el.boostSwitch.setAttribute('aria-checked', String(state.boost));
+      el.boostWarn.hidden = !(state.boost && lit);
+
+      // Scenes
+      $$('.scene').forEach((btn) => {
+        const s = SCENES[btn.dataset.scene];
+        const active = lit && s.brightness === state.brightness && s.kelvin === state.kelvin && s.boost === state.boost;
+        btn.setAttribute('aria-pressed', String(active));
+      });
+
+      // Output
+      el.outCw.textContent = `${cw.toFixed(0)}%`;
+      el.outWw.textContent = `${ww.toFixed(0)}%`;
+      el.barCw.style.width = `${cw}%`;
+      el.barWw.style.width = `${ww}%`;
+      el.load.textContent = `Total ${((cw + ww) / 2).toFixed(0)}% of max`;
+
+      // Signal chain
+      el.cwDuty.textContent = pctToInvertedDuty(cw);
+      el.wwDuty.textContent = pctToInvertedDuty(ww);
+      setStateChip(el.cwState, cw > 0.01);
+      setStateChip(el.wwState, ww > 0.01);
+
+      // Gamma
+      el.gammaSlider.value = String(state.gamma);
+      el.gammaSlider.style.setProperty('--pct', `${((state.gamma - 1) / 1.4 * 100).toFixed(1)}%`);
+      el.gammaValue.textContent = state.gamma > 1.001 ? `γ ${state.gamma.toFixed(1)}` : 'Linear';
+      drawGamma(Math.max(cw, ww));
+
+      // Segmented controls
+      $$('[data-freq]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.freq) === state.freq)));
+      $$('[data-live]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.live === 'true') === state.liveMode)));
+
+      if (send) queueSet(cw, ww);
+      persist();
+    }
+
+    // ================================================================
+    // REST API — same endpoints as the firmware:
+    //   GET /api/set?cw=<0-100>&ww=<0-100>&gamma=<1.0-2.4>
+    //   GET /api/freq?hz=<1000-80000>
+    // One request in flight at a time; slider drags coalesce to the latest value.
+    // ================================================================
+    const net = { busy: false, set: null, freq: null };
+
+    function sanitizeBaseUrl(url) {
+      let clean = (url || '').trim().replace(/\/+$/, '');
+      if (!clean) return DEFAULT_URL;
+      if (!/^https?:\/\//i.test(clean)) clean = `http://${clean}`;
+      return clean;
+    }
+
+    const LINK = {
+      demo:  { dot: '',      label: 'Demo',    text: () => 'Demo — no network requests are sent' },
+      live:  { dot: 'live',  label: 'Live',    text: (b) => `Live — sending to ${b}` },
+      ok:    { dot: 'live',  label: 'Live',    text: (b) => `Connected to ${b}` },
+      error: { dot: 'error', label: 'Offline', text: (b) => `Can't reach ${b} — check IP / Wi-Fi` },
+    };
+
+    function setLink(kind) {
+      const L = LINK[kind];
+      const base = sanitizeBaseUrl(state.espUrl);
+      el.statusDot.className = `dot ${L.dot}`;
+      el.devDot.className = `dot ${L.dot}`;
+      el.statusLabel.textContent = L.label;
+      el.devStatus.textContent = L.text(base);
+    }
+
+    async function espGet(url) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res;
+      } catch (err) {
+        if (err.name === 'AbortError') throw new Error('timed out');
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    function queueSet(cw, ww) {
+      const query = `cw=${cw.toFixed(1)}&ww=${ww.toFixed(1)}&gamma=${state.gamma.toFixed(2)}`;
+      if (!state.liveMode) {
+        el.lastRequest.textContent = `[Demo] GET /api/set?${query}`;
+        return;
+      }
+      net.set = query;
+      pump();
+    }
+
+    function queueFreq(hz, quiet = false) {
+      if (!state.liveMode) {
+        el.lastRequest.textContent = `[Demo] GET /api/freq?hz=${hz}`;
+        if (!quiet) toast(`PWM set to ${fmtHz(hz)} (demo)`);
+        return;
+      }
+      net.freq = { hz, quiet };
+      pump();
+    }
+
+    async function pump() {
+      if (net.busy || !state.liveMode) return;
+
+      let path;
+      let freqJob = null;
+      if (net.freq) {
+        freqJob = net.freq;
+        net.freq = null;
+        path = `/api/freq?hz=${freqJob.hz}`;
+      } else if (net.set) {
+        path = `/api/set?${net.set}`;
+        net.set = null;
+      } else {
+        return;
+      }
+
+      net.busy = true;
+      const base = sanitizeBaseUrl(state.espUrl);
+      el.lastRequest.textContent = `Sending → ${base}${path}`;
+      try {
+        await espGet(base + path);
+        if (state.liveMode) {
+          setLink('ok');
+          el.lastRequest.textContent = `200 OK ← ${path}`;
+        }
+        if (freqJob && !freqJob.quiet) toast(`ESP32 PWM set to ${fmtHz(freqJob.hz)}`);
+      } catch (err) {
+        if (state.liveMode) {
+          setLink('error');
+          el.lastRequest.textContent = `Error: ${err.message}`;
+        }
+        if (freqJob && !freqJob.quiet) toast(`Couldn't reach ESP32 (${err.message})`, true);
+      } finally {
+        net.busy = false;
+        pump();
+      }
+    }
+
+    function setLiveMode(on) {
+      if (state.liveMode === on) return;
+      state.espUrl = sanitizeBaseUrl(el.url.value);
+      el.url.value = state.espUrl;
+      state.liveMode = on;
+      setLink(on ? 'live' : 'demo');
+      if (on) {
+        toast(`Live — sending to ${state.espUrl}`);
+        queueFreq(state.freq, true);
+      } else {
+        net.set = null;
+        net.freq = null;
+        toast('Demo mode — no requests sent');
+      }
+      render();
+    }
+
+    // ================================================================
+    // Toast
+    // ================================================================
+    let toastTimer = null;
+    function toast(message, isError = false) {
+      el.toastMsg.textContent = message;
+      el.toastDot.className = `dot ${isError ? 'error' : 'live'}`;
+      el.toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.toast.classList.remove('show'), 2400);
+    }
+
+    // ================================================================
+    // Controls
+    // ================================================================
+    function setBrightness(value) {
+      const next = Math.round(clamp(value));
+      if (state.power && next === state.brightness) return;
+      state.brightness = next;
+      state.power = true;
+      render();
+    }
+
+    // Power: off keeps the last level so turning back on restores it
+    el.powerSwitch.addEventListener('click', () => {
+      const lit = state.power && state.brightness > 0;
+      if (lit) {
+        state.power = false;
+      } else {
+        state.power = true;
+        if (state.brightness < 1) state.brightness = 50;
+      }
+      render();
+    });
+
+    // Vertical brightness pill: drag (relative) or tap (jump)
+    let drag = null;
+    el.briSlider.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      el.briSlider.setPointerCapture(e.pointerId);
+      drag = { id: e.pointerId, y: e.clientY, start: state.brightness, moved: false };
+      el.briSlider.classList.add('is-dragging');
+    });
+    el.briSlider.addEventListener('pointermove', (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dy = drag.y - e.clientY;
+      if (!drag.moved && Math.abs(dy) < 4) return;
+      drag.moved = true;
+      setBrightness(drag.start + (dy / el.briSlider.clientHeight) * 100);
+    });
+    function endDrag(e, cancelled) {
+      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag.moved && !cancelled) {
+        const r = el.briSlider.getBoundingClientRect();
+        setBrightness(((r.bottom - e.clientY) / r.height) * 100);
+      }
+      drag = null;
+      el.briSlider.classList.remove('is-dragging');
+    }
+    el.briSlider.addEventListener('pointerup', (e) => endDrag(e, false));
+    el.briSlider.addEventListener('pointercancel', (e) => endDrag(e, true));
+    el.briSlider.addEventListener('keydown', (e) => {
+      const cur = state.power ? state.brightness : 0;
+      const step = e.shiftKey ? 10 : 1;
+      const keys = {
+        ArrowUp: cur + step, ArrowRight: cur + step,
+        ArrowDown: cur - step, ArrowLeft: cur - step,
+        PageUp: cur + 10, PageDown: cur - 10,
+        Home: 0, End: 100,
+      };
+      if (!(e.key in keys)) return;
+      e.preventDefault();
+      setBrightness(keys[e.key]);
+    });
+
+    el.warmth.addEventListener('input', () => {
+      state.kelvin = snapKelvin(Number(el.warmth.value));
+      render();
+    });
+
+    el.boostSwitch.addEventListener('click', () => {
+      state.boost = !state.boost;
+      render();
+    });
+
+    $$('.scene').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const s = SCENES[btn.dataset.scene];
+        Object.assign(state, { power: true, brightness: s.brightness, kelvin: s.kelvin, boost: s.boost });
+        render();
+        toast(`Scene: ${s.name}`);
+      });
+    });
+
+    $$('[data-freq]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const hz = Number(btn.dataset.freq);
+        if (hz === state.freq) return;
+        state.freq = hz;
+        render({ send: false });
+        queueFreq(hz);
+      });
+    });
+
+    el.gammaSlider.addEventListener('input', () => {
+      state.gamma = Math.round(Number(el.gammaSlider.value) * 10) / 10;
+      render();
+    });
+
+    $$('[data-live]').forEach((btn) => {
+      btn.addEventListener('click', () => setLiveMode(btn.dataset.live === 'true'));
+    });
+
+    el.url.addEventListener('change', () => {
+      state.espUrl = sanitizeBaseUrl(el.url.value);
+      el.url.value = state.espUrl;
+      setLink(state.liveMode ? 'live' : 'demo');
+      render();
+    });
+    el.url.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') el.url.blur();
+    });
+
+    // Firmware copy
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        ta.remove();
+        return ok;
+      }
+    }
+    $('#copy-fw').addEventListener('click', async () => {
+      const ok = await copyText($('#fw-code').textContent);
+      if (ok) {
+        $('#copy-label').textContent = 'Copied';
+        toast('Firmware copied to clipboard');
+        setTimeout(() => { $('#copy-label').textContent = 'Copy'; }, 1800);
+      } else {
+        toast('Copy failed — open the source and copy manually', true);
+      }
+    });
+
+    // ================================================================
+    // Routing (#dashboard / #devices)
+    // ================================================================
+    function route() {
+      const view = location.hash === '#devices' ? 'devices' : 'dashboard';
+      $('#view-dashboard').hidden = view !== 'dashboard';
+      $('#view-devices').hidden = view !== 'devices';
+      $$('.nav-item').forEach((a) => {
+        if (a.dataset.view === view) a.setAttribute('aria-current', 'page');
+        else a.removeAttribute('aria-current');
+      });
+    }
+    window.addEventListener('hashchange', () => {
+      route();
+      window.scrollTo({ top: 0 });
+    });
+
+    // ================================================================
+    // Init
+    // ================================================================
+    el.url.value = state.espUrl;
+    setLink(state.liveMode ? 'live' : 'demo');
+    route();
+    if (state.liveMode) queueFreq(state.freq, true);
+    render();
+  })();
+  </script>
+</body>
+</html>
